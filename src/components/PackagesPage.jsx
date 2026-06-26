@@ -1518,12 +1518,12 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                   />
                 </div>
-                <div className="col-span-2 flex items-end gap-2">
-                  <div className="flex-1">
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
-                      Base Price · Retail
-                      <span className="ml-1 text-amber-600">{priceInUsd ? 'USD' : '₹'}</span>
-                    </label>
+                <div>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
+                    Base Price · Retail
+                    <span className="ml-1 text-amber-600">{priceInUsd ? 'USD' : '₹'}</span>
+                  </label>
+                  <div className="flex gap-1.5 items-center">
                     <input
                       type="number"
                       required
@@ -1545,26 +1545,22 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                           setEditPkgPrice(e.target.value)
                         }
                       }}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                      className="w-full min-w-0 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setPriceInUsd(v => !v)}
+                      disabled={!parseFloat(settings.inrToUsdRate ?? 0)}
+                      title={!parseFloat(settings.inrToUsdRate ?? 0) ? 'Set exchange rate in Settings first' : 'Toggle INR / USD'}
+                      className={`shrink-0 px-2.5 py-[9px] text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${priceInUsd
+                        ? 'bg-amber-500 text-white border-amber-500 hover:bg-amber-600'
+                        : 'bg-stone-100 text-stone-500 border-stone-200 hover:bg-stone-200'
+                        } disabled:opacity-40 disabled:cursor-not-allowed`}
+                    >
+                      {priceInUsd ? 'USD' : '₹'}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setPriceInUsd(v => !v)}
-                    disabled={!parseFloat(settings.inrToUsdRate ?? 0)}
-                    title={!parseFloat(settings.inrToUsdRate ?? 0) ? 'Set exchange rate in Settings first' : 'Toggle INR / USD'}
-                    className={`shrink-0 px-2.5 py-[9px] text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${priceInUsd
-                      ? 'bg-amber-500 text-white border-amber-500 hover:bg-amber-600'
-                      : 'bg-stone-100 text-stone-500 border-stone-200 hover:bg-stone-200'
-                      } disabled:opacity-40 disabled:cursor-not-allowed`}
-                  >
-                    {priceInUsd ? 'USD' : '₹ INR'}
-                  </button>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-1" />
                 <div>
                   <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
                     Cost Price · Supplier
