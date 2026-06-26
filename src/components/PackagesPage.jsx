@@ -1,6 +1,20 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import Markdown from 'react-markdown'
 
-export default function PackagesPage({ packages, setPackages, clients, bookings, setBookings, settings, addNotification }) {
+const MdInline = ({ children, className }) => (
+  <Markdown
+    components={{
+      p: ({ children }) => <span className={className}>{children}</span>,
+      strong: ({ children }) => <strong className="font-extrabold">{children}</strong>,
+    }}
+  >
+    {children}
+  </Markdown>
+)
+
+const formatUSD = (price) => price != null ? `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
+
+export default function PackagesPage({ packages, setPackages, clients, bookings, setBookings, settings, addNotification, onBookForPackage }) {
   const [selectedPackage, setSelectedPackage] = useState(null)
   const [filterRegion, setFilterRegion] = useState('All')
   const [showAddPackageForm, setShowAddPackageForm] = useState(false)
@@ -29,7 +43,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   const [pkgInclusionInput, setPkgInclusionInput] = useState('')
   const [pkgExclusions, setPkgExclusions] = useState([])
   const [pkgExclusionInput, setPkgExclusionInput] = useState('')
- 
+
 
   // Edit Package Form States
   const [showEditPackageForm, setShowEditPackageForm] = useState(false)
@@ -37,6 +51,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   const [editPkgDays, setEditPkgDays] = useState('5')
   const [editPkgPrice, setEditPkgPrice] = useState('3000')
   const [editPkgCostPrice, setEditPkgCostPrice] = useState('')
+  const [priceInUsd, setPriceInUsd] = useState(false)
   const [editPkgRegion, setEditPkgRegion] = useState('Asia')
   const [editPkgSlots, setEditPkgSlots] = useState('15')
   const [editPkgCardImage, setEditPkgCardImage] = useState('')
@@ -63,6 +78,8 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   const [calcPackageId, setCalcPackageId] = useState('')
   const [calcCost, setCalcCost] = useState('3000')
   const [calcMarkup, setCalcMarkup] = useState(settings?.rules?.markup ?? settings?.defaultMarkup?.toString() ?? '15')
+  const [calcProfit, setCalcProfit] = useState('450')
+  const [calcLastEdited, setCalcLastEdited] = useState('markup')
   const [calcSplit, setCalcSplit] = useState(settings?.rules?.agentSplit ?? settings?.defaultAgentSplit?.toString() ?? '40') // Agent split %
 
   // Itinerary Builder State
@@ -70,6 +87,9 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   const [newDayTitle, setNewDayTitle] = useState('')
   const [newDayDesc, setNewDayDesc] = useState('')
   const [itineraryError, setItineraryError] = useState('')
+
+  // Ref for smooth-scrolling to calculator from Quick Quote
+  const calculatorRef = useRef(null)
 
 
   // Filter package catalog
@@ -80,9 +100,12 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   // Calculates Margin metrics
   const cost = parseFloat(calcCost) || 0
   const markupPercent = parseFloat(calcMarkup) || 0
+  const profitINR = parseFloat(calcProfit) || 0
   const splitPercent = parseFloat(calcSplit) || 0
 
-  const retailPrice = cost * (1 + markupPercent / 100)
+  const retailPrice = calcLastEdited === 'profit'
+    ? cost + profitINR
+    : cost * (1 + markupPercent / 100)
   const totalMargin = retailPrice - cost
   const marginPercent = retailPrice > 0 ? (totalMargin / retailPrice) * 100 : 0
   const agentCommission = totalMargin * (splitPercent / 100)
@@ -92,7 +115,12 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     setCalcPackageId(packageId)
     const pkg = packages.find(p => p.id === packageId)
     if (pkg) {
-      setCalcCost((pkg.costPrice || pkg.basePrice).toString())
+      const c = pkg.costPrice || pkg.basePrice
+      setCalcCost(c.toString())
+      const derivedMarkup = c > 0 ? ((pkg.basePrice - c) / c) * 100 : 0
+      setCalcMarkup(derivedMarkup.toFixed(2))
+      setCalcProfit((pkg.basePrice - c).toFixed(2))
+      setCalcLastEdited('markup')
     }
   }
 
@@ -111,7 +139,9 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     try {
       if (addNotification) addNotification('Uploading image...', 'info')
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const token = localStorage.getItem('kraft_token')
       const response = await fetch(`${API_URL}/api/upload`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         method: 'POST',
         body: formData
       })
@@ -224,7 +254,6 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       region: pkgRegion,
       slots: bespokeMode ? { booked: 0, total: 999 } : { booked: 0, total: parseInt(pkgSlots) || 10 },
       trend: 'New',
-      color: 'bg-stone-100 text-stone-800 border-stone-200',
       inclusionsSelection: pkgInclusions,
       heroImage: pkgHeroImage,
       cardImage: pkgCardImage,
@@ -355,15 +384,14 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
         <div className="lg:col-span-2 space-y-6">
           {/* Destination Category Filters */}
           <div className="flex gap-2 border-b border-stone-200 pb-3">
-            {['All', 'Asia', 'Europe'].map(reg => (
+            {['All', 'Africa', 'Asia', 'Australia', 'Europe', 'North America', 'South America'].map(reg => (
               <button
                 key={reg}
                 onClick={() => setFilterRegion(reg)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  filterRegion === reg 
-                    ? 'bg-amber-600 text-white shadow-sm' 
-                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${filterRegion === reg
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                  }`}
               >
                 {reg === 'All' ? 'All Regions' : reg}
               </button>
@@ -379,9 +407,8 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                 <div
                   key={pkg.id}
                   onClick={() => setSelectedPackage(pkg)}
-                  className={`bg-white border rounded-2xl p-5 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group relative ${
-                    selectedPackage?.id === pkg.id ? 'ring-1 ring-amber-500 border-amber-300' : 'border-stone-200'
-                  }`}
+                  className={`bg-white border rounded-2xl p-5 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group relative ${selectedPackage?.id === pkg.id ? 'ring-1 ring-amber-500 border-amber-300' : 'border-stone-200'
+                    }`}
                 >
                   <div>
                     {/* Header: base price and region tag */}
@@ -391,6 +418,9 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                       </span>
                       <div className="flex items-center gap-1.5 text-stone-400 bg-stone-50 px-2 py-1 rounded border border-stone-100/60">
                         <span className="text-xs font-bold text-stone-800 mr-0.5">₹{pkg.basePrice.toLocaleString('en-IN')}</span>
+                        {pkg.usdBasePrice != null && (
+                          <span className="text-[9px] text-stone-500 font-medium mr-0.5">{formatUSD(pkg.usdBasePrice)}</span>
+                        )}
                         {pkg.costPrice > 0 && (
                           <span className="text-[9px] text-emerald-600 font-bold ml-0.5">
                             +{Math.round((pkg.basePrice - pkg.costPrice) / pkg.costPrice * 100)}%
@@ -436,45 +466,61 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
 
                   {/* Allotment Details & Visual Progress Bar */}
                   <div className="border-t border-stone-100 mt-4 pt-3 text-xs">
-                    <div className="flex justify-between items-center mb-1.5">
-                      <div>
-                        <span className="text-[9px] text-stone-400 font-bold uppercase block">Allotment Filled</span>
-                        <span className="font-semibold text-stone-700">{pkg.slots.booked}/{pkg.slots.total} Spaces</span>
+                    {pkg.isBespoke || pkg.slots.total >= 999 ? (
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="text-[9px] text-stone-400 font-bold uppercase block">Availability</span>
+                          <span className="font-semibold text-stone-700">Bespoke On Request</span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase border bg-blue-50 text-blue-700 border-blue-200">
+                          Custom
+                        </span>
                       </div>
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase border ${
-                        isLowAllotment
-                          ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
-                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      }`}>
-                        {isLowAllotment ? `${spotsLeft} Slots Left!` : 'Available'}
-                      </span>
-                    </div>
-                    <div className="w-full bg-stone-100 rounded-full h-1.5 overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-500 ${isLowAllotment ? 'bg-rose-500' : 'bg-amber-500'}`}
-                        style={{ width: `${(pkg.slots.booked / pkg.slots.total) * 100}%` }}
-                      ></div>
-                    </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <div>
+                            <span className="text-[9px] text-stone-400 font-bold uppercase block">Allotment Filled</span>
+                            <span className="font-semibold text-stone-700">{pkg.slots.booked}/{pkg.slots.total} Spaces</span>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase border ${isLowAllotment
+                            ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}>
+                            {isLowAllotment ? `${spotsLeft} Slots Left!` : 'Available'}
+                          </span>
+                        </div>
+                        <div className="w-full bg-stone-100 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${isLowAllotment ? 'bg-rose-500' : 'bg-amber-500'}`}
+                            style={{ width: `${(pkg.slots.booked / pkg.slots.total) * 100}%` }}
+                          ></div>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Quick CTAs on Card */}
                   <div className="flex gap-2 mt-4 pt-3 border-t border-stone-100/60">
-                    <button 
+                    <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        alert(`Booking request registered for ${pkg.name}!`);
+                        if (onBookForPackage) {
+                          onBookForPackage(pkg.name)
+                        }
                       }}
                       className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-bold shadow-sm active:scale-[0.98] transition-all cursor-pointer text-center"
                     >
                       Book Now
                     </button>
-                    <button 
+                    <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        const clientName = prompt(`Enter client name for quick quote on ${pkg.name}:`)
-                        if (clientName) {
-                          alert(`Drafted Quote for ${clientName}:\nPackage: ${pkg.name}\nRetail Cost: ₹${pkg.basePrice.toLocaleString('en-IN')}`);
-                        }
+                        // Pre-fill the margin calculator with this package and scroll to it
+                        handlePackageSelectChange(pkg.id)
+                        setTimeout(() => {
+                          calculatorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                        }, 100)
                       }}
                       className="flex-1 py-1.5 bg-white hover:bg-stone-50 border border-stone-200/70 text-stone-700 rounded-lg text-[10px] font-bold shadow-sm active:scale-[0.98] transition-all cursor-pointer text-center"
                     >
@@ -487,7 +533,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
           </div>
 
           {/* Pricing Calculator Panel */}
-          <div className="bg-white border border-stone-200/85 rounded-2xl p-5 shadow-sm space-y-4">
+          <div ref={calculatorRef} className="bg-white border border-stone-200/85 rounded-2xl p-5 shadow-sm space-y-4">
             <div>
               <h3 className="text-sm font-bold text-stone-900 tracking-tight">Dynamic Commission & Margin Calculator</h3>
               <p className="text-[11px] text-stone-400">Estimate agency commission splits and retail cost margin limits.</p>
@@ -520,13 +566,22 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-b border-stone-100 pb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 border-b border-stone-100 pb-4">
               <div>
                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Supplier Cost (INR)</label>
                 <input
                   type="number"
                   value={calcCost}
-                  onChange={(e) => setCalcCost(e.target.value)}
+                  onChange={(e) => {
+                    setCalcCost(e.target.value)
+                    if (calcLastEdited === 'profit') {
+                      const newCost = parseFloat(e.target.value) || 0
+                      setCalcMarkup(newCost > 0 ? ((profitINR / newCost) * 100).toFixed(2) : '0')
+                    } else {
+                      const newCost = parseFloat(e.target.value) || 0
+                      setCalcProfit((newCost * (markupPercent / 100)).toFixed(2))
+                    }
+                  }}
                   className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                 />
               </div>
@@ -536,18 +591,29 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   <input
                     type="number"
                     value={calcMarkup}
-                    onChange={(e) => setCalcMarkup(e.target.value)}
+                    onChange={(e) => {
+                      setCalcMarkup(e.target.value)
+                      setCalcLastEdited('markup')
+                      const newMarkup = parseFloat(e.target.value) || 0
+                      setCalcProfit((cost * (newMarkup / 100)).toFixed(2))
+                    }}
                     className="w-16 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
                   />
-                  <input
-                    type="range"
-                    min="0"
-                    max="50"
-                    value={calcMarkup}
-                    onChange={(e) => setCalcMarkup(e.target.value)}
-                    className="flex-1 accent-amber-600 cursor-pointer"
-                  />
                 </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Desired Profit (INR)</label>
+                <input
+                  type="number"
+                  value={calcProfit}
+                  onChange={(e) => {
+                    setCalcProfit(e.target.value)
+                    setCalcLastEdited('profit')
+                    const newProfit = parseFloat(e.target.value) || 0
+                    setCalcMarkup(cost > 0 ? ((newProfit / cost) * 100).toFixed(2) : '0')
+                  }}
+                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                />
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Agent Split (%)</label>
@@ -560,47 +626,66 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
               </div>
             </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-center">
-                <div className="bg-[#FAF9F5] p-3 rounded-xl border border-stone-200/40">
-                  <span className="text-[9px] font-bold text-stone-400 block uppercase mb-1">Retail Price</span>
-                  <span className="text-sm font-extrabold text-stone-900">₹{retailPrice.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                </div>
-                <div className="bg-[#FAF9F5] p-3 rounded-xl border border-stone-200/40">
-                  <span className="text-[9px] font-bold text-stone-400 block uppercase mb-1">Total Margin</span>
-                  <div className="flex flex-col items-center">
-                    <span className="text-sm font-extrabold text-amber-700">₹{totalMargin.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                    <span className="text-[9px] text-stone-500 font-bold mt-0.5">{marginPercent.toFixed(1)}% of retail</span>
-                  </div>
-                </div>
-                <div className="bg-[#FAF9F5] p-3 rounded-xl border border-stone-200/40">
-                  <span className="text-[9px] font-bold text-stone-400 block uppercase mb-1">Agent Yield</span>
-                  <span className="text-sm font-extrabold text-stone-800">₹{agentCommission.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                </div>
-                <div className="bg-amber-600/5 p-3 rounded-xl border border-amber-600/10">
-                  <span className="text-[9px] font-bold text-amber-700 block uppercase mb-1">Agency Net</span>
-                  <span className="text-sm font-extrabold text-amber-800">₹{agencyRevenue.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-center">
+              <div className="bg-[#FAF9F5] p-3 rounded-xl border border-stone-200/40">
+                <span className="text-[9px] font-bold text-stone-400 block uppercase mb-1">Retail Price</span>
+                <span className="text-sm font-extrabold text-stone-900">₹{retailPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                {calcPackageId && packages.find(p => p.id === calcPackageId)?.usdBasePrice != null && (
+                  <span className="text-[9px] text-stone-500 block mt-0.5">{formatUSD(packages.find(p => p.id === calcPackageId).usdBasePrice)}</span>
+                )}
+              </div>
+              <div className="bg-[#FAF9F5] p-3 rounded-xl border border-stone-200/40">
+                <span className="text-[9px] font-bold text-stone-400 block uppercase mb-1">Total Margin</span>
+                <div className="flex flex-col items-center">
+                  <span className="text-sm font-extrabold text-amber-700">₹{totalMargin.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span className="text-[9px] text-stone-500 font-bold mt-0.5">{marginPercent.toFixed(1)}% of retail</span>
                 </div>
               </div>
-              {calcPackageId && (
-                <div className="border-t border-stone-100 pt-3 flex justify-end">
-                  <button
-                    onClick={() => {
-                      const pkg = packages.find(p => p.id === calcPackageId)
-                      if (pkg) {
-                        setPackages(packages.map(p => p.id === calcPackageId ? {
-                          ...p,
-                          costPrice: parseFloat(calcCost) || 0,
-                          basePrice: parseFloat(retailPrice.toFixed(2)) || p.basePrice
-                        } : p))
-                        if (addNotification) addNotification(`Cost & retail saved to ${pkg.name}`, 'success')
-                      }
-                    }}
-                    className="py-2 px-4 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10px] rounded-lg transition-all cursor-pointer"
-                  >
-                    Save Cost & Retail to Package
-                  </button>
+              <div className="bg-[#FAF9F5] p-3 rounded-xl border border-stone-200/40">
+                <span className="text-[9px] font-bold text-stone-400 block uppercase mb-1">Agent Yield</span>
+                <span className="text-sm font-extrabold text-stone-800">₹{agentCommission.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <div className="bg-amber-600/5 p-3 rounded-xl border border-amber-600/10">
+                <span className="text-[9px] font-bold text-amber-700 block uppercase mb-1">Agency Net</span>
+                <span className="text-sm font-extrabold text-amber-800">₹{agencyRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+            {/* Margin Warning */}
+            {(() => {
+              const agencyMarkup = parseInt(settings?.rules?.markup ?? settings?.defaultMarkup ?? '15')
+              return marginPercent > 0 && marginPercent < agencyMarkup ? (
+                <div className="flex items-center gap-2.5 p-3 bg-rose-50 border border-rose-200/60 rounded-xl animate-in fade-in duration-300">
+                  <svg className="w-4.5 h-4.5 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <p className="text-[11px] font-bold text-rose-800">Low Margin Warning</p>
+                    <p className="text-[10px] text-rose-600">Current margin ({marginPercent.toFixed(1)}%) is below the agency standard of {agencyMarkup}%. Consider adjusting the markup.</p>
+                  </div>
                 </div>
-              )}
+              ) : null
+            })()}
+
+            {calcPackageId && (
+              <div className="border-t border-stone-100 pt-3 flex justify-end">
+                <button
+                  onClick={() => {
+                    const pkg = packages.find(p => p.id === calcPackageId)
+                    if (pkg) {
+                      setPackages(packages.map(p => p.id === calcPackageId ? {
+                        ...p,
+                        costPrice: parseFloat(calcCost) || 0,
+                        basePrice: parseFloat(retailPrice.toFixed(2)) || p.basePrice
+                      } : p))
+                      if (addNotification) addNotification(`Cost & retail saved to ${pkg.name}`, 'success')
+                    }
+                  }}
+                  className="py-2 px-4 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10px] rounded-lg transition-all cursor-pointer"
+                >
+                  Save Cost & Retail to Package
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -736,7 +821,9 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
               {selectedPackage.description && (
                 <div className="border-t border-stone-100 pt-4 space-y-1">
                   <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Overview</h4>
-                  <p className="text-[11px] text-stone-600 leading-relaxed">{selectedPackage.description}</p>
+                  <div className="text-[11px] text-stone-600 leading-relaxed">
+                    <Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{selectedPackage.description}</Markdown>
+                  </div>
                 </div>
               )}
 
@@ -748,7 +835,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     {selectedPackage.highlights.map((h, i) => (
                       <li key={i} className="flex items-start gap-2 text-[11px] text-stone-600">
                         <span className="text-amber-600 mt-0.5 shrink-0">&#9679;</span>
-                        {h}
+                        <MdInline className="">{h}</MdInline>
                       </li>
                     ))}
                   </ul>
@@ -761,7 +848,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Inclusions</h4>
                   <div className="flex flex-wrap gap-1">
                     {selectedPackage.inclusions.map((item, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded text-[10px] text-emerald-700 font-medium">{item}</span>
+                      <span key={i} className="px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded text-[10px] text-emerald-700 font-medium"><MdInline>{item}</MdInline></span>
                     ))}
                   </div>
                 </div>
@@ -773,53 +860,68 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Exclusions</h4>
                   <div className="flex flex-wrap gap-1">
                     {selectedPackage.exclusions.map((item, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-rose-50 border border-rose-200 rounded text-[10px] text-rose-700 font-medium">{item}</span>
+                      <span key={i} className="px-2 py-0.5 bg-rose-50 border border-rose-200 rounded text-[10px] text-rose-700 font-medium"><MdInline>{item}</MdInline></span>
                     ))}
                   </div>
                 </div>
               )}
 
               {/* Slots Booked Adjustment */}
-              <div className="border-t border-stone-100 pt-4 space-y-2">
-                <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Booking Slots</h4>
-                <div className="flex items-center justify-between bg-stone-50 p-3 rounded-xl border border-stone-200/60">
-                  <div className="text-[11px] text-stone-600 font-semibold">
-                    <span className="text-stone-900 font-bold">{selectedPackage.slots?.booked ?? 0}</span> / {selectedPackage.slots?.total ?? 10} booked
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => {
-                        const newBooked = Math.max(0, (selectedPackage.slots?.booked ?? 0) - 1)
-                        const updatedPackage = { ...selectedPackage, slots: { ...selectedPackage.slots, booked: newBooked } }
-                        setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
-                        setSelectedPackage(updatedPackage)
-                      }}
-                      className="w-6 h-6 rounded-md bg-white border border-stone-200 hover:border-amber-400 text-stone-600 hover:text-amber-700 flex items-center justify-center text-sm font-bold cursor-pointer transition-all"
-                      title="Decrease booked"
-                    >−</button>
-                    <button
-                      onClick={() => {
-                        const max = selectedPackage.slots?.total ?? 10
-                        const newBooked = Math.min(max, (selectedPackage.slots?.booked ?? 0) + 1)
-                        const updatedPackage = { ...selectedPackage, slots: { ...selectedPackage.slots, booked: newBooked } }
-                        setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
-                        setSelectedPackage(updatedPackage)
-                      }}
-                      className="w-6 h-6 rounded-md bg-white border border-stone-200 hover:border-amber-400 text-stone-600 hover:text-amber-700 flex items-center justify-center text-sm font-bold cursor-pointer transition-all"
-                      title="Increase booked"
-                    >+</button>
-                    <button
-                      onClick={() => {
-                        const updatedPackage = { ...selectedPackage, slots: { ...selectedPackage.slots, booked: 0 } }
-                        setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
-                        setSelectedPackage(updatedPackage)
-                      }}
-                      className="ml-1 px-2 py-1 rounded-md bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 text-[9px] font-bold cursor-pointer transition-all"
-                      title="Reset slots to 0"
-                    >Reset</button>
+              {selectedPackage.isBespoke || (selectedPackage.slots?.total ?? 0) >= 999 ? (
+                <div className="border-t border-stone-100 pt-4 space-y-2">
+                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Availability</h4>
+                  <div className="flex items-center justify-between bg-violet-50/50 p-3 rounded-xl border border-violet-200/60">
+                    <div className="text-[11px] text-violet-700 font-semibold flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                      </svg>
+                      Bespoke — Unlimited Availability
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-violet-100 text-violet-700 border border-violet-200">On Request</span>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="border-t border-stone-100 pt-4 space-y-2">
+                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Booking Slots</h4>
+                  <div className="flex items-center justify-between bg-stone-50 p-3 rounded-xl border border-stone-200/60">
+                    <div className="text-[11px] text-stone-600 font-semibold">
+                      <span className="text-stone-900 font-bold">{selectedPackage.slots?.booked ?? 0}</span> / {selectedPackage.slots?.total ?? 10} booked
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          const newBooked = Math.max(0, (selectedPackage.slots?.booked ?? 0) - 1)
+                          const updatedPackage = { ...selectedPackage, slots: { ...selectedPackage.slots, booked: newBooked } }
+                          setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
+                          setSelectedPackage(updatedPackage)
+                        }}
+                        className="w-6 h-6 rounded-md bg-white border border-stone-200 hover:border-amber-400 text-stone-600 hover:text-amber-700 flex items-center justify-center text-sm font-bold cursor-pointer transition-all"
+                        title="Decrease booked"
+                      >−</button>
+                      <button
+                        onClick={() => {
+                          const max = selectedPackage.slots?.total ?? 10
+                          const newBooked = Math.min(max, (selectedPackage.slots?.booked ?? 0) + 1)
+                          const updatedPackage = { ...selectedPackage, slots: { ...selectedPackage.slots, booked: newBooked } }
+                          setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
+                          setSelectedPackage(updatedPackage)
+                        }}
+                        className="w-6 h-6 rounded-md bg-white border border-stone-200 hover:border-amber-400 text-stone-600 hover:text-amber-700 flex items-center justify-center text-sm font-bold cursor-pointer transition-all"
+                        title="Increase booked"
+                      >+</button>
+                      <button
+                        onClick={() => {
+                          const updatedPackage = { ...selectedPackage, slots: { ...selectedPackage.slots, booked: 0 } }
+                          setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
+                          setSelectedPackage(updatedPackage)
+                        }}
+                        className="ml-1 px-2 py-1 rounded-md bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 text-[9px] font-bold cursor-pointer transition-all"
+                        title="Reset slots to 0"
+                      >Reset</button>
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Best Month & CTA Badge */}
               <div className="border-t border-stone-100 pt-4 space-y-3">
                 <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Seasonal Promotion</h4>
@@ -887,7 +989,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                       </span>
                       <div className="space-y-0.5 flex-1 pr-6">
                         <h4 className="font-bold text-stone-800">{item.title}</h4>
-                        <p className="text-[11px] text-stone-500 leading-relaxed">{item.desc}</p>
+                        <div className="text-[11px] text-stone-500 leading-relaxed"><Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{item.desc}</Markdown></div>
                       </div>
                       {/* Hover delete day button */}
                       <button
@@ -957,6 +1059,11 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                       onChange={(e) => setNewDayDesc(e.target.value)}
                       className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none resize-none"
                     ></textarea>
+                    {newDayDesc && (
+                      <div className="mt-1 p-2 bg-stone-50 border border-stone-200 rounded text-[11px] text-stone-600 leading-relaxed">
+                        <Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{newDayDesc}</Markdown>
+                      </div>
+                    )}
                   </div>
 
                   <button
@@ -998,10 +1105,10 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       {/* Add Package Modal */}
       {showAddPackageForm && (
         <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-md flex flex-col max-h-[85vh] animate-in zoom-in duration-200">
+          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-xl flex flex-col max-h-[85vh] animate-in zoom-in duration-200">
             <div className="flex justify-between items-center p-6 pb-4 border-b border-stone-100 shrink-0">
               <h3 className="text-base font-bold text-stone-900">{bespokeMode ? 'Add Bespoke Package' : 'Add Vacation Package'}</h3>
-              <button 
+              <button
                 onClick={() => { setShowAddPackageForm(false); setBespokeMode(false) }}
                 className="p-1 rounded-lg hover:bg-stone-100 text-stone-400 cursor-pointer"
               >
@@ -1063,7 +1170,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Base Price (INR)</label>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Base Price (INR) · Retail</label>
                   <input
                     type="number"
                     required
@@ -1075,7 +1182,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Cost Price (INR)</label>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Cost Price (INR) · Supplier</label>
                   <input
                     type="number"
                     min="0"
@@ -1087,6 +1194,37 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                 </div>
               </div>
 
+              {/* Live margin preview + apply default markup */}
+              {(() => {
+                const base = parseFloat((pkgPrice || '').replace(/,/g, '')) || 0
+                const cost = parseFloat((pkgCostPrice || '').replace(/,/g, '')) || 0
+                const marginINR = base - cost
+                const marginPct = cost > 0 ? (marginINR / cost) * 100 : 0
+                const defaultMarkupPct = parseFloat(settings?.rules?.markup ?? settings?.defaultMarkup ?? '15') || 0
+                const applyDefault = () => {
+                  if (cost <= 0) return
+                  const newBase = (cost * (1 + defaultMarkupPct / 100)).toFixed(2)
+                  setPkgPrice(newBase)
+                }
+                return (
+                  <div className="flex items-center justify-between p-2.5 bg-[#FAF9F5] border border-stone-200/60 rounded-lg">
+                    <span className="text-[11px] text-stone-600 font-semibold">
+                      Margin: <span className="text-amber-700 font-bold">₹{marginINR.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      {cost > 0 && <span className="text-stone-400 ml-1">({marginPct.toFixed(1)}% over cost)</span>}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={applyDefault}
+                      disabled={cost <= 0}
+                      title={cost <= 0 ? 'Enter Cost Price first' : `Apply agency default markup of ${defaultMarkupPct}%`}
+                      className="px-2.5 py-1 text-[10px] font-bold rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+                    >
+                      Apply Default Markup ({defaultMarkupPct}%)
+                    </button>
+                  </div>
+                )
+              })()}
+
               <div className={`grid ${bespokeMode ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}>
                 <div>
                   <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Destination Region</label>
@@ -1095,10 +1233,12 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     onChange={(e) => setPkgRegion(e.target.value)}
                     className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                   >
-                    <option value="Asia">Asia</option>
-                    <option value="Europe">Europe</option>
-                    <option value="Americas">Americas</option>
                     <option value="Africa">Africa</option>
+                    <option value="Asia">Asia</option>
+                    <option value="Australia">Australia</option>
+                    <option value="Europe">Europe</option>
+                    <option value="North America">North America</option>
+                    <option value="South America">South America</option>
                   </select>
                 </div>
                 {!bespokeMode && (
@@ -1178,6 +1318,14 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   placeholder="Describe the travel package experience..."
                   className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none resize-none"
                 />
+                {pkgDescription && (
+                  <details className="mt-1.5 group">
+                    <summary className="text-[9px] font-bold text-stone-400 uppercase tracking-wider cursor-pointer hover:text-amber-600 select-none">Preview</summary>
+                    <div className="mt-1.5 p-3 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-700 leading-relaxed">
+                      <Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{pkgDescription}</Markdown>
+                    </div>
+                  </details>
+                )}
               </div>
 
               {/* Highlights */}
@@ -1305,10 +1453,10 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       {/* Edit Package Modal */}
       {showEditPackageForm && (
         <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-md flex flex-col max-h-[85vh] animate-in zoom-in duration-200">
+          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-xl flex flex-col max-h-[85vh] animate-in zoom-in duration-200">
             <div className="flex justify-between items-center p-6 pb-4 border-b border-stone-100 shrink-0">
               <h3 className="text-base font-bold text-stone-900">Edit Vacation Package</h3>
-              <button 
+              <button
                 onClick={() => setShowEditPackageForm(false)}
                 className="p-1 rounded-lg hover:bg-stone-100 text-stone-400 cursor-pointer"
               >
@@ -1317,7 +1465,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                 </svg>
               </button>
             </div>
-            
+
             <form onSubmit={handleSaveEditPackage} className="space-y-4 px-6 pb-6 overflow-y-auto">
               {/* Package Image Upload */}
               <div className="p-3 bg-stone-50/50 border border-stone-200 rounded-xl">
@@ -1370,30 +1518,113 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Base Price (₹)</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    placeholder="e.g. 35000"
-                    value={editPkgPrice}
-                    onChange={(e) => setEditPkgPrice(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                  />
+                <div className="col-span-2 flex items-end gap-2">
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
+                      Base Price · Retail
+                      <span className="ml-1 text-amber-600">{priceInUsd ? 'USD' : '₹'}</span>
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      step={priceInUsd ? '0.01' : '1'}
+                      placeholder={priceInUsd ? 'e.g. 409.36' : 'e.g. 35000'}
+                      value={(() => {
+                        const rate = parseFloat(settings.inrToUsdRate ?? 0)
+                        if (priceInUsd && rate > 0 && editPkgPrice) {
+                          return (parseFloat(editPkgPrice) / rate).toFixed(2)
+                        }
+                        return editPkgPrice
+                      })()}
+                      onChange={(e) => {
+                        const rate = parseFloat(settings.inrToUsdRate ?? 0)
+                        if (priceInUsd && rate > 0) {
+                          setEditPkgPrice((parseFloat(e.target.value) * rate).toString())
+                        } else {
+                          setEditPkgPrice(e.target.value)
+                        }
+                      }}
+                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPriceInUsd(v => !v)}
+                    disabled={!parseFloat(settings.inrToUsdRate ?? 0)}
+                    title={!parseFloat(settings.inrToUsdRate ?? 0) ? 'Set exchange rate in Settings first' : 'Toggle INR / USD'}
+                    className={`shrink-0 px-2.5 py-[9px] text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${priceInUsd
+                      ? 'bg-amber-500 text-white border-amber-500 hover:bg-amber-600'
+                      : 'bg-stone-100 text-stone-500 border-stone-200 hover:bg-stone-200'
+                      } disabled:opacity-40 disabled:cursor-not-allowed`}
+                  >
+                    {priceInUsd ? 'USD' : '₹ INR'}
+                  </button>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-1" />
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Cost Price (₹)</label>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
+                    Cost Price · Supplier
+                    <span className="ml-1 text-stone-400">{priceInUsd ? 'USD' : '₹'}</span>
+                  </label>
                   <input
                     type="number"
                     min="0"
-                    placeholder="e.g. 25000"
-                    value={editPkgCostPrice}
-                    onChange={(e) => setEditPkgCostPrice(e.target.value)}
+                    step={priceInUsd ? '0.01' : '1'}
+                    placeholder={priceInUsd ? 'e.g. 292.40' : 'e.g. 25000'}
+                    value={(() => {
+                      const rate = parseFloat(settings.inrToUsdRate ?? 0)
+                      if (priceInUsd && rate > 0 && editPkgCostPrice) {
+                        return (parseFloat(editPkgCostPrice) / rate).toFixed(2)
+                      }
+                      return editPkgCostPrice
+                    })()}
+                    onChange={(e) => {
+                      const rate = parseFloat(settings.inrToUsdRate ?? 0)
+                      if (priceInUsd && rate > 0) {
+                        setEditPkgCostPrice((parseFloat(e.target.value) * rate).toString())
+                      } else {
+                        setEditPkgCostPrice(e.target.value)
+                      }
+                    }}
                     className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                   />
                 </div>
               </div>
+
+              {/* Live margin preview + apply default markup */}
+              {(() => {
+                const base = parseFloat((editPkgPrice || '').replace(/,/g, '')) || 0
+                const cost = parseFloat((editPkgCostPrice || '').replace(/,/g, '')) || 0
+                const marginINR = base - cost
+                const marginPct = cost > 0 ? (marginINR / cost) * 100 : 0
+                const defaultMarkupPct = parseFloat(settings?.rules?.markup ?? settings?.defaultMarkup ?? '15') || 0
+                const applyDefault = () => {
+                  if (cost <= 0) return
+                  const newBase = (cost * (1 + defaultMarkupPct / 100)).toFixed(2)
+                  setEditPkgPrice(newBase)
+                }
+                return (
+                  <div className="flex items-center justify-between p-2.5 bg-[#FAF9F5] border border-stone-200/60 rounded-lg">
+                    <span className="text-[11px] text-stone-600 font-semibold">
+                      Margin: <span className="text-amber-700 font-bold">₹{marginINR.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      {cost > 0 && <span className="text-stone-400 ml-1">({marginPct.toFixed(1)}% over cost)</span>}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={applyDefault}
+                      disabled={cost <= 0}
+                      title={cost <= 0 ? 'Enter Cost Price first' : `Apply agency default markup of ${defaultMarkupPct}%`}
+                      className="px-2.5 py-1 text-[10px] font-bold rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+                    >
+                      Apply Default Markup ({defaultMarkupPct}%)
+                    </button>
+                  </div>
+                )
+              })()}
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
@@ -1403,10 +1634,12 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     onChange={(e) => setEditPkgRegion(e.target.value)}
                     className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                   >
-                    <option value="Asia">Asia</option>
-                    <option value="Europe">Europe</option>
-                    <option value="Americas">Americas</option>
                     <option value="Africa">Africa</option>
+                    <option value="Asia">Asia</option>
+                    <option value="Australia">Australia</option>
+                    <option value="Europe">Europe</option>
+                    <option value="North America">North America</option>
+                    <option value="South America">South America</option>
                   </select>
                 </div>
                 <div>
@@ -1507,6 +1740,14 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   placeholder="Describe the travel package experience..."
                   className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none resize-none"
                 />
+                {editPkgDescription && (
+                  <details className="mt-1.5 group">
+                    <summary className="text-[9px] font-bold text-stone-400 uppercase tracking-wider cursor-pointer hover:text-amber-600 select-none">Preview</summary>
+                    <div className="mt-1.5 p-3 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-700 leading-relaxed">
+                      <Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{editPkgDescription}</Markdown>
+                    </div>
+                  </details>
+                )}
               </div>
 
               {/* Highlights */}

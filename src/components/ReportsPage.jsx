@@ -1,6 +1,11 @@
+const formatUSD = (price) => price != null ? `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
+
 export default function ReportsPage({ bookings = [], packages = [], clients = [], settings = {} }) {
   const markupPercent = parseFloat(settings?.rules?.markup ?? settings?.defaultMarkup?.toString() ?? '15')
   const splitPercent = parseFloat(settings?.rules?.agentSplit ?? settings?.defaultAgentSplit?.toString() ?? '40')
+  const inrToUsdRate = parseFloat(settings?.inrToUsdRate ?? 0)
+
+  const toUSD = (inr) => inrToUsdRate > 0 ? inr / inrToUsdRate : null
 
   // Derive agents from real booking data — one row per unique non-empty agent
   const agentMap = new Map()
@@ -23,7 +28,9 @@ export default function ReportsPage({ bookings = [], packages = [], clients = []
         name: ag.name,
         bookings: ag.bookings,
         volume: `₹${ag.volume.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`,
-        commission: `₹${commission.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+        commission: `₹${commission.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`,
+        usdVolume: formatUSD(toUSD(ag.volume)),
+        usdCommission: formatUSD(toUSD(commission))
       }
     })
     .sort((a, b) => b.bookings - a.bookings)
@@ -44,7 +51,9 @@ export default function ReportsPage({ bookings = [], packages = [], clients = []
       totalBookings,
       volume: `₹${volume.toLocaleString('en-IN')}`,
       avgMargin: `${actualMarginPct.toFixed(1)}%`,
-      netProfit: `₹${netProfit.toLocaleString('en-IN', {maximumFractionDigits: 0})}`
+      netProfit: `₹${netProfit.toLocaleString('en-IN', {maximumFractionDigits: 0})}`,
+      usdVolume: formatUSD(toUSD(volume)),
+      usdNetProfit: formatUSD(toUSD(netProfit))
     }
   })
 
@@ -71,7 +80,10 @@ export default function ReportsPage({ bookings = [], packages = [], clients = []
         incomingPayments: `₹${totalInflow.toLocaleString('en-IN', {maximumFractionDigits: 0})}`,
         supplierPayouts: `₹${totalOutflow.toLocaleString('en-IN', {maximumFractionDigits: 0})}`,
         projectedCashFlow: `${netFloat >= 0 ? '+' : '-'}₹${Math.abs(netFloat).toLocaleString('en-IN', {maximumFractionDigits: 0})}`,
-        status: netFloat > 0 ? 'Healthy' : netFloat === 0 ? 'Zero Float' : 'Deficit'
+        status: netFloat > 0 ? 'Healthy' : netFloat === 0 ? 'Zero Float' : 'Deficit',
+        usdIncoming: formatUSD(toUSD(totalInflow)),
+        usdOutgoing: formatUSD(toUSD(totalOutflow)),
+        usdNetFloat: toUSD(netFloat)
       }
     })
   }
@@ -122,8 +134,14 @@ export default function ReportsPage({ bookings = [], packages = [], clients = []
                       <td className="py-3 px-6 text-center font-bold text-stone-500">#{agent.rank}</td>
                       <td className="py-3 px-6 font-semibold text-stone-900">{agent.name}</td>
                       <td className="py-3 px-6 text-center font-medium text-stone-700">{agent.bookings}</td>
-                      <td className="py-3 px-6 font-bold text-stone-800">{agent.volume}</td>
-                      <td className="py-3 px-6 text-emerald-700 font-bold">{agent.commission}</td>
+                      <td className="py-3 px-6 font-bold text-stone-800">
+                        {agent.volume}
+                        {inrToUsdRate > 0 && <span className="block text-[9px] text-stone-500 font-medium">{agent.usdVolume}</span>}
+                      </td>
+                      <td className="py-3 px-6 text-emerald-700 font-bold">
+                        {agent.commission}
+                        {inrToUsdRate > 0 && <span className="block text-[9px] text-stone-500 font-medium">{agent.usdCommission}</span>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -154,9 +172,15 @@ export default function ReportsPage({ bookings = [], packages = [], clients = []
                     <tr key={idx} className="hover:bg-stone-50/20 transition-colors duration-200 text-xs">
                       <td className="py-3 px-6 font-semibold text-stone-900">{dm.destination}</td>
                       <td className="py-3 px-6 text-center font-semibold text-stone-600">{dm.totalBookings}</td>
-                      <td className="py-3 px-6 font-bold text-stone-800">{dm.volume}</td>
+                      <td className="py-3 px-6 font-bold text-stone-800">
+                        {dm.volume}
+                        {inrToUsdRate > 0 && <span className="block text-[9px] text-stone-500 font-medium">{dm.usdVolume}</span>}
+                      </td>
                       <td className="py-3 px-6 text-center text-stone-500 font-mono">{dm.avgMargin}</td>
-                      <td className="py-3 px-6 font-extrabold text-amber-700">{dm.netProfit}</td>
+                      <td className="py-3 px-6 font-extrabold text-amber-700">
+                        {dm.netProfit}
+                        {inrToUsdRate > 0 && <span className="block text-[9px] text-stone-500 font-medium">{dm.usdNetProfit}</span>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -188,14 +212,17 @@ export default function ReportsPage({ bookings = [], packages = [], clients = []
                     <div>
                       <span className="text-[9px] text-stone-400 font-bold uppercase block">Inflow</span>
                       <span className="font-semibold text-stone-700">{item.incomingPayments}</span>
+                      {inrToUsdRate > 0 && <span className="block text-[9px] text-stone-400">{item.usdIncoming}</span>}
                     </div>
                     <div>
                       <span className="text-[9px] text-stone-400 font-bold uppercase block">Outflow</span>
                       <span className="font-semibold text-stone-500">{item.supplierPayouts}</span>
+                      {inrToUsdRate > 0 && <span className="block text-[9px] text-stone-400">{item.usdOutgoing}</span>}
                     </div>
                     <div>
                       <span className="text-[9px] text-amber-700 font-bold uppercase block">Net Float</span>
                       <span className="font-extrabold text-amber-800">{item.projectedCashFlow}</span>
+                      {inrToUsdRate > 0 && <span className="block text-[9px] text-amber-600">{item.usdNetFloat != null ? `${item.usdNetFloat >= 0 ? '+' : '-'}$${Math.abs(item.usdNetFloat).toLocaleString('en-US', {maximumFractionDigits: 0})}` : ''}</span>}
                     </div>
                   </div>
                 </div>

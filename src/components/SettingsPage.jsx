@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 
-export default function SettingsPage({ settings = {}, setSettings, addNotification }) {
+export default function SettingsPage({ settings = {}, setSettings, addNotification, packages = [] }) {
   const [editingOfferId, setEditingOfferId] = useState(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [offerForm, setOfferForm] = useState({
@@ -86,7 +86,9 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
     try {
       if (addNotification) addNotification('Uploading image...', 'info')
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const token = localStorage.getItem('kraft_token')
       const response = await fetch(`${API_URL}/api/upload`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         method: 'POST',
         body: formData
       })
@@ -168,6 +170,9 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
 
   const defaultMarkup = parseInt(settings.rules?.markup ?? settings.defaultMarkup ?? '15')
   const defaultAgentSplit = parseInt(settings.rules?.agentSplit ?? settings.defaultAgentSplit ?? '40')
+  const inrToUsdRate = parseFloat(settings.inrToUsdRate ?? 0)
+  const [saving, setSaving] = useState(null)
+  const [weatherRefreshing, setWeatherRefreshing] = useState(false)
 
   const setDefaultMarkup = (val) => {
     setSettings({
@@ -191,18 +196,29 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
     })
   }
 
+  const setInrToUsdRate = (val) => {
+    setSettings({
+      ...settings,
+      inrToUsdRate: parseFloat(val) || 0
+    })
+  }
+
+  const handleSaveSection = useCallback(async (section) => {
+    setSaving(section)
+    try {
+      await setSettings(s => ({ ...s }))
+      if (addNotification) addNotification(`${section === 'rate' ? 'Exchange rate' : 'Branding details'} saved`, 'success')
+    } catch {
+      if (addNotification) addNotification('Failed to save', 'error')
+    } finally {
+      setSaving(null)
+    }
+  }, [setSettings, addNotification])
+
   const agencyName = settings.agencyName ?? ''
   const agencyAddress = settings.agencyAddress ?? ''
   const agencyPhone = settings.agencyPhone ?? ''
   const agencyEmail = settings.agencyEmail ?? ''
-
-  const setAgencyName = (val) => {
-    setSettings({
-      ...settings,
-      agencyName: val
-    })
-  }
-
   const setAgencyAddress = (val) => {
     setSettings({
       ...settings,
@@ -546,33 +562,64 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
 
             <div className="space-y-4">
               <div>
-                <div className="flex justify-between text-xs font-semibold text-stone-800 mb-1">
-                  <span>Standard Markup</span>
-                  <span className="text-amber-700 font-bold">{defaultMarkup}%</span>
-                </div>
+                <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">
+                  Standard Markup (%)
+                </label>
                 <input
-                  type="range"
-                  min="5"
-                  max="30"
+                  type="number"
+                  min="0"
+                  max="100"
                   value={defaultMarkup}
-                  onChange={(e) => setDefaultMarkup(parseInt(e.target.value))}
-                  className="w-full accent-amber-600 cursor-pointer"
+                  onChange={(e) => setDefaultMarkup(parseInt(e.target.value) || 0)}
+                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
                 />
               </div>
 
               <div>
-                <div className="flex justify-between text-xs font-semibold text-stone-800 mb-1">
-                  <span>Agent Commission Share</span>
-                  <span className="text-amber-700 font-bold">{defaultAgentSplit}% of net margin</span>
-                </div>
+                <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">
+                  Agent Commission Share (% of net margin)
+                </label>
                 <input
-                  type="range"
-                  min="10"
-                  max="70"
+                  type="number"
+                  min="0"
+                  max="100"
                   value={defaultAgentSplit}
-                  onChange={(e) => setDefaultAgentSplit(parseInt(e.target.value))}
-                  className="w-full accent-amber-600 cursor-pointer"
+                  onChange={(e) => setDefaultAgentSplit(parseInt(e.target.value) || 0)}
+                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
                 />
+              </div>
+
+              <div className="pt-2 border-t border-stone-100">
+                <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">
+                  INR → USD Exchange Rate
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={inrToUsdRate || ''}
+                    onChange={(e) => setInrToUsdRate(e.target.value)}
+                    placeholder="e.g. 85.50"
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                  />
+                  {inrToUsdRate > 0 && (
+                    <span className="text-[10px] text-emerald-600 font-semibold whitespace-nowrap">
+                      1 USD = ₹{inrToUsdRate.toLocaleString('en-IN')}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[9px] text-stone-400 mt-1">Set to 0 to disable USD pricing across the platform.</p>
+                <button
+                  type="button"
+                  onClick={() => handleSaveSection('rate')}
+                  disabled={saving === 'rate'}
+                  className="mt-2 w-full px-3 py-1.5 text-[10px] font-bold rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                >
+                  {saving === 'rate' ? (
+                    <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Saving...</>
+                  ) : 'Save Exchange Rate'}
+                </button>
               </div>
             </div>
           </section>
@@ -589,9 +636,9 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
                 <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Brand Corporate Name</label>
                 <input
                   type="text"
+                  disabled
                   value={agencyName}
-                  onChange={(e) => setAgencyName(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                  className="w-full bg-stone-100 border border-stone-200 rounded-lg p-2 text-xs text-stone-400 cursor-not-allowed outline-none select-none"
                 />
               </div>
 
@@ -632,8 +679,115 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
                   <p className="text-[8px] text-stone-400/85 leading-normal">{agencyAddress}</p>
                   <p className="text-[8px] text-stone-400/80 mt-1">{agencyPhone} | {agencyEmail}</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => handleSaveSection('branding')}
+                  disabled={saving === 'branding'}
+                  className="mt-2 w-full px-3 py-1.5 text-[10px] font-bold rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                >
+                  {saving === 'branding' ? (
+                    <><svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Saving...</>
+                  ) : 'Save Branding Details'}
+                </button>
               </div>
             </div>
+          </section>
+
+          {/* Destination Weather Cache Management */}
+          <section className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-sm space-y-4">
+            <div>
+              <h3 className="text-sm font-bold text-stone-900 tracking-tight">Destination Weather Cache</h3>
+              <p className="text-[11px] text-stone-400">Historical weather insights cached from Open-Meteo. Data refreshes update all region forecasts atomically.</p>
+            </div>
+
+            {/* Last Updated Info */}
+            <div className="bg-stone-50 border border-stone-200/70 p-3.5 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Last Refreshed</span>
+                <span className="text-xs font-bold text-stone-800">
+                  {settings.weatherCache?.lastUpdated
+                    ? new Date(settings.weatherCache.lastUpdated).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+                    : 'Never synced'}
+                </span>
+              </div>
+              {settings.weatherCache?.lastUpdated && (
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="text-[10px] text-emerald-600 font-semibold">Cache active — valid for 7 days</span>
+                </div>
+              )}
+            </div>
+
+            {/* Representative Region Cities */}
+            <div className="space-y-2">
+              <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block">Region Coverage</span>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { region: 'Asia', city: 'Tokyo', coords: '35.68°N, 139.69°E' },
+                  { region: 'Europe', city: 'Paris', coords: '48.85°N, 2.35°E' },
+                  { region: 'Middle East', city: 'Dubai', coords: '25.20°N, 55.27°E' },
+                  { region: 'India', city: 'Delhi', coords: '28.61°N, 77.23°E' },
+                ].map((loc) => (
+                  <div key={loc.region} className="p-2.5 bg-[#FAF9F5]/40 border border-stone-200/40 rounded-xl">
+                    <span className="text-[9px] text-stone-400 font-bold uppercase block">{loc.region}</span>
+                    <span className="text-xs font-semibold text-stone-800">{loc.city}</span>
+                    <span className="text-[9px] text-stone-400 block">{loc.coords}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Refresh Button */}
+            <button
+              onClick={async () => {
+                setWeatherRefreshing(true)
+                try {
+                  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+                  const token = localStorage.getItem('kraft_token')
+                  const res = await fetch(`${API_URL}/api/weather/refresh`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    }
+                  })
+                  if (!res.ok) throw new Error(`Server returned ${res.status}`)
+                  // Re-fetch settings to get updated cache timestamp
+                  const settingsRes = await fetch(`${API_URL}/api/settings`, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                  })
+                  if (settingsRes.ok) {
+                    const updatedSettings = await settingsRes.json()
+                    setSettings(s => ({ ...s, weatherCache: updatedSettings.weatherCache }))
+                  }
+                  if (addNotification) addNotification('Weather cache refreshed successfully!', 'success')
+                } catch (err) {
+                  console.error('Weather refresh failed:', err)
+                  if (addNotification) addNotification(err.message || 'Failed to refresh weather cache', 'error')
+                } finally {
+                  setWeatherRefreshing(false)
+                }
+              }}
+              disabled={weatherRefreshing}
+              className="w-full py-2 bg-[#3D7BFF] hover:bg-[#1D63FF] text-white rounded-xl text-xs font-bold shadow-sm disabled:bg-stone-100 disabled:text-stone-400 disabled:shadow-none active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              {weatherRefreshing ? (
+                <>
+                  <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Refreshing Cache...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89" />
+                  </svg>
+                  Refresh Weather Cache
+                </>
+              )}
+            </button>
           </section>
         </div>
       </div>

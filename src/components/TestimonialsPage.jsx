@@ -5,7 +5,7 @@ const DEFAULT_AVATAR = 'data:image/svg+xml,' + encodeURIComponent(
 )
 
 const MAX_TEXT_LENGTH = 500
-const defaultForm = { name: '', location: '', avatar: '', rating: 5, text: '', package: '' }
+const defaultForm = { name: '', location: '', avatar: '', rating: 5, text: '', package: '', images: [] }
 
 export default function TestimonialsPage({ testimonials, setTestimonials, addNotification, packages }) {
   const standardPackages = (packages || []).filter(p => !p.isBespoke)
@@ -14,7 +14,10 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(defaultForm)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [previewSlides, setPreviewSlides] = useState(null)
+  const [previewIndex, setPreviewIndex] = useState(0)
   const fileInputRef = useRef(null)
+  const imageInputRef = useRef(null)
 
   const openAdd = () => {
     setForm(defaultForm)
@@ -29,7 +32,8 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
       avatar: t.avatar || '',
       rating: t.rating || 5,
       text: t.text || '',
-      package: t.package || ''
+      package: t.package || '',
+      images: t.images || []
     })
     setEditing(t)
     setShowForm(true)
@@ -45,7 +49,8 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
     try {
       if (addNotification) addNotification('Uploading avatar...', 'info')
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-      const response = await fetch(`${API_URL}/api/upload`, {
+      const token = localStorage.getItem('kraft_token')
+      const response = await fetch(`${API_URL}/api/upload`, { headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         method: 'POST',
         body: formData
       })
@@ -62,6 +67,42 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
       console.error(err)
       if (addNotification) addNotification(err.message || 'Avatar upload failed', 'error')
     }
+  }
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const formData = new FormData()
+    formData.append('image', file)
+
+    try {
+      if (addNotification) addNotification('Uploading image...', 'info')
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+      const token = localStorage.getItem('kraft_token')
+      const response = await fetch(`${API_URL}/api/upload`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || 'Failed to upload image')
+      }
+
+      const data = await response.json()
+      setForm(prev => ({ ...prev, images: [...prev.images, data.imageUrl] }))
+      if (addNotification) addNotification('Image uploaded successfully!', 'success')
+    } catch (err) {
+      console.error(err)
+      if (addNotification) addNotification(err.message || 'Image upload failed', 'error')
+    }
+    if (imageInputRef.current) imageInputRef.current.value = ''
+  }
+
+  const removeImage = (index) => {
+    setForm({ ...form, images: form.images.filter((_, i) => i !== index) })
   }
 
   const removeAvatar = () => {
@@ -137,6 +178,29 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
             </div>
             <div className="text-amber-500 text-xs tracking-wider">{stars(Math.min(Math.max(t.rating || 5, 1), 5))}</div>
             {t.text && <p className="text-xs text-stone-600 leading-relaxed line-clamp-3">{t.text}</p>}
+            {t.images && t.images.length > 0 && (
+              <div className="flex gap-1">
+                {t.images.slice(0, 3).map((url, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => { setPreviewSlides(t.images); setPreviewIndex(idx) }}
+                    className="w-12 h-12 rounded-lg overflow-hidden bg-stone-100 border border-stone-200 shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  >
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+                {t.images.length > 3 && (
+                  <button
+                    type="button"
+                    onClick={() => { setPreviewSlides(t.images); setPreviewIndex(0) }}
+                    className="w-12 h-12 rounded-lg bg-stone-100 border border-stone-200 flex items-center justify-center text-[10px] font-bold text-stone-500 cursor-pointer hover:bg-stone-200 transition-colors shrink-0"
+                  >
+                    +{t.images.length - 3}
+                  </button>
+                )}
+              </div>
+            )}
             {t.package && <span className="inline-block px-2 py-0.5 bg-stone-100 rounded text-[9px] text-stone-500 font-semibold">{t.package}</span>}
             <div className="flex gap-2 pt-2 border-t border-stone-100">
               <button onClick={() => openEdit(t)} className="flex-1 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-[10px] font-bold text-stone-700 cursor-pointer transition-all">Edit</button>
@@ -195,6 +259,45 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
                     </button>
                     <span className="text-[9px] text-stone-400 ml-2">Max 5MB</span>
                   </div>
+                </div>
+              </div>
+
+              {/* Slideshow Images */}
+              <div className="p-3 bg-stone-50/50 border border-stone-200 rounded-xl space-y-2">
+                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">Slideshow Images</label>
+                {form.images.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {form.images.map((url, idx) => (
+                      <div key={idx} className="relative group w-16 h-16 rounded-lg overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
+                        <img src={url} alt={`Slide ${idx + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(idx)}
+                          className="absolute top-0.5 right-0.5 w-4 h-4 bg-rose-500 text-white rounded-full flex items-center justify-center text-[8px] font-bold opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-stone-400 italic">No images added yet.</p>
+                )}
+                <div className="relative">
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <button
+                    type="button"
+                    className="px-3 py-1.5 bg-white border border-stone-200 hover:bg-stone-50 rounded-lg text-xs font-semibold text-stone-600 transition-all cursor-pointer"
+                  >
+                    Add Image
+                  </button>
+                  <span className="text-[9px] text-stone-400 ml-2">Max 5MB each</span>
                 </div>
               </div>
 
@@ -271,6 +374,53 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
                 <button type="submit" className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition-all cursor-pointer">{editing ? 'Save Changes' : 'Add Testimonial'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Slideshow Preview Modal */}
+      {previewSlides && (
+        <div className="fixed inset-0 bg-stone-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setPreviewSlides(null)}>
+          <div className="relative max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setPreviewSlides(null)}
+              className="absolute -top-10 right-0 text-white/70 hover:text-white text-xs font-semibold cursor-pointer z-10"
+            >
+              Close
+            </button>
+            <div className="relative aspect-video bg-stone-800 rounded-2xl overflow-hidden">
+              <img
+                src={previewSlides[previewIndex]}
+                alt={`Slide ${previewIndex + 1}`}
+                className="w-full h-full object-contain"
+              />
+              {previewSlides.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setPreviewIndex((prev) => (prev - 1 + previewSlides.length) % previewSlides.length)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm cursor-pointer transition-all border border-white/15"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <button
+                    onClick={() => setPreviewIndex((prev) => (prev + 1) % previewSlides.length)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm cursor-pointer transition-all border border-white/15"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                  </button>
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                    {previewSlides.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setPreviewIndex(idx)}
+                        className={`h-1.5 rounded-full transition-all cursor-pointer ${idx === previewIndex ? 'bg-amber-300 w-5' : 'bg-white/40 hover:bg-white/70 w-1.5'}`}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            <p className="text-center text-white/60 text-xs mt-2">{previewIndex + 1} / {previewSlides.length}</p>
           </div>
         </div>
       )}

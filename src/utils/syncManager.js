@@ -67,13 +67,15 @@ export async function processSyncQueue(addNotification, onProgress) {
     }
     
     try {
+      const token = localStorage.getItem('kraft_token');
       const res = await fetch(item.url, {
         method: item.method,
         headers: {
           ...item.headers,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
-        body: item.body
+        body: item.body,
       });
 
       if (res.ok) {

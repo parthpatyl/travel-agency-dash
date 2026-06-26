@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+
+const formatUSD = (price) => price != null ? `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
 
 export default function BookingsPage({ 
   bookings, 
@@ -8,7 +10,11 @@ export default function BookingsPage({
   packages, 
   setPackages, 
   settings, 
-  addNotification 
+  addNotification,
+  bookingDraft,
+  setBookingDraft,
+  initialSelectedBookingId,
+  onSelectBooking
 }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
@@ -23,6 +29,7 @@ export default function BookingsPage({
   const [editClient, setEditClient] = useState('')
   const [editPackage, setEditPackage] = useState('')
   const [editAmount, setEditAmount] = useState('')
+  const [editDiscount, setEditDiscount] = useState('')
   const [editDate, setEditDate] = useState('')
   const [editGuests, setEditGuests] = useState('1')
   const [editStatus, setEditStatus] = useState('Pending')
@@ -31,9 +38,36 @@ export default function BookingsPage({
   const [newClient, setNewClient] = useState('')
   const [newPackage, setNewPackage] = useState('')
   const [newAmount, setNewAmount] = useState('')
+  const [newDiscount, setNewDiscount] = useState('')
   const [newDate, setNewDate] = useState('')
   const [newGuests, setNewGuests] = useState('1')
   const [newStatus, setNewStatus] = useState('Pending')
+
+  // Consume incoming bookingDraft from cross-tab quick actions
+  useEffect(() => {
+    if (!bookingDraft) return
+    if (bookingDraft.client) setNewClient(bookingDraft.client)
+    if (bookingDraft.package) {
+      setNewPackage(bookingDraft.package)
+      const matchedPkg = packages.find(p => p.name === bookingDraft.package)
+      if (matchedPkg) {
+        const guests = parseInt(newGuests) || 1
+        setNewAmount((matchedPkg.basePrice * guests).toString())
+      }
+    }
+    setShowAddForm(true)
+    if (setBookingDraft) setBookingDraft(null)
+  }, [bookingDraft]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Deep-link: auto-select a booking when navigated from dashboard
+  useEffect(() => {
+    if (!initialSelectedBookingId) return
+    const match = bookings.find(b => b.id === initialSelectedBookingId)
+    if (match) {
+      setSelectedBooking(match)
+    }
+    if (onSelectBooking) onSelectBooking(null)
+  }, [initialSelectedBookingId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Utility Date Formatters
   const formatDate = (dateStr) => {
@@ -107,6 +141,7 @@ export default function BookingsPage({
       client: editClient,
       package: editPackage,
       amount: parseFloat(editAmount) || 0,
+      discountValue: editDiscount ? parseFloat(editDiscount) : 0,
       date: formattedDate,
       status: editStatus,
       guests: parseInt(editGuests) || 1
@@ -196,6 +231,7 @@ export default function BookingsPage({
       client: newClient,
       package: newPackage,
       amount: parseFloat(newAmount) || 0,
+      discountValue: newDiscount ? parseFloat(newDiscount) : 0,
       date: formatDate(newDate),
       status: newStatus,
       guests: guestCount
@@ -231,6 +267,7 @@ export default function BookingsPage({
     setNewClient('')
     setNewPackage('')
     setNewAmount('')
+    setNewDiscount('')
     setNewDate('')
     setNewGuests('1')
     setNewStatus('Pending')
@@ -346,7 +383,10 @@ export default function BookingsPage({
                         </td>
                         <td className="py-3.5 px-6 font-semibold text-stone-900">{b.client}</td>
                         <td className="py-3.5 px-6 text-stone-600">{b.package}</td>
-                        <td className="py-3.5 px-6 font-bold text-stone-800">₹{Number(b.amount).toLocaleString('en-IN')}</td>
+                        <td className="py-3.5 px-6 font-bold text-stone-800">
+                          ₹{Number(b.amount).toLocaleString('en-IN')}
+                          {b.usdAmount != null && <span className="ml-1 text-[9px] text-stone-500 font-medium">{formatUSD(b.usdAmount)}</span>}
+                        </td>
                         <td className="py-3.5 px-6 text-stone-500">{b.date}</td>
                         <td className="py-3.5 px-6">
                           <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
@@ -448,26 +488,90 @@ export default function BookingsPage({
                 </div>
               </div>
 
-              {/* Invoicing Breakdown */}
-              <div className="border-t border-stone-100 pt-4 space-y-2.5">
-                <div className="flex justify-between text-xs">
-                  <span className="text-stone-500 font-medium">Package Cost</span>
-                  <span className="font-semibold text-stone-800">₹{Number(selectedBooking.amount).toLocaleString('en-IN')}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-stone-500 font-medium">Deposit Collected</span>
-                  <span className="font-semibold text-stone-800">
-                    {selectedBooking.status === 'Paid' ? `₹${Number(selectedBooking.amount).toLocaleString('en-IN')}` : '₹1,000'}
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs border-t border-stone-100 pt-2">
-                  <span className="text-stone-800 font-bold">Outstanding Balance</span>
-                  <span className={`font-bold ${selectedBooking.status === 'Paid' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    {selectedBooking.status === 'Paid' ? '₹0' : '₹2,700'}
-                  </span>
-                </div>
-              </div>
+              {/* Dynamic Invoicing Breakdown — Client View */}
+              {(() => {
+                const bookingPkg = packages.find(p => p.name === selectedBooking.package)
+                const perGuestPrice = bookingPkg?.basePrice || Number(selectedBooking.amount) || 0
+                const costPerGuest = bookingPkg?.costPrice || 0
+                const guestCount = selectedBooking.guests || 1
+                const grossSubtotal = perGuestPrice * guestCount
+                const totalCost = costPerGuest * guestCount
+                const discountAmount = Number(selectedBooking.discountValue) || 0
+                const taxRate = bookingPkg?.taxRate ?? 0
+                const taxableAmount = grossSubtotal - discountAmount
+                const gstAmount = taxableAmount * (taxRate / 100)
+                const netTotal = taxableAmount + gstAmount
+                const depositPct = parseFloat(settings.depositPercent ?? 20)
+                const depositCollected = selectedBooking.status === 'Paid' ? netTotal : Math.round(netTotal * (depositPct / 100))
+                const outstandingBalance = Math.round(netTotal) - Math.round(depositCollected)
+                const grossMargin = grossSubtotal - totalCost
+                const markupPct = parseFloat(settings.rules?.markup ?? settings.defaultMarkup ?? '15')
+                const splitPct = parseFloat(settings.rules?.agentSplit ?? settings.defaultAgentSplit ?? '40')
+                const agentCommissionSplit = grossMargin * (splitPct / 100)
+                const agencyNetMargin = grossMargin - agentCommissionSplit
+                const inrToUsdRate = parseFloat(settings.inrToUsdRate ?? 0)
+                const toUSD = (inr) => inrToUsdRate > 0 ? inr / inrToUsdRate : null
+                const usd = (inr) => inrToUsdRate > 0 && inr != null ? `${Number(inr / inrToUsdRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
 
+                return (
+                  <div className="border-t border-stone-100 pt-4 space-y-2">
+                    <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Invoice Breakdown</h4>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-stone-500 font-medium">Gross Subtotal <span className="text-[9px] text-stone-400">({guestCount} × ₹{perGuestPrice.toLocaleString('en-IN')})</span></span>
+                      <span className="font-semibold text-stone-800">₹{Math.round(grossSubtotal).toLocaleString('en-IN')}{usd(grossSubtotal) && <span className="ml-1 text-[9px] text-stone-400">{usd(grossSubtotal)}</span>}</span>
+                    </div>
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-emerald-600 font-medium">Applied Discount</span>
+                        <span className="font-semibold text-emerald-700">−₹{Math.round(discountAmount).toLocaleString('en-IN')}{usd(discountAmount) && <span className="ml-1 text-[9px] text-emerald-400">{usd(discountAmount)}</span>}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-xs">
+                      <span className="text-stone-500 font-medium">GST / Taxes <span className="text-[9px] text-stone-400">({taxRate}%)</span></span>
+                      <span className="font-semibold text-stone-800">₹{Math.round(gstAmount).toLocaleString('en-IN')}{usd(gstAmount) && <span className="ml-1 text-[9px] text-stone-400">{usd(gstAmount)}</span>}</span>
+                    </div>
+                    <div className="flex justify-between text-xs border-t border-stone-200/50 pt-2">
+                      <span className="text-stone-800 font-bold">Net Total</span>
+                      <span className="font-extrabold text-stone-900">₹{Math.round(netTotal).toLocaleString('en-IN')}{usd(netTotal) && <span className="ml-1 text-[9px] text-stone-500">{usd(netTotal)}</span>}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-stone-500 font-medium">Deposit Collected <span className="text-[9px] text-stone-400">({selectedBooking.status === 'Paid' ? '100%' : depositPct + '% advance'})</span></span>
+                      <span className="font-semibold text-stone-800">₹{Math.round(depositCollected).toLocaleString('en-IN')}{usd(depositCollected) && <span className="ml-1 text-[9px] text-stone-400">{usd(depositCollected)}</span>}</span>
+                    </div>
+                    <div className="flex justify-between text-xs border-t border-stone-100 pb-2">
+                      <span className="text-stone-800 font-bold">Outstanding Balance</span>
+                      <span className={`font-bold ${outstandingBalance <= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {outstandingBalance <= 0 ? '₹0' : `₹${outstandingBalance.toLocaleString('en-IN')}`}{usd(outstandingBalance) && outstandingBalance > 0 && <span className="ml-1 text-[9px] text-stone-400">{usd(outstandingBalance)}</span>}
+                      </span>
+                    </div>
+
+                    {/* Margin & Commission — Internal View */}
+                    {costPerGuest > 0 && (
+                      <>
+                        <div className="border-t border-dashed border-stone-200/60 pt-2 space-y-1.5">
+                          <h4 className="text-[10px] font-bold text-stone-700 uppercase tracking-wider">Margin &amp; Commission</h4>
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-stone-500">Supplier Cost <span className="text-[8px] text-stone-400">({guestCount} × ₹{Math.round(costPerGuest).toLocaleString('en-IN')})</span></span>
+                            <span className="font-semibold text-stone-600">₹{Math.round(totalCost).toLocaleString('en-IN')}{usd(totalCost) && <span className="ml-1 text-[8px] text-stone-400">{usd(totalCost)}</span>}</span>
+                          </div>
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-stone-500">Gross Margin</span>
+                            <span className="font-semibold text-emerald-600">₹{Math.round(grossMargin).toLocaleString('en-IN')}{usd(grossMargin) && <span className="ml-1 text-[8px] text-emerald-400">{usd(grossMargin)}</span>}</span>
+                          </div>
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-stone-500">Agent Commission <span className="text-[8px] text-stone-400">({splitPct}% of margin)</span></span>
+                            <span className="font-semibold text-stone-600">₹{Math.round(agentCommissionSplit).toLocaleString('en-IN')}{usd(agentCommissionSplit) && <span className="ml-1 text-[8px] text-stone-400">{usd(agentCommissionSplit)}</span>}</span>
+                          </div>
+                          <div className="flex justify-between text-[10px] font-bold border-t border-stone-200/60 pt-1">
+                            <span className="text-amber-700">Agency Net Margin</span>
+                            <span className="text-amber-800">₹{Math.round(agencyNetMargin).toLocaleString('en-IN')}{usd(agencyNetMargin) && <span className="ml-1 text-[8px] text-stone-500">{usd(agencyNetMargin)}</span>}</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              })()}
               {/* Group Members */}
               {selectedBooking.groupMembers?.length > 1 && (
                 <div className="border-t border-stone-100 pt-4 space-y-2.5">
@@ -543,6 +647,7 @@ export default function BookingsPage({
                     setEditClient(selectedBooking.client)
                     setEditPackage(selectedBooking.package)
                     setEditAmount(String(selectedBooking.amount))
+                    setEditDiscount(String(selectedBooking.discountValue ?? ''))
                     setEditDate(parseDateToInputFormat(selectedBooking.date))
                     setEditGuests(String(selectedBooking.guests || 1))
                     setEditStatus(selectedBooking.status)
@@ -621,7 +726,8 @@ export default function BookingsPage({
                     setNewPackage(pkgName)
                     const selectedPkg = packages.find(p => p.name === pkgName)
                     if (selectedPkg) {
-                      setNewAmount(selectedPkg.basePrice.toString())
+                      const guests = parseInt(newGuests) || 1
+                      setNewAmount((selectedPkg.basePrice * guests).toString())
                     }
                   }}
                   className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
@@ -646,13 +752,31 @@ export default function BookingsPage({
                   />
                 </div>
                 <div>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Discount (INR)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={newDiscount}
+                    onChange={(e) => setNewDiscount(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
+                  />
+                </div>
+                <div>
                   <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Guests</label>
                   <input
                     type="number"
                     min="1"
                     required
                     value={newGuests}
-                    onChange={(e) => setNewGuests(e.target.value)}
+                    onChange={(e) => {
+                      setNewGuests(e.target.value)
+                      const selectedPkg = packages.find(p => p.name === newPackage)
+                      if (selectedPkg) {
+                        const guests = parseInt(e.target.value) || 1
+                        setNewAmount((selectedPkg.basePrice * guests).toString())
+                      }
+                    }}
                     className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
                   />
                 </div>
@@ -748,7 +872,8 @@ export default function BookingsPage({
                     setEditPackage(pkgName)
                     const selectedPkg = packages.find(p => p.name === pkgName)
                     if (selectedPkg) {
-                      setEditAmount(selectedPkg.basePrice.toString())
+                      const guests = parseInt(editGuests) || 1
+                      setEditAmount((selectedPkg.basePrice * guests).toString())
                     }
                   }}
                   className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
@@ -773,13 +898,31 @@ export default function BookingsPage({
                   />
                 </div>
                 <div>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Discount (INR)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={editDiscount}
+                    onChange={(e) => setEditDiscount(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
+                  />
+                </div>
+                <div>
                   <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Guests</label>
                   <input
                     type="number"
                     min="1"
                     required
                     value={editGuests}
-                    onChange={(e) => setEditGuests(e.target.value)}
+                    onChange={(e) => {
+                      setEditGuests(e.target.value)
+                      const selectedPkg = packages.find(p => p.name === editPackage)
+                      if (selectedPkg) {
+                        const guests = parseInt(e.target.value) || 1
+                        setEditAmount((selectedPkg.basePrice * guests).toString())
+                      }
+                    }}
                     className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
                   />
                 </div>

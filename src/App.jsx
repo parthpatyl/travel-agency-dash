@@ -5,6 +5,7 @@ import PackagesPage from './components/PackagesPage'
 import ReportsPage from './components/ReportsPage'
 import SettingsPage from './components/SettingsPage'
 import TestimonialsPage from './components/TestimonialsPage'
+import LoginPage from './components/LoginPage'
 import logo from './assets/logo.png'
 import { 
   getQueue, 
@@ -37,10 +38,54 @@ const initialBookings = []
 
 const initialTestimonials = []
 
+const VALID_TABS = ['dashboard', 'bookings', 'clients', 'packages', 'reports', 'testimonials', 'settings']
+
+function getTabFromHash() {
+  const hash = window.location.hash.replace('#', '')
+  return VALID_TABS.includes(hash) ? hash : 'dashboard'
+}
+
 function App() {
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const [activeTab, setActiveTabRaw] = useState(getTabFromHash)
   const [searchQuery, setSearchQuery] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const isPopstateRef = useRef(false)
+
+  // Wrap setActiveTab to push browser history entries
+  const setActiveTab = (tab) => {
+    if (!VALID_TABS.includes(tab)) return
+    setActiveTabRaw(tab)
+    if (!isPopstateRef.current) {
+      window.history.pushState({ tab }, '', `#${tab}`)
+    }
+    isPopstateRef.current = false
+  }
+
+  // Listen for browser back/forward
+  useEffect(() => {
+    // Set initial history entry
+    window.history.replaceState({ tab: getTabFromHash() }, '', `#${getTabFromHash()}`)
+
+    const handlePopState = (e) => {
+      const tab = e.state?.tab || getTabFromHash()
+      if (VALID_TABS.includes(tab)) {
+        isPopstateRef.current = true
+        setActiveTab(tab)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  
+  // Auth State
+  const [user, setUser] = useState(null)
+  const [token, setToken] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  
+  const authHeaders = () => ({
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  })
   
   // Interactive Feature States
   const [showNotifications, setShowNotifications] = useState(false)
@@ -48,6 +93,8 @@ function App() {
   const [agentStatus, setAgentStatus] = useState('Online')
   const [notificationsList, setNotificationsList] = useState([])
   const [selectedClientIdForCRM, setSelectedClientIdForCRM] = useState(null)
+  const [bookingDraft, setBookingDraft] = useState(null) // { client: '', package: '' }
+  const [initialSelectedBookingId, setInitialSelectedBookingId] = useState(null)
 
   // Server Status & Offline Sync States
   const [serverStatus, setServerStatus] = useState({ online: null, latency: null, lastChecked: '' })
@@ -61,6 +108,11 @@ function App() {
   const [settings, rawSetSettings] = useState(initialSettings)
   const [bookings, rawSetBookings] = useState(initialBookings)
   const [testimonials, rawSetTestimonials] = useState(initialTestimonials)
+
+  // Refs for outside-click detection on dropdowns
+  const notifRef = useRef(null)
+  const profileRef = useRef(null)
+  const statusRef = useRef(null)
 
   // Use refs to avoid closure staleness during async API updates
   const clientsRef = useRef(clients)
@@ -111,36 +163,37 @@ function App() {
   }
 
   const fetchFreshData = async () => {
+    const opts = { headers: authHeaders() }
     try {
-      const clientsRes = await fetch(`${API_BASE_URL}/clients`)
+      const clientsRes = await fetch(`${API_BASE_URL}/clients`, opts)
       if (clientsRes.ok) {
         const data = await clientsRes.json()
         rawSetClients(data)
         localStorage.setItem('kraft_cached_clients', JSON.stringify(data))
       }
 
-      const packagesRes = await fetch(`${API_BASE_URL}/packages`)
+      const packagesRes = await fetch(`${API_BASE_URL}/packages`, opts)
       if (packagesRes.ok) {
         const data = await packagesRes.json()
         rawSetPackages(data)
         localStorage.setItem('kraft_cached_packages', JSON.stringify(data))
       }
 
-      const bookingsRes = await fetch(`${API_BASE_URL}/bookings`)
+      const bookingsRes = await fetch(`${API_BASE_URL}/bookings`, opts)
       if (bookingsRes.ok) {
         const data = await bookingsRes.json()
         rawSetBookings(data)
         localStorage.setItem('kraft_cached_bookings', JSON.stringify(data))
       }
 
-      const settingsRes = await fetch(`${API_BASE_URL}/settings`)
+      const settingsRes = await fetch(`${API_BASE_URL}/settings`, opts)
       if (settingsRes.ok) {
         const data = await settingsRes.json()
         rawSetSettings(data)
         localStorage.setItem('kraft_cached_settings', JSON.stringify(data))
       }
 
-      const testimonialsRes = await fetch(`${API_BASE_URL}/testimonials`)
+      const testimonialsRes = await fetch(`${API_BASE_URL}/testimonials`, opts)
       if (testimonialsRes.ok) {
         const data = await testimonialsRes.json()
         rawSetTestimonials(data)
@@ -149,6 +202,110 @@ function App() {
     } catch (err) {
       console.warn("Failed to fetch fresh data:", err)
     }
+  }
+
+  // Session restore on mount
+  useEffect(() => {
+    (async () => {
+      const savedToken = localStorage.getItem('kraft_token')
+      if (!savedToken) {
+        setAuthLoading(false)
+        return
+      }
+      try {
+        const res = await fetch(`${API_URL}/api/auth/me`, {
+          headers: { 'Authorization': `Bearer ${savedToken}` },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setToken(savedToken)
+          setUser(data.user)
+        } else {
+          localStorage.removeItem('kraft_token')
+          localStorage.removeItem('kraft_user')
+        }
+      } catch {
+        // Not authenticated — stay logged out
+      } finally {
+        setAuthLoading(false)
+      }
+    })()
+  }, [])
+
+  const tokenRef = useRef(token)
+  useEffect(() => { tokenRef.current = token }, [token])
+
+  // Fetch fresh data + notifications once user is restored
+  useEffect(() => {
+    if (!user) return
+    const t = tokenRef.current
+    const headers = { 'Content-Type': 'application/json', ...(t ? { 'Authorization': `Bearer ${t}` } : {}) }
+    fetchFreshData()
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/notifications`, { headers })
+        if (res.ok) {
+          const data = await res.json()
+          const mapped = data.map((n) => ({
+            id: `srv_${n.id}`,
+            text: n.message,
+            time: new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
+            unread: !n.read,
+            type: n.type,
+          }))
+          setNotificationsList(prev => {
+            const existingIds = new Set(prev.map(n => n.id))
+            const newOnes = mapped.filter(n => !existingIds.has(n.id))
+            return [...newOnes, ...prev]
+          })
+        }
+      } catch {
+        // offline — keep local
+      }
+    }
+    load()
+  }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setShowNotifications(false)
+      }
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setShowProfile(false)
+      }
+      if (statusRef.current && !statusRef.current.contains(e.target)) {
+        setShowStatusDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleLogin = (userData, token) => {
+    setUser(userData)
+    setToken(token)
+    localStorage.setItem('kraft_token', token)
+    localStorage.setItem('kraft_user', JSON.stringify(userData))
+  }
+
+  const handleLogout = async () => {
+    try {
+      await fetch(`${API_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: authHeaders(),
+      })
+    } catch {
+      // ignore network errors on logout
+    }
+    setUser(null)
+    setToken(null)
+    setNotificationsList([])
+    localStorage.removeItem('kraft_token')
+    localStorage.removeItem('kraft_user')
+    clearQueue()
+    setQueueItems([])
   }
 
   // Load from cache instantly, then check health and sync
@@ -172,13 +329,6 @@ function App() {
     // 2. Perform initial health check and sync queue
     performHealthAndSync()
     
-    // Also perform initial load of server data if queue is empty
-    const currentQueue = getQueue()
-    setQueueItems(currentQueue)
-    if (currentQueue.length === 0) {
-      fetchFreshData()
-    }
-
     // 3. Setup polling interval every 15 seconds
     const intervalId = setInterval(() => {
       performHealthAndSync()
@@ -190,15 +340,14 @@ function App() {
   // Sync request helper: performs fetch and queues on failure
   const syncRequest = async (url, method, bodyObj, description) => {
     const bodyStr = bodyObj ? JSON.stringify(bodyObj) : null
-    const headers = { 'Content-Type': 'application/json' }
     
     try {
       const startTime = Date.now()
       console.log(`[DEBUG] syncRequest: ${method} ${url}`)
       const res = await fetch(url, {
         method,
-        headers,
-        body: bodyStr
+        headers: authHeaders(),
+        body: bodyStr,
       })
       console.log(`[DEBUG] syncRequest response: ${res.status} ${res.statusText} for ${method} ${url}`)
       
@@ -216,7 +365,7 @@ function App() {
       const updatedQueue = enqueueRequest({
         url,
         method,
-        headers,
+        headers: authHeaders(),
         body: bodyStr,
         description
       })
@@ -395,6 +544,12 @@ function App() {
       type
     }
     setNotificationsList(prev => [newNotif, ...prev])
+
+    fetch(`${API_BASE_URL}/notifications`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ message: text, type }),
+    }).catch(() => {})
   }
 
   // Dynamic Dashboard Stats Calculations — Indian Tier-2 travel agency
@@ -448,6 +603,10 @@ function App() {
   const avgBookingValue = bookings.length > 0
     ? bookings.reduce((s, b) => s + parseAmt(b), 0) / bookings.length
     : 0
+
+  const inrToUsdRate = parseFloat(settings?.inrToUsdRate ?? 0)
+  const toUSDdashboard = (inr) => inrToUsdRate > 0 ? inr / inrToUsdRate : null
+  const formatUSDdash = (price) => price != null ? `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
 
   const newClientsThisMonth = clients.filter(c => {
     if (!c.lastContact) return false
@@ -519,16 +678,42 @@ function App() {
 
   const markAllRead = () => {
     setNotificationsList(notificationsList.map((n) => ({ ...n, unread: false })))
+    fetch(`${API_BASE_URL}/notifications/read-all`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+    }).catch(() => {})
   }
 
   const toggleRead = (id) => {
     setNotificationsList(
       notificationsList.map((n) => (n.id === id ? { ...n, unread: !n.unread } : n))
     )
+    const serverId = id.toString().startsWith('srv_') ? id.slice(4) : null
+    if (serverId) {
+      fetch(`${API_BASE_URL}/notifications/${serverId}/read`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+      }).catch(() => {})
+    }
   }
 
   const deleteNotification = (id) => {
     setNotificationsList(notificationsList.filter((n) => n.id !== id))
+    const serverId = id.toString().startsWith('srv_') ? id.slice(4) : null
+    if (serverId) {
+      fetch(`${API_BASE_URL}/notifications/${serverId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      }).catch(() => {})
+    }
+  }
+
+  const clearAllNotifications = () => {
+    setNotificationsList([])
+    fetch(`${API_BASE_URL}/notifications/clear-all`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    }).catch(() => {})
   }
 
   const filteredBookings = bookings.filter(
@@ -549,6 +734,18 @@ function App() {
       default:
         return 'bg-stone-400'
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#FDFCF7] flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full"></div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <LoginPage onLogin={handleLogin} />
   }
 
   return (
@@ -590,7 +787,7 @@ function App() {
             ].map((link) => (
               <button
                 key={link.id}
-                onClick={() => { setActiveTab(link.id); setSidebarOpen(false); }}
+                onClick={() => { setActiveTab(link.id); setSidebarOpen(false); setShowNotifications(false); setShowProfile(false); setShowStatusDropdown(false); }}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-300 group text-left ${
                   activeTab === link.id
                     ? 'bg-amber-500/10 text-amber-700 font-semibold'
@@ -659,7 +856,7 @@ function App() {
           {/* Interactive User & Notification Controls */}
           <div className="flex items-center gap-5 relative">
             {/* Server Status Badge & Dropdown */}
-            <div className="relative">
+            <div className="relative" ref={statusRef}>
               <button
                 onClick={() => {
                   setShowStatusDropdown(!showStatusDropdown)
@@ -809,7 +1006,7 @@ function App() {
             </div>
 
             {/* Notifications Button */}
-            <div className="relative">
+            <div className="relative" ref={notifRef}>
               <button
                 onClick={() => {
                   setShowNotifications(!showNotifications)
@@ -836,14 +1033,24 @@ function App() {
                 <div className="absolute right-0 mt-3.5 w-80 bg-white border border-stone-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="p-4 border-b border-stone-100 flex items-center justify-between">
                     <h5 className="font-bold text-stone-900 text-xs">Recent Updates</h5>
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={markAllRead}
-                        className="text-[10px] text-amber-700 hover:text-amber-600 font-bold"
-                      >
-                        Mark all as read
-                      </button>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={markAllRead}
+                          className="text-[10px] text-amber-700 hover:text-amber-600 font-bold cursor-pointer"
+                        >
+                          Mark all as read
+                        </button>
+                      )}
+                      {notificationsList.length > 0 && (
+                        <button
+                          onClick={clearAllNotifications}
+                          className="text-[10px] text-rose-600 hover:text-rose-500 font-bold cursor-pointer"
+                        >
+                          Clear all
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="divide-y divide-stone-50 max-h-64 overflow-y-auto">
                     {notificationsList.length > 0 ? (
@@ -895,7 +1102,7 @@ function App() {
             </div>
 
             {/* Profile Dropdown Toggle */}
-            <div className="flex items-center gap-3 border-l border-stone-200 pl-5 relative">
+            <div className="flex items-center gap-3 border-l border-stone-200 pl-5 relative" ref={profileRef}>
               <button
                 onClick={() => {
                   setShowProfile(!showProfile)
@@ -905,17 +1112,23 @@ function App() {
                 className="flex items-center gap-2.5 text-left group focus:outline-none"
               >
                 <div className="w-9 h-9 rounded-xl bg-amber-100 p-[1.5px] shadow-sm relative">
-                  <img
-                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"
-                    alt="User Avatar"
-                    className="w-full h-full object-cover rounded-[10px]"
-                  />
+                  {user?.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt="User Avatar"
+                      className="w-full h-full object-cover rounded-[10px]"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-amber-700 font-bold text-sm rounded-[10px] bg-amber-50">
+                      {user?.name?.charAt(0) || 'A'}
+                    </div>
+                  )}
                   {/* Realtime Status Indicator dot */}
                   <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${getStatusColor(agentStatus)} shadow`}></span>
                 </div>
                 <div className="hidden md:block">
                   <h4 className="text-xs font-semibold text-stone-900 leading-tight group-hover:text-amber-700 transition-colors duration-200">
-                    Seraphina Moon
+                    {user?.name || 'Admin'}
                   </h4>
                   <span className="text-[10px] text-stone-400 font-medium">{agentStatus}</span>
                 </div>
@@ -930,17 +1143,23 @@ function App() {
                   {/* Expanded Profile Info */}
                   <div className="flex items-center gap-3 pb-4 border-b border-stone-100">
                     <div className="w-12 h-12 rounded-xl bg-amber-100 p-[2px] shadow-sm relative">
-                      <img
-                        src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"
-                        alt="User Avatar"
-                        className="w-full h-full object-cover rounded-[10px]"
-                      />
+                      {user?.avatar_url ? (
+                        <img
+                          src={user.avatar_url}
+                          alt="User Avatar"
+                          className="w-full h-full object-cover rounded-[10px]"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-amber-700 font-bold text-lg rounded-[10px] bg-amber-50">
+                          {user?.name?.charAt(0) || 'A'}
+                        </div>
+                      )}
                     </div>
                     <div>
-                      <h5 className="font-bold text-stone-900 text-sm leading-tight">Seraphina Moon</h5>
-                      <p className="text-[10px] text-stone-400 font-semibold mb-0.5">seraphina.moon@kraftyourtrip.com</p>
+                      <h5 className="font-bold text-stone-900 text-sm leading-tight">{user?.name || 'Admin'}</h5>
+                      <p className="text-[10px] text-stone-400 font-semibold mb-0.5">{user?.email || ''}</p>
                       <span className="bg-amber-500/10 text-amber-700 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border border-amber-500/10">
-                        Agency Manager
+                        {user?.role || 'admin'}
                       </span>
                     </div>
                   </div>
@@ -971,10 +1190,11 @@ function App() {
                     {[
                       { label: 'Account Settings', icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' },
                       { label: 'Commission Wallet', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
-                      { label: 'Sign Out', icon: 'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1', textClass: 'text-rose-600 hover:bg-rose-50' },
+                      { label: 'Sign Out', icon: 'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1', textClass: 'text-rose-600 hover:bg-rose-50', action: 'logout' },
                     ].map((act, idx) => (
                       <button
                         key={idx}
+                        onClick={act.action === 'logout' ? handleLogout : undefined}
                         className={`w-full py-2 px-3 rounded-lg text-[11px] font-semibold text-left transition-colors duration-200 flex items-center gap-2.5 ${
                           act.textClass ? act.textClass : 'text-stone-600 hover:bg-stone-100/50'
                         }`}
@@ -1007,7 +1227,9 @@ function App() {
                       : `${monthOverMonth >= 0 ? '+' : ''}${monthOverMonth.toFixed(1)}% vs last month`,
                     subTone: monthOverMonth === null ? 'neutral' : monthOverMonth >= 0 ? 'good' : 'bad',
                     icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6',
-                    bg: 'bg-amber-100', iconColor: 'text-amber-700'
+                    bg: 'bg-amber-100', iconColor: 'text-amber-700',
+                    usdValue: formatUSDdash(toUSDdashboard(thisMonthRevenue)),
+                    tab: 'reports'
                   },
                   {
                     label: 'Active Bookings',
@@ -1015,7 +1237,8 @@ function App() {
                     sub: `${bookings.filter(b => b.status === 'Pending').length} pending`,
                     subTone: 'neutral',
                     icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
-                    bg: 'bg-orange-100', iconColor: 'text-orange-700'
+                    bg: 'bg-orange-100', iconColor: 'text-orange-700',
+                    tab: 'bookings'
                   },
                   {
                     label: 'Outstanding Payments',
@@ -1023,7 +1246,9 @@ function App() {
                     sub: 'Awaiting collection',
                     subTone: 'bad',
                     icon: 'M12 2a10 10 0 100 20 10 10 0 000-20zm1 14h-2v-2h2v2zm0-4h-2V7h2v5z',
-                    bg: 'bg-rose-100', iconColor: 'text-rose-700'
+                    bg: 'bg-rose-100', iconColor: 'text-rose-700',
+                    usdValue: formatUSDdash(toUSDdashboard(outstandingRevenue)),
+                    tab: 'bookings'
                   },
                   {
                     label: 'Departures (14d)',
@@ -1031,7 +1256,8 @@ function App() {
                     sub: upcomingDepartures.length > 0 ? `${upcomingDepartures.length} trips this window` : 'No upcoming trips',
                     subTone: upcomingDepartures.length > 0 ? 'good' : 'neutral',
                     icon: 'M12 19V5m0 0l-7 7m7-7l7 7',
-                    bg: 'bg-emerald-100', iconColor: 'text-emerald-700'
+                    bg: 'bg-emerald-100', iconColor: 'text-emerald-700',
+                    tab: 'bookings'
                   },
                   {
                     label: 'Avg Booking Value',
@@ -1039,7 +1265,9 @@ function App() {
                     sub: `${bookings.length} total bookings`,
                     subTone: 'neutral',
                     icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-                    bg: 'bg-blue-100', iconColor: 'text-blue-700'
+                    bg: 'bg-blue-100', iconColor: 'text-blue-700',
+                    usdValue: formatUSDdash(toUSDdashboard(avgBookingValue)),
+                    tab: 'reports'
                   },
                   {
                     label: 'New Clients (Month)',
@@ -1047,10 +1275,15 @@ function App() {
                     sub: `${clients.length} total profiles`,
                     subTone: 'neutral',
                     icon: 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0M3 20a6 6 0 0112 0v1H3v-1z',
-                    bg: 'bg-stone-100', iconColor: 'text-stone-700'
+                    bg: 'bg-stone-100', iconColor: 'text-stone-700',
+                    tab: 'clients'
                   }
                 ].map((stat, i) => (
-                  <div key={i} className="bg-white border border-stone-200/60 rounded-xl p-4 sm:p-5 hover:border-amber-200/50 hover:shadow-md transition-all duration-300 shadow-sm group">
+                  <div
+                    key={i}
+                    onClick={() => { if (stat.tab) setActiveTab(stat.tab) }}
+                    className="bg-white border border-stone-200/60 rounded-xl p-4 sm:p-5 hover:border-amber-200/50 hover:shadow-md transition-all duration-300 shadow-sm group cursor-pointer"
+                  >
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <span className="text-[11px] font-semibold text-stone-500 group-hover:text-stone-700 transition-colors leading-tight">
                         {stat.label}
@@ -1064,6 +1297,9 @@ function App() {
                     <h3 className="text-xl font-bold text-stone-900 mb-1.5 tracking-tight">
                       {stat.value}
                     </h3>
+                    {inrToUsdRate > 0 && stat.usdValue && (
+                      <p className="text-[10px] font-medium text-stone-400 -mt-1 mb-1.5">{stat.usdValue}</p>
+                    )}
                     <div className="flex items-center gap-1.5">
                       {stat.subTone === 'good' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
                       {stat.subTone === 'bad' && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />}
@@ -1117,7 +1353,14 @@ function App() {
                         <tbody className="divide-y divide-stone-100">
                           {filteredBookings.length > 0 ? (
                             filteredBookings.slice(0, 5).map((b) => (
-                              <tr key={b.id} className="hover:bg-stone-50/30 transition-colors duration-200 text-xs">
+                              <tr
+                                key={b.id}
+                                onClick={() => {
+                                  setInitialSelectedBookingId(b.id)
+                                  setActiveTab('bookings')
+                                }}
+                                className="hover:bg-amber-50/30 transition-colors duration-200 text-xs cursor-pointer"
+                              >
                                 <td className="py-3.5 px-6 font-mono text-[11px] text-stone-500">{b.id}</td>
                                 <td className="py-3.5 px-6 font-semibold text-stone-900">{b.client}</td>
                                 <td className="py-3.5 px-6 text-stone-600">{b.package}</td>
@@ -1195,14 +1438,23 @@ function App() {
 
                     <div className="space-y-3">
                       {activeDestinations.map((dest, i) => (
-                        <div key={i} className="flex items-center justify-between p-3.5 bg-[#FAF9F5]/40 rounded-xl border border-stone-200/30">
+                        <div
+                          key={i}
+                          onClick={() => setActiveTab('packages')}
+                          className="flex items-center justify-between p-3.5 bg-[#FAF9F5]/40 rounded-xl border border-stone-200/30 cursor-pointer hover:border-amber-200/50 hover:shadow-sm transition-all duration-300 group"
+                        >
                           <div>
-                            <h4 className="text-xs font-bold text-stone-900">{dest.name}</h4>
+                            <h4 className="text-xs font-bold text-stone-900 group-hover:text-amber-700 transition-colors">{dest.name}</h4>
                             <span className="text-[10px] text-stone-400">{dest.trend}</span>
                           </div>
-                          <span className={`text-xs font-bold px-3 py-1 rounded-lg ${dest.color} border border-stone-200/10 shadow-inner`}>
-                            {dest.count} Travelers
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-bold px-3 py-1 rounded-lg ${dest.color} border border-stone-200/10 shadow-inner`}>
+                              {dest.count} Travelers
+                            </span>
+                            <svg className="w-3.5 h-3.5 text-stone-300 group-hover:text-amber-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1308,6 +1560,10 @@ function App() {
               setPackages={setPackages}
               settings={settings}
               addNotification={addNotification}
+              bookingDraft={bookingDraft}
+              setBookingDraft={setBookingDraft}
+              initialSelectedBookingId={initialSelectedBookingId}
+              onSelectBooking={setInitialSelectedBookingId}
             />
           )}
 
@@ -1319,6 +1575,10 @@ function App() {
               addNotification={addNotification}
               initialSelectedClientId={selectedClientIdForCRM}
               onSelectClient={setSelectedClientIdForCRM}
+              onBookForClient={(clientName) => {
+                setBookingDraft({ client: clientName, package: '' })
+                setActiveTab('bookings')
+              }}
             />
           )}
 
@@ -1331,6 +1591,10 @@ function App() {
               setBookings={setBookings}
               settings={settings}
               addNotification={addNotification}
+              onBookForPackage={(packageName) => {
+                setBookingDraft({ client: '', package: packageName })
+                setActiveTab('bookings')
+              }}
             />
           )}
 
@@ -1357,6 +1621,7 @@ function App() {
               settings={settings}
               setSettings={setSettings}
               addNotification={addNotification}
+              packages={packages}
             />
           )}
         </div>

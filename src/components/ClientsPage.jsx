@@ -14,7 +14,7 @@ const calculatePassportStatus = (expiresStr) => {
   return 'Valid'
 }
 
-export default function ClientsPage({ clients, setClients, bookings, addNotification, initialSelectedClientId, onSelectClient }) {
+export default function ClientsPage({ clients, setClients, bookings, addNotification, initialSelectedClientId, onSelectClient, onBookForClient }) {
   const [search, setSearch] = useState('')
   const [selectedClient, setSelectedClient] = useState(() => {
     if (initialSelectedClientId) {
@@ -134,7 +134,8 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
     try {
       if (addNotification) addNotification('Uploading avatar...', 'info')
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const response = await fetch(`${API_URL}/api/upload`, {
+      const token = localStorage.getItem('kraft_token')
+      const response = await fetch(`${API_URL}/api/upload`, { headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         method: 'POST',
         body: formData
       })
@@ -503,11 +504,15 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                   </div>
                 </div>
 
-                {/* Bottom summaries without LTV */}
-                <div className="grid grid-cols-2 gap-2 border-t border-stone-100 mt-3 pt-3 text-center">
+                {/* Bottom summaries with LTV */}
+                <div className="grid grid-cols-3 gap-2 border-t border-stone-100 mt-3 pt-3 text-center">
                   <div>
                     <span className="text-[9px] font-bold text-stone-400 block uppercase">Bookings</span>
                     <span className="text-xs font-extrabold text-stone-800">{client.bookingsCount}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-stone-400 block uppercase">LTV</span>
+                    <span className="text-xs font-extrabold text-amber-700">{client.ltv}</span>
                   </div>
                   <div>
                     <span className="text-[9px] font-bold text-stone-400 block uppercase">Status</span>
@@ -707,6 +712,21 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                   {selectedClient.notes || 'No operational notes entered.'}
                 </div>
               </div>
+
+              {/* Book Trip Quick Action */}
+              {onBookForClient && (
+                <div className="border-t border-stone-100 pt-4">
+                  <button
+                    onClick={() => onBookForClient(selectedClient.name)}
+                    className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Book Trip for {selectedClient.name}
+                  </button>
+                </div>
+              )}
 
               {/* Activity Timeline */}
               <div className="border-t border-stone-100 pt-4 space-y-3">
