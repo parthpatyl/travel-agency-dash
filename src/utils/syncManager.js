@@ -122,7 +122,7 @@ export async function processSyncQueue(addNotification, onProgress) {
 export async function checkServerHealth(apiUrl) {
   const startTime = Date.now();
   try {
-    const res = await fetch(`${apiUrl}/health`, {
+    const res = await fetch(`${apiUrl}/api/health`, {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
       cache: 'no-store'
