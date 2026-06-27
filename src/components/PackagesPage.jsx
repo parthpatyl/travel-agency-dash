@@ -294,6 +294,10 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     setSelectedPackage(newPkgObj)
     setShowAddPackageForm(false)
 
+    if (addNotification) {
+      addNotification(`Package ${newPkgObj.name} created successfully`, 'success')
+    }
+
     // Reset fields
     setPkgName('')
     setPkgDays('5')
