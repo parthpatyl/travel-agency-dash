@@ -1,5 +1,13 @@
 import { useState, useCallback } from 'react'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
+const imgUrl = (url) => {
+  if (!url) return url
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+  return `${API_URL}${url}`
+}
+
 export default function SettingsPage({ settings = {}, setSettings, addNotification, packages = [] }) {
   const [editingOfferId, setEditingOfferId] = useState(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -415,7 +423,7 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
                     {offerForm.imageUrl ? (
                       <div className="flex items-center gap-3 p-2.5 bg-stone-50 border border-stone-200 rounded-xl">
                         <img
-                          src={offerForm.imageUrl}
+                          src={imgUrl(offerForm.imageUrl)}
                           alt="Preview"
                           className="w-16 h-10 object-cover rounded-lg border border-stone-200 shrink-0"
                         />
@@ -454,11 +462,11 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
                       <span className="block text-[8px] font-bold text-stone-400 uppercase tracking-wider">Quick Presets:</span>
                       <div className="flex flex-wrap gap-2">
                         {[
-                          { name: 'Maldives Paradise', url: 'https://images.unsplash.com/photo-1514282401047-d79a71a590e8?auto=format&fit=crop&w=1000&q=80' },
-                          { name: 'Swiss Alps Hiking', url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=80' },
-                          { name: 'Santorini Sunset', url: 'https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&w=1000&q=80' },
-                          { name: 'African Safari', url: 'https://images.unsplash.com/photo-1516426122078-c23e76319801?auto=format&fit=crop&w=1000&q=80' },
-                          { name: 'Tokyo City', url: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=1000&q=80' }
+                          { name: 'Maldives Paradise', url: `${API_URL}/assets/unsplash-maldives.jpg` },
+                          { name: 'Swiss Alps Hiking', url: `${API_URL}/assets/unsplash-swiss-alps.jpg` },
+                          { name: 'Santorini Sunset', url: `${API_URL}/assets/unsplash-santorini.jpg` },
+                          { name: 'African Safari', url: `${API_URL}/assets/unsplash-african-safari.jpg` },
+                          { name: 'Tokyo City', url: `${API_URL}/assets/unsplash-tokyo.jpg` }
                         ].map((preset) => (
                           <button
                             key={preset.name}
@@ -507,11 +515,11 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
               ) : (
                 (settings.specialOffers ?? []).map((offer) => (
                   <div key={offer.id} className="flex items-center gap-3 p-3 bg-stone-50/30 border border-stone-200/40 rounded-xl">
-                    <img
-                      src={offer.imageUrl}
-                      alt={offer.title}
-                      className="w-16 h-12 object-cover rounded-lg border border-stone-200/50 shrink-0"
-                    />
+                      <img
+                        src={imgUrl(offer.imageUrl)}
+                        alt={offer.title}
+                        className="w-16 h-12 object-cover rounded-lg border border-stone-200/50 shrink-0"
+                      />
                     <div className="flex-grow min-w-0">
                       <h4 className="text-xs font-bold text-stone-900 truncate">{offer.title}</h4>
                       <p className="text-[10px] text-stone-500 truncate">{offer.subtitle}</p>
@@ -681,7 +689,17 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleSaveSection('branding')}
+                  onClick={() => {
+                    if (agencyEmail && !/\S+@\S+\.\S+/.test(agencyEmail)) {
+                      if (addNotification) addNotification('Please enter a valid email address before saving branding.', 'warning')
+                      return
+                    }
+                    if (agencyPhone && !/^[+0-9\s-()]{7,20}$/.test(agencyPhone.replace(/\s/g, ''))) {
+                      if (addNotification) addNotification('Please enter a valid phone number before saving branding.', 'warning')
+                      return
+                    }
+                    handleSaveSection('branding')
+                  }}
                   disabled={saving === 'branding'}
                   className="mt-2 w-full px-3 py-1.5 text-[10px] font-bold rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 cursor-pointer transition-all flex items-center justify-center gap-1.5"
                 >
@@ -706,7 +724,7 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
                 <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider">Last Refreshed</span>
                 <span className="text-xs font-bold text-stone-800">
                   {settings.weatherCache?.lastUpdated
-                    ? new Date(settings.weatherCache.lastUpdated).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+                    ? new Date(settings.weatherCache.lastUpdated).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
                     : 'Never synced'}
                 </span>
               </div>

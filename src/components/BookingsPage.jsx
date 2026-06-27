@@ -74,9 +74,9 @@ export default function BookingsPage({
     if (!dateStr) return ''
     if (isNaN(Date.parse(dateStr))) return dateStr
     const dateObj = new Date(dateStr)
-    return dateObj.toLocaleDateString('en-US', {
-      month: 'short',
+    return dateObj.toLocaleDateString('en-GB', {
       day: '2-digit',
+      month: 'short',
       year: 'numeric',
       timeZone: 'UTC'
     })
@@ -87,10 +87,10 @@ export default function BookingsPage({
     const parsed = Date.parse(dateStr)
     if (isNaN(parsed)) {
       const months = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' }
-      const parts = dateStr.replace(/,/g, '').split(/\s+/)
+      const parts = dateStr.split(/\s+/)
       if (parts.length === 3) {
-        const month = months[parts[0].toLowerCase()]
-        const day = parts[1].padStart(2, '0')
+        const day = parts[0].padStart(2, '0')
+        const month = months[parts[1].toLowerCase()]
         const year = parts[2]
         if (month && day && year) {
           return `${year}-${month}-${day}`
@@ -100,6 +100,27 @@ export default function BookingsPage({
     }
     const dateObj = new Date(parsed)
     return dateObj.toISOString().split('T')[0]
+  }
+
+  const formatDateDisplay = (dateStr) => {
+    if (!dateStr) return ''
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      const [y, m, d] = dateStr.substring(0, 10).split('-')
+      return `${d}/${m}/${y}${dateStr.substring(10)}`
+    }
+    return dateStr
+  }
+
+  const parseDateDisplay = (str) => {
+    if (!str) return ''
+    const parts = str.split('/')
+    if (parts.length === 3) {
+      const [d, m, y] = parts
+      if (d.length >= 1 && d.length <= 2 && m.length >= 1 && m.length <= 2 && y.length === 4) {
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+      }
+    }
+    return str
   }
 
   const handleSaveEditBooking = (e) => {
@@ -783,11 +804,12 @@ export default function BookingsPage({
                 <div>
                   <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Departure Date</label>
                   <input
-                    type="date"
+                    type="text"
+                    placeholder="DD/MM/YYYY"
                     required
-                    value={newDate}
-                    onChange={(e) => setNewDate(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all cursor-pointer"
+                    value={formatDateDisplay(newDate)}
+                    onChange={(e) => setNewDate(parseDateDisplay(e.target.value))}
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
                   />
                 </div>
               </div>
@@ -929,11 +951,12 @@ export default function BookingsPage({
                 <div>
                   <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Departure Date</label>
                   <input
-                    type="date"
+                    type="text"
+                    placeholder="DD/MM/YYYY"
                     required
-                    value={editDate}
-                    onChange={(e) => setEditDate(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all cursor-pointer"
+                    value={formatDateDisplay(editDate)}
+                    onChange={(e) => setEditDate(parseDateDisplay(e.target.value))}
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
                   />
                 </div>
               </div>

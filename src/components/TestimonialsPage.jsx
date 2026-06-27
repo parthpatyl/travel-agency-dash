@@ -1,8 +1,13 @@
 import { useState, useRef } from 'react'
 
-const DEFAULT_AVATAR = 'data:image/svg+xml,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#e4d5c5" rx="50"/><circle cx="50" cy="38" r="18" fill="#d4c4b5"/><path d="M20 80c0-18 13-32 30-32s30 14 30 32" fill="#d4c4b5"/></svg>'
-)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+const DEFAULT_AVATAR = `${API_URL}/assets/default-avatar.png`
+
+const imgUrl = (url) => {
+  if (!url) return DEFAULT_AVATAR
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+  return `${API_URL}${url}`
+}
 
 const MAX_TEXT_LENGTH = 500
 const defaultForm = { name: '', location: '', avatar: '', rating: 5, text: '', package: '', images: [] }
@@ -112,7 +117,15 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
 
   const handleSave = (e) => {
     e.preventDefault()
-    if (!form.name.trim()) return
+    if (!form.name.trim() || !form.text.trim()) {
+      if (addNotification) {
+        const missing = []
+        if (!form.name.trim()) missing.push('Reviewer Name')
+        if (!form.text.trim()) missing.push('Testimonial Text')
+        addNotification(`Please fill in required fields: ${missing.join(', ')}`, 'warning')
+      }
+      return
+    }
 
     if (editing) {
       setTestimonials(testimonials.map(t => t.id === editing.id ? { ...t, ...form } : t))
@@ -166,7 +179,7 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full overflow-hidden bg-stone-100 shrink-0 border border-stone-200">
                 <img
-                  src={t.avatar || DEFAULT_AVATAR}
+                  src={imgUrl(t.avatar)}
                   alt={t.name}
                   className="w-full h-full object-cover"
                 />
@@ -227,7 +240,7 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
               <div className="flex items-center gap-4 p-3 bg-stone-50/50 border border-stone-200 rounded-xl">
                 <div className="w-12 h-12 rounded-xl bg-stone-100 p-0.5 shadow-inner shrink-0 relative group overflow-hidden">
                   <img
-                    src={form.avatar || DEFAULT_AVATAR}
+                    src={imgUrl(form.avatar)}
                     alt="Avatar Preview"
                     className="w-full h-full object-cover rounded-[10px]"
                   />

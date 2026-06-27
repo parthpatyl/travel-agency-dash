@@ -249,7 +249,7 @@ function App() {
           const mapped = data.map((n) => ({
             id: `srv_${n.id}`,
             text: n.message,
-            time: new Date(n.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
+            time: new Date(n.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }),
             unread: !n.read,
             type: n.type,
           }))
@@ -555,15 +555,15 @@ function App() {
   // Dynamic Dashboard Stats Calculations — Indian Tier-2 travel agency
   const parseAmt = (b) => Number(b.amount) || 0
   const parseDate = (b) => {
-    // b.date is now the formatted "Jun 25, 2026" string from mapBookingToFrontend
+    // b.date is now the formatted "25 Jun 2026" string from mapBookingToFrontend
     if (!b.date) return null
     const parsed = Date.parse(b.date)
     if (!isNaN(parsed)) return new Date(parsed)
-    // Fallback for "Jun 25, 2026" — V8 rejects this, parse manually
+    // Fallback for "25 Jun 2026" — V8 rejects this, parse manually
     const months = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 }
-    const parts = b.date.replace(/,/g, '').split(/\s+/)
-    if (parts.length === 3 && months[parts[0].toLowerCase()] !== undefined) {
-      return new Date(Date.UTC(parseInt(parts[2]), months[parts[0].toLowerCase()], parseInt(parts[1])))
+    const parts = b.date.split(/\s+/)
+    if (parts.length === 3 && months[parts[1].toLowerCase()] !== undefined) {
+      return new Date(Date.UTC(parseInt(parts[2]), months[parts[1].toLowerCase()], parseInt(parts[0])))
     }
     return null
   }
@@ -640,7 +640,7 @@ function App() {
       })
       const sum = monthBookings.reduce((s, b) => s + parseAmt(b), 0)
       result.push({
-        month: start.toLocaleDateString('en-US', { month: 'short' }),
+        month: start.toLocaleDateString('en-GB', { month: 'short' }),
         revenue: sum / 1000,
         label: formatINRCompact(sum)
       })

@@ -1,5 +1,14 @@
 import { useState, useEffect } from 'react'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+const DEFAULT_AVATAR = `${API_URL}/assets/default-avatar.png`
+
+const imgUrl = (url) => {
+  if (!url) return DEFAULT_AVATAR
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+  return `${API_URL}${url}`
+}
+
 const calculatePassportStatus = (expiresStr) => {
   if (!expiresStr || expiresStr === 'Pending' || expiresStr === 'Not Listed') return 'Pending'
   const expDate = new Date(expiresStr)
@@ -42,6 +51,27 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
   const [logClient, setLogClient] = useState(null)
   const [logText, setLogText] = useState('')
 
+  const formatDateDisplay = (dateStr) => {
+    if (!dateStr) return dateStr
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      const [y, m, d] = dateStr.substring(0, 10).split('-')
+      return `${d}/${m}/${y}${dateStr.substring(10)}`
+    }
+    return dateStr
+  }
+
+  const parseDateDisplay = (str) => {
+    if (!str) return ''
+    const parts = str.split('/')
+    if (parts.length === 3) {
+      const [d, m, y] = parts
+      if (d.length >= 1 && d.length <= 2 && m.length >= 1 && m.length <= 2 && y.length === 4) {
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+      }
+    }
+    return str
+  }
+
   const getClientStats = (clientName) => {
     const clientBookings = bookings.filter(b => b.client.toLowerCase() === clientName.toLowerCase())
     const currentCount = clientBookings.length
@@ -81,7 +111,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
 
   // New Client Creation Form States
   const [newName, setNewName] = useState('')
-  const [newAvatar, setNewAvatar] = useState('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80')
+  const [newAvatar, setNewAvatar] = useState(DEFAULT_AVATAR)
   const [newEmail, setNewEmail] = useState('')
   const [newPhone, setNewPhone] = useState('')
   const [prefAirline, setPrefAirline] = useState('')
@@ -257,7 +287,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
 
     // Reset creation fields
     setNewName('')
-    setNewAvatar('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80')
+    setNewAvatar(DEFAULT_AVATAR)
     setNewEmail('')
     setNewPhone('')
     setPrefAirline('')
@@ -477,7 +507,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
               >
                 <div className="flex items-start gap-4">
                   <div className="w-12 h-12 rounded-xl bg-stone-100 p-0.5 shadow-inner">
-                    <img src={client.avatar} alt={client.name} className="w-full h-full object-cover rounded-[10px]" />
+                    <img src={imgUrl(client.avatar)} alt={client.name} className="w-full h-full object-cover rounded-[10px]" />
                   </div>
                   <div className="space-y-1">
                     <h3 className="text-sm font-bold text-stone-900 leading-tight group-hover:text-amber-700 transition-colors">
@@ -494,7 +524,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                 <div className="mt-3.5 space-y-1.5 text-[11px] text-stone-600 border-t border-stone-100/60 pt-3">
                   <div className="flex justify-between items-center">
                     <span className="text-stone-400 font-semibold">Last Contact:</span>
-                    <span className="font-semibold text-stone-800">{client.lastContact}</span>
+                    <span className="font-semibold text-stone-800">{formatDateDisplay(client.lastContact)}</span>
                   </div>
                   <div className="flex justify-between items-start gap-2">
                     <span className="text-stone-400 font-semibold shrink-0">Next Trip:</span>
@@ -569,7 +599,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl p-0.5 bg-stone-100 shadow-sm">
-                    <img src={selectedClient.avatar} className="w-full h-full object-cover rounded-[8px]" />
+                    <img src={imgUrl(selectedClient.avatar)} className="w-full h-full object-cover rounded-[8px]" />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-stone-900 leading-tight">{selectedClient.name}</h3>
@@ -659,7 +689,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                     <div>
                       <span className="text-[9px] text-stone-400 font-bold uppercase block">Passport Scans</span>
                       <span className="text-xs font-semibold text-stone-800">No: {selectedClient.passport.number}</span>
-                      <span className="text-[10px] text-stone-500 block">Expires: {selectedClient.passport.expires}</span>
+                      <span className="text-[10px] text-stone-500 block">Expires: {formatDateDisplay(selectedClient.passport.expires)}</span>
                     </div>
                     <span className={`px-2 py-0.5 text-[9px] font-bold rounded-lg border ${
                       selectedClient.passport.status === 'Expiring Soon'
@@ -675,7 +705,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                       <span className="text-[9px] text-stone-400 font-bold uppercase block">Visa Clearances</span>
                       <span className="text-xs font-semibold text-stone-800">Class: {selectedClient.visa?.class || 'Tourist'}</span>
                       <span className="text-[10px] text-stone-500 block">Country: {selectedClient.visa?.country || 'Pending'}</span>
-                      <span className="text-[10px] text-stone-500 block">Expires: {selectedClient.visa?.expires || 'Pending'}</span>
+                      <span className="text-[10px] text-stone-500 block">Expires: {formatDateDisplay(selectedClient.visa?.expires) || 'Pending'}</span>
                     </div>
                     <span className="px-2 py-0.5 text-[9px] font-bold rounded-lg border bg-stone-100 text-stone-700 border-stone-200">
                       Standard
@@ -796,7 +826,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                         
                         <div className="bg-[#FAF9F5]/45 border border-stone-200/40 rounded-xl p-2.5 ml-1 space-y-1 hover:bg-[#FAF9F5]/80 transition-all">
                           <div className="flex justify-between items-center">
-                            <span className="text-[9px] text-stone-400 font-bold">{log.time}</span>
+                            <span className="text-[9px] text-stone-400 font-bold">{formatDateDisplay(log.time)}</span>
                             <span className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
                               isSystem ? 'bg-blue-50/50 text-blue-600 border-blue-100' :
                               isBooking ? 'bg-emerald-50/50 text-emerald-600 border-emerald-100' :
@@ -882,7 +912,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Full Name</label>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Full Name <span className="text-rose-500">*</span></label>
                   <input
                     type="text"
                     required
@@ -893,7 +923,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Email Address</label>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Email Address <span className="text-rose-500">*</span></label>
                   <input
                     type="email"
                     required
@@ -907,7 +937,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Contact Phone</label>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Contact Phone <span className="text-rose-500">*</span></label>
                   <input
                     type="tel"
                     required
@@ -1001,9 +1031,10 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                   <div>
                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Passport Expiry Date</label>
                     <input
-                      type="date"
-                      value={passExp}
-                      onChange={(e) => setPassExp(e.target.value)}
+                      type="text"
+                      placeholder="DD/MM/YYYY"
+                      value={formatDateDisplay(passExp)}
+                      onChange={(e) => setPassExp(parseDateDisplay(e.target.value))}
                       className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                     />
                   </div>
@@ -1027,9 +1058,10 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                   <div>
                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Visa Expiry</label>
                     <input
-                      type="date"
-                      value={visaExp}
-                      onChange={(e) => setVisaExp(e.target.value)}
+                      type="text"
+                      placeholder="DD/MM/YYYY"
+                      value={formatDateDisplay(visaExp)}
+                      onChange={(e) => setVisaExp(parseDateDisplay(e.target.value))}
                       className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                     />
                   </div>
@@ -1135,7 +1167,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
               {/* Avatar Upload */}
               <div className="flex items-center gap-4 p-3 bg-stone-50/50 border border-stone-200 rounded-xl">
                 <div className="w-12 h-12 rounded-xl bg-stone-100 p-0.5 shadow-inner shrink-0 relative group overflow-hidden">
-                  <img src={editAvatar} alt="Avatar Preview" className="w-full h-full object-cover rounded-[10px]" />
+                  <img src={imgUrl(editAvatar)} alt="Avatar Preview" className="w-full h-full object-cover rounded-[10px]" />
                 </div>
                 <div className="flex-grow">
                   <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Client Photo / Avatar</label>
@@ -1159,7 +1191,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Full Name</label>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Full Name <span className="text-rose-500">*</span></label>
                   <input
                     type="text"
                     required
@@ -1170,7 +1202,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Email Address</label>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Email Address <span className="text-rose-500">*</span></label>
                   <input
                     type="email"
                     required
@@ -1184,7 +1216,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Contact Phone</label>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Contact Phone <span className="text-rose-500">*</span></label>
                   <input
                     type="tel"
                     required
@@ -1278,9 +1310,10 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                   <div>
                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Passport Expiry Date</label>
                     <input
-                      type="date"
-                      value={editPassExp}
-                      onChange={(e) => setEditPassExp(e.target.value)}
+                      type="text"
+                      placeholder="DD/MM/YYYY"
+                      value={formatDateDisplay(editPassExp)}
+                      onChange={(e) => setEditPassExp(parseDateDisplay(e.target.value))}
                       className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                     />
                   </div>
@@ -1304,9 +1337,10 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                   <div>
                     <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Visa Expiry</label>
                     <input
-                      type="date"
-                      value={editVisaExp}
-                      onChange={(e) => setEditVisaExp(e.target.value)}
+                      type="text"
+                      placeholder="DD/MM/YYYY"
+                      value={formatDateDisplay(editVisaExp)}
+                      onChange={(e) => setEditVisaExp(parseDateDisplay(e.target.value))}
                       className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                     />
                   </div>

@@ -1,6 +1,9 @@
 import { useState, useRef } from 'react'
 import Markdown from 'react-markdown'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+const imgUrl = (url) => url?.startsWith('http') ? url : `${API_URL}${url || ''}`
+
 const MdInline = ({ children, className }) => (
   <Markdown
     components={{
@@ -27,8 +30,8 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   const [pkgCostPrice, setPkgCostPrice] = useState('')
   const [pkgRegion, setPkgRegion] = useState('Asia')
   const [pkgSlots, setPkgSlots] = useState('15')
-  const [pkgCardImage, setPkgCardImage] = useState('https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=600&q=80')
-  const [pkgHeroImage, setPkgHeroImage] = useState('https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=1200&q=80')
+  const [pkgCardImage, setPkgCardImage] = useState(`${API_URL}/assets/unsplash-pkg-card.jpg`)
+  const [pkgHeroImage, setPkgHeroImage] = useState(`${API_URL}/assets/unsplash-pkg-hero.jpg`)
   const [pkgInclusions, setPkgInclusions] = useState({
     hotel: true,
     sightseeing: true,
@@ -195,7 +198,18 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
 
   const handleSaveEditPackage = (e) => {
     e.preventDefault()
-    if (!editPkgName || !editPkgDays || !editPkgPrice) return
+    if (!editPkgName || !editPkgDays || !editPkgPrice || !editPkgDescription || (!editPkgIsBespoke && !editPkgSlots)) {
+      if (addNotification) {
+        const missing = []
+        if (!editPkgName) missing.push('Package Name')
+        if (!editPkgDays) missing.push('Duration')
+        if (!editPkgPrice) missing.push('Price')
+        if (!editPkgDescription) missing.push('Description')
+        if (!editPkgIsBespoke && !editPkgSlots) missing.push('Total Slots')
+        addNotification(`Please fill in required fields: ${missing.join(', ')}`, 'warning')
+      }
+      return
+    }
 
     const updated = {
       ...selectedPackage,
@@ -243,7 +257,18 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
 
   const handleAddPackage = (e) => {
     e.preventDefault()
-    if (!pkgName || !pkgDays || !pkgPrice) return
+    if (!pkgName || !pkgDays || !pkgPrice || !pkgDescription || (!bespokeMode && !pkgSlots)) {
+      if (addNotification) {
+        const missing = []
+        if (!pkgName) missing.push('Package Name')
+        if (!pkgDays) missing.push('Duration')
+        if (!pkgPrice) missing.push('Price')
+        if (!pkgDescription) missing.push('Description')
+        if (!bespokeMode && !pkgSlots) missing.push('Total Slots')
+        addNotification(`Please fill in required fields: ${missing.join(', ')}`, 'warning')
+      }
+      return
+    }
 
     const newPkgObj = {
       id: `PKG-${crypto.randomUUID()}`,
@@ -276,8 +301,8 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     setPkgCostPrice('')
     setPkgRegion('Asia')
     setPkgSlots('15')
-    setPkgCardImage('https://images.unsplash.com/photo-1503899036084-c55cdd92da26?auto=format&fit=crop&w=600&q=80')
-    setPkgHeroImage('https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=1200&q=80')
+    setPkgCardImage(`${API_URL}/assets/unsplash-pkg-card.jpg`)
+    setPkgHeroImage(`${API_URL}/assets/unsplash-pkg-hero.jpg`)
     setPkgInclusions({
       hotel: true,
       sightseeing: true,
@@ -297,7 +322,17 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
 
   const handleAddItineraryDay = (e) => {
     e.preventDefault()
-    if (!newDayNum || !newDayTitle || !newDayDesc || !selectedPackage) return
+    if (!newDayNum || !newDayTitle || !newDayDesc || !selectedPackage) {
+      if (addNotification) {
+        const missing = []
+        if (!selectedPackage) missing.push('a selected package')
+        if (!newDayNum) missing.push('Day Number')
+        if (!newDayTitle) missing.push('Day Title')
+        if (!newDayDesc) missing.push('Day Description')
+        addNotification(`Please fill in required itinerary fields: ${missing.join(', ')}`, 'warning')
+      }
+      return
+    }
     setItineraryError('')
 
     const dayNum = parseInt(newDayNum)
@@ -1144,7 +1179,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Name</label>
+                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Name <span className="text-rose-500">*</span></label>
                 <input
                   type="text"
                   required
@@ -1157,7 +1192,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Duration (Days)</label>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Duration (Days) <span className="text-rose-500">*</span></label>
                   <input
                     type="number"
                     required
@@ -1170,7 +1205,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Base Price (INR) · Retail</label>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Base Price (INR) · Retail <span className="text-rose-500">*</span></label>
                   <input
                     type="number"
                     required
@@ -1243,7 +1278,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                 </div>
                 {!bespokeMode && (
                   <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Total Allotment Slots</label>
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Total Allotment Slots <span className="text-rose-500">*</span></label>
                     <input
                       type="number"
                       required
@@ -1310,7 +1345,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
 
               {/* Description */}
               <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Overview / Description</label>
+                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Overview / Description <span className="text-rose-500">*</span></label>
                 <textarea
                   rows="3"
                   value={pkgDescription}
@@ -1472,7 +1507,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Image (Cover & Hero)</label>
                 <div className="flex items-center gap-3">
                   <div className="w-16 h-12 rounded-lg bg-stone-100 p-0.5 border border-stone-200 shrink-0 relative overflow-hidden">
-                    <img src={editPkgCardImage || editPkgHeroImage} alt="Preview" className="w-full h-full object-cover rounded" />
+                    <img src={imgUrl(editPkgCardImage || editPkgHeroImage)} alt="Preview" className="w-full h-full object-cover rounded" />
                   </div>
                   <div className="relative overflow-hidden flex-grow">
                     <input
@@ -1493,7 +1528,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Name</label>
+                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Name <span className="text-rose-500">*</span></label>
                 <input
                   type="text"
                   required
@@ -1506,7 +1541,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Duration (Days)</label>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Duration (Days) <span className="text-rose-500">*</span></label>
                   <input
                     type="number"
                     required
@@ -1520,7 +1555,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
-                    Base Price · Retail
+                    Base Price · Retail <span className="text-rose-500">*</span>
                     <span className="ml-1 text-amber-600">{priceInUsd ? 'USD' : '₹'}</span>
                   </label>
                   <div className="flex gap-1.5 items-center">
@@ -1639,7 +1674,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Total Allotment Slots</label>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Total Allotment Slots <span className="text-rose-500">*</span></label>
                   {editPkgIsBespoke ? (
                     <div className="h-[38px] flex items-center px-3 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-400 font-medium">Unlimited</div>
                   ) : (
@@ -1728,7 +1763,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
 
               {/* Description */}
               <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Overview / Description</label>
+                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Overview / Description <span className="text-rose-500">*</span></label>
                 <textarea
                   rows="3"
                   value={editPkgDescription}
