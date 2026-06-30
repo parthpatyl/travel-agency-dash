@@ -1,4 +1,6 @@
 import { useState, useRef } from 'react'
+import { roleHas } from '../utils/permissions'
+import ReadOnlyBanner from './ReadOnlyBanner'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const DEFAULT_AVATAR = `${API_URL}/assets/default-avatar.png`
@@ -12,25 +14,34 @@ const imgUrl = (url) => {
 const MAX_TEXT_LENGTH = 500
 const defaultForm = { name: '', location: '', avatar: '', rating: 5, text: '', package: '', images: [] }
 
-export default function TestimonialsPage({ testimonials, setTestimonials, addNotification, packages }) {
+export default function TestimonialsPage({ testimonials, setTestimonials, addNotification, packages, user }) {
   const standardPackages = (packages || []).filter(p => !p.isBespoke)
   const bespokePackages = (packages || []).filter(p => p.isBespoke)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(defaultForm)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const canWriteTestimonial = roleHas(user?.role, 'write:testimonials')
   const [previewSlides, setPreviewSlides] = useState(null)
   const [previewIndex, setPreviewIndex] = useState(0)
   const fileInputRef = useRef(null)
   const imageInputRef = useRef(null)
 
   const openAdd = () => {
+    if (!canWriteTestimonial) {
+      if (addNotification) addNotification('You do not have permission to add testimonials', 'error')
+      return
+    }
     setForm(defaultForm)
     setEditing(null)
     setShowForm(true)
   }
 
   const openEdit = (t) => {
+    if (!canWriteTestimonial) {
+      if (addNotification) addNotification('You do not have permission to edit testimonials', 'error')
+      return
+    }
     setForm({
       name: t.name || '',
       location: t.location || '',
@@ -156,15 +167,14 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
           <h2 className="text-xl font-bold text-stone-900 tracking-tight">Customer Testimonials</h2>
           <p className="text-xs text-stone-400">Manage traveler reviews shown on the customer site.</p>
         </div>
-        <button
-          onClick={openAdd}
-          className="py-2.5 px-4 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center gap-2 cursor-pointer"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          Add Testimonial
-        </button>
+        {canWriteTestimonial && (
+          <button onClick={openAdd} className="py-2.5 px-4 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center gap-2 cursor-pointer">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Testimonial
+          </button>
+        )}
       </div>
 
       {/* Testimonials Grid */}
@@ -216,8 +226,12 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
             )}
             {t.package && <span className="inline-block px-2 py-0.5 bg-stone-100 rounded text-[9px] text-stone-500 font-semibold">{t.package}</span>}
             <div className="flex gap-2 pt-2 border-t border-stone-100">
-              <button onClick={() => openEdit(t)} className="flex-1 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-[10px] font-bold text-stone-700 cursor-pointer transition-all">Edit</button>
-              <button onClick={() => setDeleteTarget(t)} className="flex-1 py-1.5 bg-rose-50 hover:bg-rose-100 rounded-lg text-[10px] font-bold text-rose-600 cursor-pointer transition-all">Delete</button>
+              {canWriteTestimonial && (
+                <button onClick={() => openEdit(t)} className="flex-1 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-[10px] font-bold text-stone-700 cursor-pointer transition-all">Edit</button>
+              )}
+              {canWriteTestimonial && (
+                <button onClick={() => setDeleteTarget(t)} className="flex-1 py-1.5 bg-rose-50 hover:bg-rose-100 rounded-lg text-[10px] font-bold text-rose-600 cursor-pointer transition-all">Delete</button>
+              )}
             </div>
           </div>
         ))}
@@ -236,6 +250,8 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
               </button>
             </div>
             <form onSubmit={handleSave} className="space-y-4 pt-4">
+              {!canWriteTestimonial && <ReadOnlyBanner message="View-only mode — you can view but not edit testimonials" />}
+              <fieldset disabled={!canWriteTestimonial}>
               {/* Avatar Upload */}
               <div className="flex items-center gap-4 p-3 bg-stone-50/50 border border-stone-200 rounded-xl">
                 <div className="w-12 h-12 rounded-xl bg-stone-100 p-0.5 shadow-inner shrink-0 relative group overflow-hidden">
@@ -382,6 +398,7 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
                 />
               </div>
 
+              </fieldset>
               <div className="pt-4 border-t border-stone-100 flex justify-end gap-2">
                 <button type="button" onClick={() => { setShowForm(false); setEditing(null) }} className="px-4 py-2 border border-stone-200 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-50 active:scale-95 transition-all cursor-pointer">Cancel</button>
                 <button type="submit" className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition-all cursor-pointer">{editing ? 'Save Changes' : 'Add Testimonial'}</button>

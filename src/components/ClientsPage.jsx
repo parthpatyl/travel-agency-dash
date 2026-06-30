@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { roleHas } from '../utils/permissions'
+import ReadOnlyBanner from './ReadOnlyBanner'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const DEFAULT_AVATAR = `${API_URL}/assets/default-avatar.png`
@@ -23,7 +25,18 @@ const calculatePassportStatus = (expiresStr) => {
   return 'Valid'
 }
 
-export default function ClientsPage({ clients, setClients, bookings, addNotification, initialSelectedClientId, onSelectClient, onBookForClient }) {
+const validatePhone = (phone) => {
+  if (!phone?.trim()) return false
+  const digits = phone.replace(/\D/g, '')
+  return digits.length >= 7 && digits.length <= 15
+}
+
+const formatPhoneDisplay = (phone) => {
+  if (!phone) return ''
+  return phone
+}
+
+export default function ClientsPage({ clients, setClients, bookings, addNotification, user, initialSelectedClientId, onSelectClient, onBookForClient }) {
   const [search, setSearch] = useState('')
   const [selectedClient, setSelectedClient] = useState(() => {
     if (initialSelectedClientId) {
@@ -46,6 +59,13 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
       onSelectClient(selectedClient ? selectedClient.id : null)
     }
   }, [selectedClient, onSelectClient])
+  const [toast, setToast] = useState(null)
+  const showToast = useCallback((message, type = 'warning') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3500)
+  }, [])
+  const canWriteClient = roleHas(user?.role, 'write:clients.profile')
+  const canDeleteClient = roleHas(user?.role, 'delete:clients')
   const [showAddForm, setShowAddForm] = useState(false)
   const [showEditForm, setShowEditForm] = useState(false)
   const [logClient, setLogClient] = useState(null)
@@ -191,48 +211,48 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
   const handleAddClient = (e) => {
     e.preventDefault()
     if (!newName.trim()) {
-      if (addNotification) addNotification('Please enter the client\'s name.', 'warning')
+      showToast('Please enter the client\'s name.')
       return
     }
     if (!newEmail.trim()) {
-      if (addNotification) addNotification('Please enter the client\'s email address.', 'warning')
+      showToast('Please enter the client\'s email address.')
       return
     }
     if (!/\S+@\S+\.\S+/.test(newEmail)) {
-      if (addNotification) addNotification('Please enter a valid email address.', 'warning')
+      showToast('Please enter a valid email address.')
       return
     }
     if (!newPhone.trim()) {
-      if (addNotification) addNotification('Please enter the client\'s phone number.', 'warning')
+      showToast('Please enter the client\'s phone number.')
       return
     }
-    if (!/^[+0-9\s-()]{7,20}$/.test(newPhone.trim())) {
-      if (addNotification) addNotification('Please enter a valid phone number (at least 7 digits).', 'warning')
+    if (!validatePhone(newPhone)) {
+      showToast('Please enter a valid phone number (7-15 digits with optional country code).')
       return
     }
     const parsedWallet = parseFloat(walletAmt ?? '0')
     if (isNaN(parsedWallet) || parsedWallet < 0) {
-      if (addNotification) addNotification('Initial travel credit must be a non-negative number.', 'warning')
+      showToast('Initial travel credit must be a non-negative number.')
       return
     }
     if (passNo.trim() && !passExp) {
-      if (addNotification) addNotification('Please provide the passport expiry date.', 'warning')
+      showToast('Please provide the passport expiry date.')
       return
     }
     if (passExp && !passNo.trim()) {
-      if (addNotification) addNotification('Please provide the passport number.', 'warning')
+      showToast('Please provide the passport number.')
       return
     }
     if (visaCountry.trim() && !visaExp) {
-      if (addNotification) addNotification('Please provide the visa expiry date.', 'warning')
+      showToast('Please provide the visa expiry date.')
       return
     }
     if (visaExp && !visaCountry.trim()) {
-      if (addNotification) addNotification('Please provide the visa target country.', 'warning')
+      showToast('Please provide the visa target country.')
       return
     }
-    if (emergPhone.trim() && !/^[+0-9\s-()]{7,20}$/.test(emergPhone.trim())) {
-      if (addNotification) addNotification('Please enter a valid emergency contact phone number.', 'warning')
+    if (emergPhone.trim() && !validatePhone(emergPhone)) {
+      showToast('Please enter a valid emergency contact phone number.')
       return
     }
 
@@ -307,6 +327,10 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
   }
 
   const handleOpenEdit = (client) => {
+    if (!canWriteClient) {
+      if (addNotification) addNotification('You do not have permission to edit clients', 'error')
+      return
+    }
     setEditName(client.name)
     setEditAvatar(client.avatar || '')
     setEditEmail(client.email)
@@ -331,48 +355,48 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
   const handleSaveEdit = (e) => {
     e.preventDefault()
     if (!editName.trim()) {
-      if (addNotification) addNotification('Please enter the client\'s name.', 'warning')
+      showToast('Please enter the client\'s name.')
       return
     }
     if (!editEmail.trim()) {
-      if (addNotification) addNotification('Please enter the client\'s email address.', 'warning')
+      showToast('Please enter the client\'s email address.')
       return
     }
     if (!/\S+@\S+\.\S+/.test(editEmail)) {
-      if (addNotification) addNotification('Please enter a valid email address.', 'warning')
+      showToast('Please enter a valid email address.')
       return
     }
     if (!editPhone.trim()) {
-      if (addNotification) addNotification('Please enter the client\'s phone number.', 'warning')
+      showToast('Please enter the client\'s phone number.')
       return
     }
-    if (!/^[+0-9\s-()]{7,20}$/.test(editPhone.trim())) {
-      if (addNotification) addNotification('Please enter a valid phone number (at least 7 digits).', 'warning')
+    if (!validatePhone(editPhone)) {
+      showToast('Please enter a valid phone number (7-15 digits with optional country code).')
       return
     }
     const parsedWallet = parseFloat(editWalletAmt ?? '0')
     if (isNaN(parsedWallet) || parsedWallet < 0) {
-      if (addNotification) addNotification('Travel wallet credit must be a non-negative number.', 'warning')
+      showToast('Travel wallet credit must be a non-negative number.')
       return
     }
     if (editPassNo.trim() && !editPassExp) {
-      if (addNotification) addNotification('Please provide the passport expiry date.', 'warning')
+      showToast('Please provide the passport expiry date.')
       return
     }
     if (editPassExp && !editPassNo.trim()) {
-      if (addNotification) addNotification('Please provide the passport number.', 'warning')
+      showToast('Please provide the passport number.')
       return
     }
     if (editVisaCountry.trim() && !editVisaExp) {
-      if (addNotification) addNotification('Please provide the visa expiry date.', 'warning')
+      showToast('Please provide the visa expiry date.')
       return
     }
     if (editVisaExp && !editVisaCountry.trim()) {
-      if (addNotification) addNotification('Please provide the visa target country.', 'warning')
+      showToast('Please provide the visa target country.')
       return
     }
-    if (editEmergPhone.trim() && !/^[+0-9\s-()]{7,20}$/.test(editEmergPhone.trim())) {
-      if (addNotification) addNotification('Please enter a valid emergency contact phone number.', 'warning')
+    if (editEmergPhone.trim() && !validatePhone(editEmergPhone)) {
+      showToast('Please enter a valid emergency contact phone number.')
       return
     }
 
@@ -424,6 +448,10 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
   const [clientToDelete, setClientToDelete] = useState(null)
 
   const handleDeleteClient = (clientId) => {
+    if (!canDeleteClient) {
+      if (addNotification) addNotification('You do not have permission to delete clients', 'error')
+      return
+    }
     setClientToDelete(clientId)
   }
 
@@ -466,6 +494,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
           <h2 className="text-xl font-bold text-stone-900 tracking-tight">Customer Accounts & CRM</h2>
           <p className="text-xs text-stone-400">Access profiles, travel preferences, and compliance documentation.</p>
         </div>
+        {canWriteClient && (
         <button
           onClick={() => setShowAddForm(true)}
           className="py-2.5 px-4 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center gap-2 cursor-pointer"
@@ -475,6 +504,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
           </svg>
           Add Client Profile
         </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -607,6 +637,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  {canWriteClient && (
                   <button
                     onClick={() => handleOpenEdit(selectedClient)}
                     className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-500 hover:text-amber-700 transition-colors cursor-pointer"
@@ -616,6 +647,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                     </svg>
                   </button>
+                  )}
                   <button 
                     onClick={() => setSelectedClient(null)}
                     className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 hover:text-stone-600 transition-colors"
@@ -846,6 +878,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
 
               {/* Delete Client Button */}
               <div className="border-t border-stone-100 pt-4">
+                {canDeleteClient && (
                 <button
                   onClick={() => handleDeleteClient(selectedClient.id)}
                   className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-350 rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer"
@@ -855,6 +888,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                   </svg>
                   Delete Client Profile
                 </button>
+                )}
               </div>
             </div>
           ) : (
@@ -885,6 +919,16 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
             </div>
             
             <form onSubmit={handleAddClient} className="space-y-4 pt-4 max-h-[70vh] overflow-y-auto pr-1">
+              {!canWriteClient && <ReadOnlyBanner message="View-only mode — you can view but not edit client profiles" />}
+              <fieldset disabled={!canWriteClient}>
+              {toast && (
+                <div className={`px-4 py-2.5 rounded-xl text-xs font-bold border ${
+                  toast.type === 'warning' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                  'bg-rose-50 text-rose-700 border-rose-200'
+                }`}>
+                  {toast.message}
+                </div>
+              )}
               {/* Avatar Upload */}
               <div className="flex items-center gap-4 p-3 bg-stone-50/50 border border-stone-200 rounded-xl">
                 <div className="w-12 h-12 rounded-xl bg-stone-100 p-0.5 shadow-inner shrink-0 relative group overflow-hidden">
@@ -1127,6 +1171,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                 ></textarea>
               </div>
 
+              </fieldset>
               <div className="pt-4 border-t border-stone-100 flex justify-end gap-2">
                 <button
                   type="button"
@@ -1164,6 +1209,16 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
             </div>
             
             <form onSubmit={handleSaveEdit} className="space-y-4 pt-4 max-h-[70vh] overflow-y-auto pr-1">
+              {!canWriteClient && <ReadOnlyBanner message="View-only mode — you can view but not edit client profiles" />}
+              <fieldset disabled={!canWriteClient}>
+              {toast && (
+                <div className={`px-4 py-2.5 rounded-xl text-xs font-bold border ${
+                  toast.type === 'warning' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                  'bg-rose-50 text-rose-700 border-rose-200'
+                }`}>
+                  {toast.message}
+                </div>
+              )}
               {/* Avatar Upload */}
               <div className="flex items-center gap-4 p-3 bg-stone-50/50 border border-stone-200 rounded-xl">
                 <div className="w-12 h-12 rounded-xl bg-stone-100 p-0.5 shadow-inner shrink-0 relative group overflow-hidden">
@@ -1406,6 +1461,7 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
                 ></textarea>
               </div>
 
+              </fieldset>
               <div className="pt-4 border-t border-stone-100 flex justify-end gap-2">
                 <button
                   type="button"

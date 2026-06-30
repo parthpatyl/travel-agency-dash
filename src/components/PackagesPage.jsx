@@ -1,5 +1,7 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Markdown from 'react-markdown'
+import { roleHas } from '../utils/permissions'
+import ReadOnlyBanner from './ReadOnlyBanner'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const imgUrl = (url) => url?.startsWith('http') ? url : `${API_URL}${url || ''}`
@@ -17,11 +19,24 @@ const MdInline = ({ children, className }) => (
 
 const formatUSD = (price) => price != null ? `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
 
-export default function PackagesPage({ packages, setPackages, clients, bookings, setBookings, settings, addNotification, onBookForPackage }) {
+export default function PackagesPage({ packages, setPackages, clients, bookings, setBookings, settings, addNotification, onBookForPackage, user, token, initialSelectedPackageId, onSelectPackage }) {
   const [selectedPackage, setSelectedPackage] = useState(null)
   const [filterRegion, setFilterRegion] = useState('All')
   const [showAddPackageForm, setShowAddPackageForm] = useState(false)
   const [bespokeMode, setBespokeMode] = useState(false)
+
+  // Deep-link: auto-open package detail when navigated via notification click
+  useEffect(() => {
+    if (!initialSelectedPackageId || packages.length === 0) return
+    const pkg = packages.find(p => p.id === initialSelectedPackageId)
+    if (pkg) {
+      setSelectedPackage(pkg)
+      if (onSelectPackage) onSelectPackage(null)
+    }
+  }, [initialSelectedPackageId, packages, onSelectPackage])
+
+  const canWritePackage = roleHas(user?.role, 'write:packages')
+  const canCreatePackage = roleHas(user?.role, 'create:packages')
 
   // New Package Form States
   const [pkgName, setPkgName] = useState('')
@@ -170,12 +185,19 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   }
 
   const handleOpenEditPackage = (pkg) => {
+    if (!canWritePackage) {
+      if (addNotification) addNotification('You do not have permission to edit packages', 'error')
+      return
+    }
     setEditPkgName(pkg.name)
-    setEditPkgDays((pkg.duration || '').replace(' Days', '').replace(' Day', ''))
-    setEditPkgPrice(pkg.basePrice ? pkg.basePrice.toString() : '0')
-    setEditPkgCostPrice(pkg.costPrice ? pkg.costPrice.toString() : '')
+    const durationStr = pkg.duration || ''
+    const match = durationStr.match(/(\d+)\s*Day/i)
+    const parsedDays = match ? match[1] : durationStr.replace(/\D/g, '')
+    setEditPkgDays(parsedDays || '5')
+    setEditPkgPrice(pkg.basePrice != null ? pkg.basePrice.toString() : '0')
+    setEditPkgCostPrice(pkg.costPrice != null ? pkg.costPrice.toString() : '')
     setEditPkgRegion(pkg.region || 'Asia')
-    setEditPkgSlots(pkg.slots?.total ? pkg.slots.total.toString() : '10')
+    setEditPkgSlots(pkg.slots?.total != null ? pkg.slots.total.toString() : '10')
     setEditPkgCardImage(pkg.cardImage || '')
     setEditPkgHeroImage(pkg.heroImage || '')
     setEditPkgInclusions(pkg.inclusionsSelection || {
@@ -196,7 +218,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     setShowEditPackageForm(true)
   }
 
-  const handleSaveEditPackage = (e) => {
+  const handleSaveEditPackage = async (e) => {
     e.preventDefault()
     if (!editPkgName || !editPkgDays || !editPkgPrice || !editPkgDescription || (!editPkgIsBespoke && !editPkgSlots)) {
       if (addNotification) {
@@ -216,9 +238,9 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       name: editPkgName,
       duration: `${editPkgDays} Days`,
       basePrice: parseFloat((editPkgPrice || '').replace(/,/g, '')) || 0,
-      costPrice: editPkgCostPrice ? parseFloat((editPkgCostPrice || '').replace(/,/g, '')) : null,
+      costPrice: editPkgCostPrice ? parseFloat((editPkgCostPrice || '').replace(/,/g, '')) : (selectedPackage.costPrice != null ? selectedPackage.costPrice : null),
       region: editPkgRegion,
-      slots: editPkgIsBespoke ? { booked: 0, total: 999 } : { ...selectedPackage.slots, total: parseInt(editPkgSlots) || 10 },
+      slots: editPkgIsBespoke ? { booked: 0, total: 999 } : { ...(selectedPackage.slots || { booked: 0 }), total: parseInt(editPkgSlots) >= 0 ? parseInt(editPkgSlots) : 10 },
       inclusionsSelection: editPkgInclusions,
       cardImage: editPkgCardImage,
       heroImage: editPkgHeroImage,
@@ -227,6 +249,39 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       inclusions: editPkgInclusionsList,
       exclusions: editPkgExclusions,
       isBespoke: editPkgIsBespoke
+    }
+
+    if (user && !roleHas(user.role, 'write:packages.pricing')) {
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+      const res = await fetch(`${API_URL}/api/packages/${updated.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updated)
+      })
+
+      if (res.status === 202) {
+        setShowEditPackageForm(false)
+        if (addNotification) addNotification('Pricing change requires admin approval. Request submitted.', 'info')
+        return
+      } else if (res.ok) {
+        const serverPkg = await res.json()
+        setPackages(packages.map(p => p.id === serverPkg.id ? { ...updated, ...serverPkg } : p))
+        setSelectedPackage({ ...updated, ...serverPkg })
+        setShowEditPackageForm(false)
+        if (addNotification) addNotification(`Package ${updated.name} updated successfully`, 'success')
+        return
+      } else if (res.status === 403) {
+        const err = await res.json()
+        if (addNotification) addNotification(err.error || 'Insufficient permissions', 'error')
+        return
+      } else {
+        const err = await res.json()
+        if (addNotification) addNotification(err.error || 'Failed to update package', 'error')
+        return
+      }
     }
 
     console.log(`[DEBUG] handleSaveEditPackage: id=${updated.id}, newBasePrice=${updated.basePrice}, oldBasePrice=${selectedPackage.basePrice}, pkgName=${updated.name}`)
@@ -244,6 +299,11 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
 
   const confirmDeletePackage = () => {
     if (!packageToDelete) return
+    if (user && !roleHas(user.role, 'delete:packages')) {
+      if (addNotification) addNotification('You do not have permission to delete packages', 'error')
+      setPackageToDelete(null)
+      return
+    }
     const deletedPkg = packages.find(p => p.id === packageToDelete)
     setPackages(packages.filter(p => p.id !== packageToDelete))
     if (selectedPackage?.id === packageToDelete) {
@@ -256,6 +316,10 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   }
 
   const handleAddPackage = (e) => {
+    if (!canCreatePackage) {
+      if (addNotification) addNotification('You do not have permission to create packages', 'error')
+      return
+    }
     e.preventDefault()
     if (!pkgName || !pkgDays || !pkgPrice || !pkgDescription || (!bespokeMode && !pkgSlots)) {
       if (addNotification) {
@@ -397,6 +461,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
           <p className="text-xs text-stone-400">Review itineraries, check booking slots, and calculate commissions splits in real time.</p>
         </div>
         <div className="flex gap-2">
+          {canCreatePackage && (
           <button
             onClick={() => { setBespokeMode(false); setShowAddPackageForm(true) }}
             className="py-2.5 px-4 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center gap-2 cursor-pointer"
@@ -406,6 +471,8 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
             </svg>
             Add Package
           </button>
+          )}
+          {canCreatePackage && (
           <button
             onClick={() => { setBespokeMode(true); setShowAddPackageForm(true) }}
             className="py-2.5 px-4 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center gap-2 cursor-pointer"
@@ -415,6 +482,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
             </svg>
             Add Bespoke
           </button>
+          )}
         </div>
       </div>
 
@@ -743,6 +811,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     <span className="text-[10px] text-stone-500 font-bold ml-auto">{selectedPackage.id}</span>
                   </div>
                 </div>
+                {canWritePackage && (
                 <button
                   onClick={() => handleOpenEditPackage(selectedPackage)}
                   className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-50 text-stone-500 hover:text-stone-700 transition-all cursor-pointer"
@@ -752,6 +821,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                 </button>
+                )}
               </div>
 
               {/* Manage Inclusions */}
@@ -1118,6 +1188,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
               </div>
 
               {/* Delete Package Button */}
+              {user && roleHas(user.role, 'delete:packages') && (
               <div className="border-t border-stone-100 pt-4">
                 <button
                   onClick={() => handleDeletePackage(selectedPackage.id)}
@@ -1129,6 +1200,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   Delete Vacation Package
                 </button>
               </div>
+              )}
             </div>
           ) : (
             <div className="bg-stone-50 border border-dashed border-stone-300/60 rounded-2xl p-12 text-center text-stone-400 text-xs">
@@ -1506,6 +1578,8 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
             </div>
 
             <form onSubmit={handleSaveEditPackage} className="space-y-4 px-6 pb-6 overflow-y-auto">
+              {!canWritePackage && <ReadOnlyBanner message="View-only mode — you can view but not edit this package" />}
+              <fieldset disabled={!canWritePackage}>
               {/* Package Image Upload */}
               <div className="p-3 bg-stone-50/50 border border-stone-200 rounded-xl">
                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Image (Cover & Hero)</label>
@@ -1660,6 +1734,28 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   </div>
                 )
               })()}
+
+              {user && !roleHas(user.role, 'write:packages.pricing') && (
+                <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-md mb-4">
+                  <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                    Pricing (read-only — admin-managed)
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-slate-400">Base Price:</span>{' '}
+                      <span className="font-medium text-slate-700">
+                        ₹{selectedPackage.basePrice?.toLocaleString() ?? '—'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Cost Price:</span>{' '}
+                      <span className="font-medium text-slate-700">
+                        ₹{selectedPackage.costPrice?.toLocaleString() ?? '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
@@ -1886,6 +1982,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   </div>
                 )}
               </div>
+              </fieldset>
 
               <div className="pt-4 border-t border-stone-100 flex justify-end gap-2">
                 <button

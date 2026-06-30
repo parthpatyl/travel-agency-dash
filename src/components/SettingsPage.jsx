@@ -1,4 +1,6 @@
 import { useState, useCallback } from 'react'
+import { roleHas } from '../utils/permissions'
+import ReadOnlyBanner from './ReadOnlyBanner'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
@@ -8,7 +10,7 @@ const imgUrl = (url) => {
   return `${API_URL}${url}`
 }
 
-export default function SettingsPage({ settings = {}, setSettings, addNotification, packages = [] }) {
+export default function SettingsPage({ settings = {}, setSettings, addNotification, packages = [], user }) {
   const [editingOfferId, setEditingOfferId] = useState(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [offerForm, setOfferForm] = useState({
@@ -19,7 +21,13 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
     targetPage: 'destinations'
   })
 
+  const canWriteSettings = roleHas(user?.role, 'write:settings')
+
   const handleSaveOffer = (e) => {
+    if (!canWriteSettings) {
+      if (addNotification) addNotification('You do not have permission to modify settings', 'error')
+      return
+    }
     e.preventDefault()
     if (!offerForm.title || !offerForm.subtitle || !offerForm.imageUrl) {
       if (addNotification) addNotification('Please fill in all required fields', 'warning')
@@ -70,6 +78,10 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
   }
 
   const handleDeleteOffer = (id) => {
+    if (!canWriteSettings) {
+      if (addNotification) addNotification('You do not have permission to modify settings', 'error')
+      return
+    }
     const currentOffers = settings.specialOffers ?? []
     const updatedOffers = currentOffers.filter(o => o.id !== id)
     setSettings({
@@ -212,6 +224,10 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
   }
 
   const handleSaveSection = useCallback(async (section) => {
+    if (!canWriteSettings) {
+      if (addNotification) addNotification('You do not have permission to modify settings', 'error')
+      return
+    }
     setSaving(section)
     try {
       await setSettings(s => ({ ...s }))
@@ -221,7 +237,7 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
     } finally {
       setSaving(null)
     }
-  }, [setSettings, addNotification])
+  }, [setSettings, addNotification, canWriteSettings])
 
   const agencyName = settings.agencyName ?? ''
   const agencyAddress = settings.agencyAddress ?? ''
@@ -367,6 +383,8 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
             {/* Form */}
             {isFormOpen && (
               <form onSubmit={handleSaveOffer} className="p-4 bg-[#FAF9F5]/50 border border-stone-200/40 rounded-xl space-y-4 animate-in fade-in duration-200">
+                {!canWriteSettings && <ReadOnlyBanner message="Settings are read-only" />}
+                <fieldset disabled={!canWriteSettings}>
                 <h4 className="text-xs font-bold text-stone-900 uppercase">
                   {editingOfferId ? 'Edit Special Offer' : 'Add New Special Offer'}
                 </h4>
@@ -503,6 +521,7 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
                     {editingOfferId ? 'Save Changes' : 'Create Offer'}
                   </button>
                 </div>
+                </fieldset>
               </form>
             )}
 
@@ -597,6 +616,8 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
                 />
               </div>
 
+              {!canWriteSettings && <ReadOnlyBanner message="Settings are read-only" />}
+              <fieldset disabled={!canWriteSettings}>
               <div className="pt-2 border-t border-stone-100">
                 <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">
                   INR → USD Exchange Rate
@@ -629,6 +650,7 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
                   ) : 'Save Exchange Rate'}
                 </button>
               </div>
+              </fieldset>
             </div>
           </section>
 
@@ -640,6 +662,8 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
             </div>
 
             <div className="space-y-3">
+              {!canWriteSettings && <ReadOnlyBanner message="Settings are read-only" />}
+              <fieldset disabled={!canWriteSettings}>
               <div>
                 <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Brand Corporate Name</label>
                 <input
@@ -708,6 +732,7 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
                   ) : 'Save Branding Details'}
                 </button>
               </div>
+              </fieldset>
             </div>
           </section>
 

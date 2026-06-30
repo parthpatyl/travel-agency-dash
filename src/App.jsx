@@ -5,8 +5,11 @@ import PackagesPage from './components/PackagesPage'
 import ReportsPage from './components/ReportsPage'
 import SettingsPage from './components/SettingsPage'
 import TestimonialsPage from './components/TestimonialsPage'
+import TeamPage from './components/TeamPage'
+import ApprovalsPage from './components/ApprovalsPage'
 import LoginPage from './components/LoginPage'
 import logo from './assets/logo.png'
+import { roleHas } from './utils/permissions'
 import { 
   getQueue, 
   enqueueRequest, 
@@ -38,7 +41,7 @@ const initialBookings = []
 
 const initialTestimonials = []
 
-const VALID_TABS = ['dashboard', 'bookings', 'clients', 'packages', 'reports', 'testimonials', 'settings']
+const VALID_TABS = ['dashboard', 'bookings', 'clients', 'packages', 'reports', 'testimonials', 'settings', 'team', 'approvals']
 
 function getTabFromHash() {
   const hash = window.location.hash.replace('#', '')
@@ -51,10 +54,14 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const isPopstateRef = useRef(false)
 
-  // Wrap setActiveTab to push browser history entries
+  // Wrap setActiveTab to push browser history entries and ping activity
   const setActiveTab = (tab) => {
     if (!VALID_TABS.includes(tab)) return
     setActiveTabRaw(tab)
+    // Fire-and-forget ping to update last_active_at
+    if (token) {
+      fetch(`${API_URL}/api/auth/heartbeat`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }).catch(() => {})
+    }
     if (!isPopstateRef.current) {
       window.history.pushState({ tab }, '', `#${tab}`)
     }
@@ -86,21 +93,25 @@ function App() {
     'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
   })
-  
+
   // Interactive Feature States
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
-  const [agentStatus, setAgentStatus] = useState('Online')
   const [notificationsList, setNotificationsList] = useState([])
+  const [toasts, setToasts] = useState([])
   const [selectedClientIdForCRM, setSelectedClientIdForCRM] = useState(null)
-  const [bookingDraft, setBookingDraft] = useState(null) // { client: '', package: '' }
+  const [bookingDraft, setBookingDraft] = useState(null)
   const [initialSelectedBookingId, setInitialSelectedBookingId] = useState(null)
+  const [initialSelectedPackageId, setInitialSelectedPackageId] = useState(null)
+  const [initialApprovalId, setInitialApprovalId] = useState(null)
+  const [initialApprovalFilter, setInitialApprovalFilter] = useState('pending')
 
   // Server Status & Offline Sync States
   const [serverStatus, setServerStatus] = useState({ online: null, latency: null, lastChecked: '' })
   const [queueItems, setQueueItems] = useState([])
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0)
 
   // Lifted and Persisted States (Local state updated dynamically, synced with Database)
   const [clients, rawSetClients] = useState(initialClients)
@@ -147,7 +158,7 @@ function App() {
       setQueueItems(currentQueue)
       if (currentQueue.length > 0) {
         setIsSyncing(true)
-        const result = await processSyncQueue(addNotification)
+        await processSyncQueue(addNotification)
         setIsSyncing(false)
         const remainingQueue = getQueue()
         setQueueItems(remainingQueue)
@@ -252,6 +263,8 @@ function App() {
             time: new Date(n.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }),
             unread: !n.read,
             type: n.type,
+            link_url: n.link_url || null,
+            link_type: n.link_type || null
           }))
           setNotificationsList(prev => {
             const existingIds = new Set(prev.map(n => n.id))
@@ -336,6 +349,25 @@ function App() {
 
     return () => clearInterval(intervalId)
   }, [])
+  
+  // Poll pending approvals count for admin
+  useEffect(() => {
+    if (!user || !roleHas(user.role, 'review:approvals')) return
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/approvals?status=pending`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setPendingApprovalsCount(data.length)
+        }
+      } catch {}
+    }
+    poll()
+    const interval = setInterval(poll, 30000)
+    return () => clearInterval(interval)
+  }, [user, token])
 
   // Sync request helper: performs fetch and queues on failure
   const syncRequest = async (url, method, bodyObj, description) => {
@@ -352,6 +384,11 @@ function App() {
       console.log(`[DEBUG] syncRequest response: ${res.status} ${res.statusText} for ${method} ${url}`)
       
       if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          const errData = await res.json().catch(() => ({}))
+          addNotification(errData.error || `Permission denied: ${description}`, 'error')
+          return null
+        }
         throw new Error(`Server returned ${res.status}`)
       }
       
@@ -535,20 +572,32 @@ function App() {
     }
   }
 
-  function addNotification(text, type = 'system') {
+  function addNotification(text, type = 'system', link) {
+    if (type === 'error' || type === 'warning') {
+      const id = `t-${Date.now()}-${Math.random()}`
+      setToasts(prev => [...prev, { id, text, type }])
+      const lifetime = type === 'error' ? 7000 : 5000
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id))
+      }, lifetime)
+      return
+    }
+
     const newNotif = {
       id: Date.now(),
       text,
       time: 'Just now',
       unread: true,
-      type
+      type,
+      link_url: link || null,
+      link_type: link ? link.split(':')[0] : null
     }
     setNotificationsList(prev => [newNotif, ...prev])
 
     fetch(`${API_BASE_URL}/notifications`, {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ message: text, type }),
+      body: JSON.stringify({ message: text, type, link }),
     }).catch(() => {})
   }
 
@@ -708,6 +757,34 @@ function App() {
     }
   }
 
+  const handleNotificationClick = (link) => {
+    if (!link) return
+    setShowNotifications(false)
+    const [path, ...queryParts] = link.split('?')
+    const params = new URLSearchParams(queryParts.join('?'))
+    const [kind, id] = path.split(':')
+
+    if (kind === 'tab') {
+      setActiveTab(id)
+      const status = params.get('status')
+      if (status) setInitialApprovalFilter(status)
+      const approvalId = params.get('id')
+      if (approvalId) setInitialApprovalId(approvalId)
+    } else if (kind === 'booking') {
+      setInitialSelectedBookingId(id)
+      setActiveTab('bookings')
+    } else if (kind === 'client') {
+      setSelectedClientIdForCRM(id)
+      setActiveTab('clients')
+    } else if (kind === 'package') {
+      setInitialSelectedPackageId(id)
+      setActiveTab('packages')
+    } else if (kind === 'approval') {
+      setInitialApprovalId(id)
+      setActiveTab('approvals')
+    }
+  }
+
   const clearAllNotifications = () => {
     setNotificationsList([])
     fetch(`${API_BASE_URL}/notifications/clear-all`, {
@@ -722,19 +799,6 @@ function App() {
       b.package.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.id.toLowerCase().includes(searchQuery.toLowerCase())
   )
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Online':
-        return 'bg-emerald-500'
-      case 'Away':
-        return 'bg-amber-500'
-      case 'Offline':
-        return 'bg-stone-400'
-      default:
-        return 'bg-stone-400'
-    }
-  }
 
   if (authLoading) {
     return (
@@ -778,13 +842,15 @@ function App() {
           <nav className="p-4 space-y-1">
             {[
               { id: 'dashboard', label: 'Dashboard', icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z' },
-              { id: 'bookings', label: 'Bookings', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-              { id: 'clients', label: 'Clients', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
-              { id: 'packages', label: 'Packages', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
-              { id: 'reports', label: 'Reports', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
-              { id: 'testimonials', label: 'Testimonials', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' },
-              { id: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
-            ].map((link) => (
+              { id: 'bookings', label: 'Bookings', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', visible: roleHas(user?.role, 'read:bookings') },
+              { id: 'clients', label: 'Clients', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', visible: roleHas(user?.role, 'read:clients') },
+              { id: 'packages', label: 'Packages', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10', visible: roleHas(user?.role, 'read:packages') },
+              { id: 'reports', label: 'Reports', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z', visible: roleHas(user?.role, 'read:reports') },
+              { id: 'testimonials', label: 'Testimonials', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', visible: roleHas(user?.role, 'read:testimonials') },
+              { id: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z', visible: roleHas(user?.role, 'read:settings') },
+              ...(roleHas(user?.role, 'manage:users') ? [{ id: 'team', label: 'Team', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' }] : []),
+              ...(roleHas(user?.role, 'review:approvals') || roleHas(user?.role, 'submit:approvals') ? [{ id: 'approvals', label: 'Approvals', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' }] : []),
+            ].filter(t => t.visible !== false).map((link) => (
               <button
                 key={link.id}
                 onClick={() => { setActiveTab(link.id); setSidebarOpen(false); setShowNotifications(false); setShowProfile(false); setShowStatusDropdown(false); }}
@@ -806,6 +872,11 @@ function App() {
                   <path strokeLinecap="round" strokeLinejoin="round" d={link.icon} />
                 </svg>
                 <span className="text-sm">{link.label}</span>
+                {link.id === 'approvals' && pendingApprovalsCount > 0 && (
+                  <span className="ml-auto bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                    {pendingApprovalsCount}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -1057,33 +1128,36 @@ function App() {
                       notificationsList.map((notif) => (
                         <div
                           key={notif.id}
+                          onClick={notif.link_url ? () => handleNotificationClick(notif.link_url) : undefined}
                           className={`p-4 flex gap-3 transition-colors duration-200 ${
                             notif.unread ? 'bg-amber-50/20' : 'hover:bg-stone-50/50'
-                          }`}
+                          } ${notif.link_url ? 'cursor-pointer hover:bg-amber-50/40' : ''}`}
                         >
-                          <div className="flex-1 space-y-1">
-                             <div className="flex items-start justify-between gap-2">
-                              <p className={`text-[11px] leading-relaxed ${notif.unread ? 'font-semibold text-stone-900' : 'text-stone-600'}`}>
-                                {notif.text}
-                              </p>
-                              {notif.unread && (
-                                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full shrink-0 mt-1"></span>
-                              )}
-                            </div>
-                            <div className="flex items-center justify-between pt-1 text-[9px] text-stone-400">
-                              <span>{notif.time}</span>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => toggleRead(notif.id)}
-                                  className="text-stone-500 hover:text-stone-800"
-                                >
-                                  {notif.unread ? 'Mark read' : 'Mark unread'}
-                                </button>
-                                <span>•</span>
-                                <button
-                                  onClick={() => deleteNotification(notif.id)}
-                                  className="text-stone-400 hover:text-red-600 font-medium"
-                                >
+                            <div className="flex-1 space-y-1">
+                               <div className="flex items-start justify-between gap-2">
+                                <p className={`text-[11px] leading-relaxed ${notif.unread ? 'font-semibold text-stone-900' : 'text-stone-600'}`}>
+                                  {notif.text}
+                                </p>
+                                {notif.unread && (
+                                  <span className="w-1.5 h-1.5 bg-amber-500 rounded-full shrink-0 mt-1"></span>
+                                )}
+                              </div>
+                              <div className="flex items-center justify-between pt-1 text-[9px] text-stone-400">
+                                <span>{notif.time}</span>
+                                <div className="flex items-center gap-2">
+                                  {notif.link_url && <span className="text-amber-700 font-bold">Open →</span>}
+                                  {!notif.link_url && <span>•</span>}
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleRead(notif.id) }}
+                                    className="text-stone-500 hover:text-stone-800"
+                                  >
+                                    {notif.unread ? 'Mark read' : 'Mark unread'}
+                                  </button>
+                                  <span>•</span>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id) }}
+                                    className="text-stone-400 hover:text-red-600 font-medium"
+                                  >
                                   Clear
                                 </button>
                               </div>
@@ -1123,14 +1197,12 @@ function App() {
                       {user?.name?.charAt(0) || 'A'}
                     </div>
                   )}
-                  {/* Realtime Status Indicator dot */}
-                  <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${getStatusColor(agentStatus)} shadow`}></span>
                 </div>
                 <div className="hidden md:block">
                   <h4 className="text-xs font-semibold text-stone-900 leading-tight group-hover:text-amber-700 transition-colors duration-200">
                     {user?.name || 'Admin'}
                   </h4>
-                  <span className="text-[10px] text-stone-400 font-medium">{agentStatus}</span>
+                  <span className="text-[10px] text-stone-400 font-medium capitalize">{user?.role || 'admin'}</span>
                 </div>
                 <svg className="w-3.5 h-3.5 text-stone-400 group-hover:text-stone-600 transition-colors duration-200 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -1161,27 +1233,6 @@ function App() {
                       <span className="bg-amber-500/10 text-amber-700 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border border-amber-500/10">
                         {user?.role || 'admin'}
                       </span>
-                    </div>
-                  </div>
-
-                  {/* Dynamic Status Toggle */}
-                  <div className="py-4 border-b border-stone-100 space-y-2">
-                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Set Status</span>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {['Online', 'Away', 'Offline'].map((status) => (
-                        <button
-                          key={status}
-                          onClick={() => setAgentStatus(status)}
-                          className={`py-1.5 px-2 rounded-lg text-[10px] font-bold border transition-all duration-300 flex items-center justify-center gap-1.5 ${
-                            agentStatus === status
-                              ? 'bg-amber-500/10 border-amber-300 text-amber-700'
-                              : 'bg-stone-50/50 border-stone-200 text-stone-500 hover:bg-stone-50'
-                          }`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full ${getStatusColor(status)}`}></span>
-                          {status}
-                        </button>
-                      ))}
                     </div>
                   </div>
 
@@ -1564,6 +1615,8 @@ function App() {
               setBookingDraft={setBookingDraft}
               initialSelectedBookingId={initialSelectedBookingId}
               onSelectBooking={setInitialSelectedBookingId}
+              user={user}
+              token={token}
             />
           )}
 
@@ -1573,6 +1626,7 @@ function App() {
               setClients={setClients}
               bookings={bookings}
               addNotification={addNotification}
+              user={user}
               initialSelectedClientId={selectedClientIdForCRM}
               onSelectClient={setSelectedClientIdForCRM}
               onBookForClient={(clientName) => {
@@ -1595,6 +1649,10 @@ function App() {
                 setBookingDraft({ client: '', package: packageName })
                 setActiveTab('bookings')
               }}
+              user={user}
+              token={token}
+              initialSelectedPackageId={initialSelectedPackageId}
+              onSelectPackage={setInitialSelectedPackageId}
             />
           )}
 
@@ -1604,6 +1662,7 @@ function App() {
               packages={packages}
               clients={clients}
               settings={settings}
+              user={user}
             />
           )}
 
@@ -1613,6 +1672,7 @@ function App() {
               setTestimonials={setTestimonials}
               addNotification={addNotification}
               packages={packages}
+              user={user}
             />
           )}
 
@@ -1622,10 +1682,57 @@ function App() {
               setSettings={setSettings}
               addNotification={addNotification}
               packages={packages}
+              user={user}
+            />
+          )}
+
+          {activeTab === 'team' && (
+            <TeamPage
+              addNotification={addNotification}
+              token={token}
+              user={user}
+            />
+          )}
+
+          {activeTab === 'approvals' && (
+            <ApprovalsPage
+              user={user}
+              addNotification={addNotification}
+              token={token}
+              initialApprovalId={initialApprovalId}
+              initialFilter={initialApprovalFilter}
             />
           )}
         </div>
       </main>
+
+      {/* Toast notifications — bottom-right, fixed */}
+      <div className="fixed bottom-4 right-4 z-50 space-y-2 pointer-events-none">
+        {toasts.map(t => (
+          <div
+            key={t.id}
+            className={`pointer-events-auto px-4 py-3 rounded-xl shadow-xl border text-xs font-medium animate-in slide-in-from-right-full fade-in duration-300 ${
+              t.type === 'error'
+                ? 'bg-rose-50 border-rose-200 text-rose-800'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}
+            role="alert"
+          >
+            <div className="flex items-start gap-2">
+              <span className="font-bold uppercase tracking-wider text-[9px] shrink-0">
+                {t.type === 'error' ? 'Error' : 'Warning'}
+              </span>
+              <span className="flex-1">{t.text}</span>
+              <button
+                onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))}
+                className="text-stone-400 hover:text-stone-700 ml-2 shrink-0"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

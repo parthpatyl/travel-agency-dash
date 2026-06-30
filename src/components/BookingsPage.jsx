@@ -1,5 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
+import { roleHas } from '../utils/permissions'
+import ReadOnlyBanner from './ReadOnlyBanner'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const formatUSD = (price) => price != null ? `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
 
 export default function BookingsPage({ 
@@ -14,7 +17,9 @@ export default function BookingsPage({
   bookingDraft,
   setBookingDraft,
   initialSelectedBookingId,
-  onSelectBooking
+  onSelectBooking,
+  user,
+  token
 }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
@@ -25,6 +30,9 @@ export default function BookingsPage({
   const [editBookingObj, setEditBookingObj] = useState(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [bookingToDelete, setBookingToDelete] = useState(null)
+  const [pendingApprovalBookings, setPendingApprovalBookings] = useState(new Set())
+
+  const canWriteBooking = roleHas(user?.role, 'write:bookings')
 
   const [editClient, setEditClient] = useState('')
   const [editPackage, setEditPackage] = useState('')
@@ -123,7 +131,29 @@ export default function BookingsPage({
     return str
   }
 
-  const handleSaveEditBooking = (e) => {
+  // Fetch pending approval booking IDs for operations users
+  useEffect(() => {
+    if (!user || !roleHas(user.role, 'submit:approvals') || !token) return
+    const fetchPending = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/approvals?status=mine`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const pendingIds = data
+            .filter(a => a.status === 'pending')
+            .map(a => a.entity_id)
+          setPendingApprovalBookings(new Set(pendingIds))
+        }
+      } catch {}
+    }
+    fetchPending()
+    const interval = setInterval(fetchPending, 30000)
+    return () => clearInterval(interval)
+  }, [user, token])
+
+  const handleSaveEditBooking = async (e) => {
     e.preventDefault()
     if (!editBookingObj || !editClient || !editPackage || !editAmount || !editDate) return
 
@@ -156,6 +186,57 @@ export default function BookingsPage({
     }
 
     const formattedDate = formatDate(editDate)
+
+    // For operations: detect pricing changes — if amount or discount changed, route through approval
+    const isOperations = user && roleHas(user.role, 'write:bookings') && !roleHas(user.role, 'write:bookings.pricing')
+    if (isOperations) {
+      const amountChanged = parseFloat(editAmount) !== editBookingObj.amount
+      const discountChanged = (editDiscount ? parseFloat(editDiscount) : 0) !== (editBookingObj.discountValue || 0)
+
+      if (amountChanged || discountChanged) {
+        // Don't update local state — create approval request via API
+        try {
+          const res = await fetch(`${API_URL}/api/bookings/${editBookingObj.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              client: editClient,
+              package: editPackage,
+              amount: parseFloat(editAmount) || 0,
+              discountType: editDiscount ? 'fixed' : null,
+              discountValue: editDiscount ? parseFloat(editDiscount) : 0,
+              date: formattedDate,
+              status: editStatus,
+              guests: parseInt(editGuests) || 1,
+              notes: 'Pricing change — requires admin approval'
+            })
+          })
+
+          if (res.status === 202) {
+            await res.json()
+            if (addNotification) addNotification('Pricing change requires admin approval. Request submitted.', 'info')
+            setShowEditModal(false)
+            return
+          } else if (res.ok) {
+            // 200 — fall through to normal update (unlikely for ops but handle gracefully)
+          } else if (res.status === 403) {
+            const err = await res.json()
+            if (addNotification) addNotification(err.error || 'Insufficient permissions', 'error')
+            return
+          } else {
+            const err = await res.json()
+            if (addNotification) addNotification(err.error || 'Failed to submit approval request', 'error')
+            return
+          }
+        } catch {
+          if (addNotification) addNotification('Network error submitting approval request', 'error')
+          return
+        }
+      }
+    }
 
     const updatedBooking = {
       ...editBookingObj,
@@ -195,9 +276,47 @@ export default function BookingsPage({
     }
   }
 
-  const confirmDeleteBooking = () => {
+  const confirmDeleteBooking = async () => {
     if (!bookingToDelete) return
 
+    // Operations users route through approval
+    const isOperations = user && roleHas(user.role, 'write:bookings') && !roleHas(user.role, 'delete:bookings')
+    if (isOperations) {
+      try {
+        const res = await fetch(`${API_URL}/api/bookings/${bookingToDelete.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        if (res.status === 202) {
+          const data = await res.json()
+          setPendingApprovalBookings(prev => new Set([...prev, bookingToDelete.id]))
+          setBookingToDelete(null)
+          if (addNotification) addNotification(data.message || 'Deletion request submitted for admin approval.', 'info')
+          return
+        } else if (res.ok) {
+          // 200 — fall through to normal delete (admin context or similar)
+        } else if (res.status === 403) {
+          const err = await res.json()
+          if (addNotification) addNotification(err.error || 'Insufficient permissions', 'error')
+          setBookingToDelete(null)
+          return
+        } else {
+          const err = await res.json()
+          if (addNotification) addNotification(err.error || 'Failed to submit deletion request', 'error')
+          setBookingToDelete(null)
+          return
+        }
+      } catch {
+        if (addNotification) addNotification('Network error submitting deletion request', 'error')
+        setBookingToDelete(null)
+        return
+      }
+    }
+
+    // Admin flow: direct delete via sync
     setBookings(bookings.filter(b => b.id !== bookingToDelete.id))
     setSelectedBooking(null)
     setBookingToDelete(null)
@@ -324,15 +443,17 @@ export default function BookingsPage({
           <h2 className="text-xl font-bold text-stone-900 tracking-tight">Reservations Portal</h2>
           <p className="text-xs text-stone-400">Manage, review, and create agency bookings.</p>
         </div>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="py-2.5 px-4 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center gap-2 cursor-pointer"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          Create Booking
-        </button>
+        {canWriteBooking && (
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="py-2.5 px-4 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center gap-2 cursor-pointer"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Create Booking
+          </button>
+        )}
       </div>
 
       {/* Filter and Content Grid */}
@@ -417,6 +538,11 @@ export default function BookingsPage({
                           }`}>
                             {b.status}
                           </span>
+                          {pendingApprovalBookings.has(b.id) && (
+                            <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-200/40">
+                              Pending Approval
+                            </span>
+                          )}
                         </td>
                         <td className="py-3.5 px-6 text-right">
                           <button 
@@ -664,6 +790,10 @@ export default function BookingsPage({
               <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-stone-100">
                 <button 
                   onClick={() => {
+                    if (!canWriteBooking) {
+                      if (addNotification) addNotification('You do not have permission to edit bookings', 'error')
+                      return
+                    }
                     setEditBookingObj(selectedBooking)
                     setEditClient(selectedBooking.client)
                     setEditPackage(selectedBooking.package)
@@ -685,12 +815,20 @@ export default function BookingsPage({
                   onClick={() => {
                     setBookingToDelete(selectedBooking)
                   }}
-                  className="py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 font-bold text-[10px] rounded-lg active:scale-95 transition-all text-center cursor-pointer flex items-center justify-center gap-1.5"
+                  className={`py-2 border font-bold text-[10px] rounded-lg active:scale-95 transition-all text-center cursor-pointer flex items-center justify-center gap-1.5 ${
+                    user && roleHas(user.role, 'write:bookings') && !roleHas(user.role, 'delete:bookings')
+                      ? 'bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-700'
+                      : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-600'
+                  }`}
+                  style={
+                    user && !roleHas(user.role, 'write:bookings') && !roleHas(user.role, 'submit:approvals')
+                      ? { display: 'none' } : {}
+                  }
                 >
-                  <svg className="w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
-                  Delete Booking
+                  {user && roleHas(user.role, 'write:bookings') && !roleHas(user.role, 'delete:bookings') ? 'Request Deletion' : 'Delete Booking'}
                 </button>
               </div>
             </div>
@@ -722,6 +860,8 @@ export default function BookingsPage({
             </div>
             
             <form onSubmit={handleAddBooking} className="space-y-4 pt-4">
+              {!canWriteBooking && <ReadOnlyBanner message="View-only mode — you can view but not edit bookings" />}
+              <fieldset disabled={!canWriteBooking}>
               <div>
                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Client Full Name</label>
                 <select
@@ -847,6 +987,7 @@ export default function BookingsPage({
                   Confirm & Create
                 </button>
               </div>
+              </fieldset>
             </form>
           </div>
         </div>
@@ -869,6 +1010,8 @@ export default function BookingsPage({
             </div>
             
             <form onSubmit={handleSaveEditBooking} className="space-y-4 pt-4">
+              {!canWriteBooking && <ReadOnlyBanner message="View-only mode — you can view but not edit bookings" />}
+              <fieldset disabled={!canWriteBooking}>
               <div>
                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Client Full Name</label>
                 <select
@@ -994,6 +1137,7 @@ export default function BookingsPage({
                   Save Changes
                 </button>
               </div>
+              </fieldset>
             </form>
           </div>
         </div>
@@ -1009,11 +1153,17 @@ export default function BookingsPage({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
-              <h3 className="text-sm font-bold text-stone-900">Delete Reservation</h3>
+              <h3 className="text-sm font-bold text-stone-900">
+                {user && roleHas(user.role, 'write:bookings') && !roleHas(user.role, 'delete:bookings') ? 'Request Deletion' : 'Delete Reservation'}
+              </h3>
             </div>
             
             <p className="text-xs text-stone-500 leading-normal">
-              Are you sure you want to permanently delete booking <strong className="text-stone-800 font-bold">{bookingToDelete.id}</strong> for <strong className="text-stone-800 font-bold">{bookingToDelete.client}</strong>? This will release the package slot and cannot be undone.
+              {user && roleHas(user.role, 'write:bookings') && !roleHas(user.role, 'delete:bookings') ? (
+                <>Submit a request to delete booking <strong className="text-stone-800 font-bold">{bookingToDelete.id}</strong> for <strong className="text-stone-800 font-bold">{bookingToDelete.client}</strong>? An admin must approve this before it takes effect.</>
+              ) : (
+                <>Are you sure you want to permanently delete booking <strong className="text-stone-800 font-bold">{bookingToDelete.id}</strong> for <strong className="text-stone-800 font-bold">{bookingToDelete.client}</strong>? This will release the package slot and cannot be undone.</>
+              )}
             </p>
 
             <div className="pt-2 flex justify-end gap-2">
@@ -1027,9 +1177,13 @@ export default function BookingsPage({
               <button
                 type="button"
                 onClick={confirmDeleteBooking}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition-all"
+                className={`px-4 py-2 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition-all ${
+                  user && roleHas(user.role, 'write:bookings') && !roleHas(user.role, 'delete:bookings')
+                    ? 'bg-amber-600 hover:bg-amber-500'
+                    : 'bg-rose-600 hover:bg-rose-500'
+                }`}
               >
-                Delete Booking
+                {user && roleHas(user.role, 'write:bookings') && !roleHas(user.role, 'delete:bookings') ? 'Request Approval' : 'Delete Booking'}
               </button>
             </div>
           </div>
