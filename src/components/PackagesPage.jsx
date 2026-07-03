@@ -1375,6 +1375,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     <option value="Asia">Asia</option>
                     <option value="Australia">Australia</option>
                     <option value="Europe">Europe</option>
+                    <option value="Middle East">Middle East</option>
                     <option value="North America">North America</option>
                     <option value="South America">South America</option>
                   </select>
@@ -1809,6 +1810,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     <option value="Asia">Asia</option>
                     <option value="Australia">Australia</option>
                     <option value="Europe">Europe</option>
+                    <option value="Middle East">Middle East</option>
                     <option value="North America">North America</option>
                     <option value="South America">South America</option>
                   </select>

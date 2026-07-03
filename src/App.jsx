@@ -9,6 +9,7 @@ import TeamPage from './components/TeamPage'
 import ApprovalsPage from './components/ApprovalsPage'
 import LoginPage from './components/LoginPage'
 import CorporatePackagesPage from './components/CorporatePackagesPage'
+import CorporateLeadsPage from './components/CorporateLeadsPage'
 import GroupDeparturesPage from './components/GroupDeparturesPage'
 import logo from './assets/logo.png'
 import { roleHas } from './utils/permissions'
@@ -43,7 +44,7 @@ const initialBookings = []
 
 const initialTestimonials = []
 
-const VALID_TABS = ['dashboard', 'bookings', 'clients', 'packages', 'reports', 'testimonials', 'settings', 'team', 'approvals', 'corporatePackages', 'groupDepartures']
+const VALID_TABS = ['dashboard', 'bookings', 'corporateLeads', 'clients', 'packages', 'reports', 'testimonials', 'settings', 'team', 'approvals', 'corporatePackages', 'groupDepartures']
 
 function getTabFromHash() {
   const hash = window.location.hash.replace('#', '')
@@ -994,6 +995,7 @@ function App() {
             {[
               { id: 'dashboard', label: 'Dashboard', icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z' },
               { id: 'bookings', label: 'Bookings', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', visible: roleHas(user?.role, 'read:bookings') },
+              { id: 'corporateLeads', label: 'Corporate Bookings', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', visible: roleHas(user?.role, 'read:bookings') },
               { id: 'clients', label: 'Clients', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', visible: roleHas(user?.role, 'read:clients') },
               { id: 'packages', label: 'Packages', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10', visible: roleHas(user?.role, 'read:packages') },
               { id: 'corporatePackages', label: 'Corporate Tours', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', visible: roleHas(user?.role, 'read:packages') },
@@ -1770,6 +1772,24 @@ function App() {
               onSelectBooking={setInitialSelectedBookingId}
               user={user}
               token={token}
+            />
+          )}
+
+          {activeTab === 'corporateLeads' && (
+            <CorporateLeadsPage
+              addNotification={addNotification}
+              token={token}
+              user={user}
+              setActiveTab={setActiveTab}
+              onConvertToBooking={(lead) => {
+                const parsedPkg = lead.packageName || null
+                const guests = lead.groupSize || 1
+                setBookingDraft({
+                  client: lead.name,
+                  package: parsedPkg,
+                  guests,
+                })
+              }}
             />
           )}
 

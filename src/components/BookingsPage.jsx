@@ -75,11 +75,12 @@ export default function BookingsPage({
   useEffect(() => {
     if (!bookingDraft) return
     if (bookingDraft.client) setNewClient(bookingDraft.client)
+    if (bookingDraft.guests) setNewGuests(bookingDraft.guests.toString())
     if (bookingDraft.package) {
       setNewPackage(bookingDraft.package)
       const matchedPkg = packages.find(p => p.name === bookingDraft.package)
       if (matchedPkg) {
-        const guests = parseInt(newGuests) || 1
+        const guests = parseInt(bookingDraft.guests || newGuests) || 1
         setNewAmount((matchedPkg.basePrice * guests).toString())
       }
     }
