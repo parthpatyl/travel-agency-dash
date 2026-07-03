@@ -8,6 +8,8 @@ import TestimonialsPage from './components/TestimonialsPage'
 import TeamPage from './components/TeamPage'
 import ApprovalsPage from './components/ApprovalsPage'
 import LoginPage from './components/LoginPage'
+import CorporatePackagesPage from './components/CorporatePackagesPage'
+import GroupDeparturesPage from './components/GroupDeparturesPage'
 import logo from './assets/logo.png'
 import { roleHas } from './utils/permissions'
 import { 
@@ -41,7 +43,7 @@ const initialBookings = []
 
 const initialTestimonials = []
 
-const VALID_TABS = ['dashboard', 'bookings', 'clients', 'packages', 'reports', 'testimonials', 'settings', 'team', 'approvals']
+const VALID_TABS = ['dashboard', 'bookings', 'clients', 'packages', 'reports', 'testimonials', 'settings', 'team', 'approvals', 'corporatePackages', 'groupDepartures']
 
 function getTabFromHash() {
   const hash = window.location.hash.replace('#', '')
@@ -119,6 +121,8 @@ function App() {
   const [settings, rawSetSettings] = useState(initialSettings)
   const [bookings, rawSetBookings] = useState(initialBookings)
   const [testimonials, rawSetTestimonials] = useState(initialTestimonials)
+  const [corporatePackages, rawSetCorporatePackages] = useState([])
+  const [groupDepartures, rawSetGroupDepartures] = useState([])
 
   // Refs for outside-click detection on dropdowns
   const notifRef = useRef(null)
@@ -131,6 +135,8 @@ function App() {
   const bookingsRef = useRef(bookings)
   const settingsRef = useRef(settings)
   const testimonialsRef = useRef(testimonials)
+  const corporatePackagesRef = useRef(corporatePackages)
+  const groupDeparturesRef = useRef(groupDepartures)
 
   // Holds the in-flight PUT controller so a fresh settings change cancels the prior one
   const settingsAbortRef = useRef(null)
@@ -142,6 +148,8 @@ function App() {
   useEffect(() => { bookingsRef.current = bookings }, [bookings])
   useEffect(() => { settingsRef.current = settings }, [settings])
   useEffect(() => { testimonialsRef.current = testimonials }, [testimonials])
+  useEffect(() => { corporatePackagesRef.current = corporatePackages }, [corporatePackages])
+  useEffect(() => { groupDeparturesRef.current = groupDepartures }, [groupDepartures])
 
   // Setup functions for Health Check and Sync
   const performHealthAndSync = async (showNotificationOnSuccess = false) => {
@@ -209,6 +217,20 @@ function App() {
         const data = await testimonialsRes.json()
         rawSetTestimonials(data)
         localStorage.setItem('kraft_cached_testimonials', JSON.stringify(data))
+      }
+
+      const corporateRes = await fetch(`${API_BASE_URL}/corporate-packages`, opts)
+      if (corporateRes.ok) {
+        const data = await corporateRes.json()
+        rawSetCorporatePackages(data)
+        localStorage.setItem('kraft_cached_corporate_packages', JSON.stringify(data))
+      }
+
+      const departuresRes = await fetch(`${API_BASE_URL}/group-departures`, opts)
+      if (departuresRes.ok) {
+        const data = await departuresRes.json()
+        rawSetGroupDepartures(data)
+        localStorage.setItem('kraft_cached_group_departures', JSON.stringify(data))
       }
     } catch (err) {
       console.warn("Failed to fetch fresh data:", err)
@@ -338,6 +360,12 @@ function App() {
 
     const cachedTestimonials = localStorage.getItem('kraft_cached_testimonials')
     if (cachedTestimonials) rawSetTestimonials(JSON.parse(cachedTestimonials))
+
+    const cachedCorporate = localStorage.getItem('kraft_cached_corporate_packages')
+    if (cachedCorporate) rawSetCorporatePackages(JSON.parse(cachedCorporate))
+
+    const cachedDepartures = localStorage.getItem('kraft_cached_group_departures')
+    if (cachedDepartures) rawSetGroupDepartures(JSON.parse(cachedDepartures))
 
     // 2. Perform initial health check and sync queue
     performHealthAndSync()
@@ -569,6 +597,129 @@ function App() {
       }
     } catch (err) {
       console.error('Failed to sync testimonials to backend:', err)
+    }
+  }
+
+  const setCorporatePackages = async (newVal) => {
+    const current = corporatePackagesRef.current
+    const resolved = typeof newVal === 'function' ? newVal(current) : newVal
+    rawSetCorporatePackages(resolved)
+    localStorage.setItem('kraft_cached_corporate_packages', JSON.stringify(resolved))
+
+    try {
+      let working = resolved
+      if (resolved.length > current.length) {
+        const added = resolved.filter(item => !current.some(c => c.id === item.id))
+        for (const item of added) {
+          const payload = {
+            destination: item.destination,
+            nights: item.nights,
+            startingPrice: item.startingPrice || item.starting_price,
+            category: item.category,
+            imageUrl: item.imageUrl || item.image_url,
+            description: item.description,
+            highlights: item.highlights
+          }
+          const serverItem = await syncRequest(`${API_BASE_URL}/corporate-packages`, 'POST', payload, `Created corporate package for "${item.destination}"`)
+          if (serverItem && serverItem.id !== item.id) {
+            working = working.map(c => c.id === item.id ? { ...c, id: serverItem.id } : c)
+            rawSetCorporatePackages(working)
+            localStorage.setItem('kraft_cached_corporate_packages', JSON.stringify(working))
+          }
+        }
+      } else if (resolved.length < current.length) {
+        const deleted = current.filter(item => !resolved.some(r => r.id === item.id))
+        for (const item of deleted) {
+          await syncRequest(`${API_BASE_URL}/corporate-packages/${item.id}`, 'DELETE', null, `Deleted corporate package for "${item.destination}"`)
+        }
+      } else {
+        for (const item of resolved) {
+          const original = current.find(c => c.id === item.id)
+          if (original && JSON.stringify(original) !== JSON.stringify(item)) {
+            const payload = {
+              destination: item.destination,
+              nights: item.nights,
+              startingPrice: item.startingPrice !== undefined ? item.startingPrice : (item.starting_price !== undefined ? item.starting_price : null),
+              category: item.category,
+              imageUrl: item.imageUrl !== undefined ? item.imageUrl : (item.image_url !== undefined ? item.image_url : ''),
+              description: item.description,
+              highlights: item.highlights,
+              isActive: item.isActive !== undefined ? item.isActive : (item.is_active !== undefined ? item.is_active : true),
+              displayOrder: item.displayOrder !== undefined ? item.displayOrder : (item.display_order !== undefined ? item.display_order : 0)
+            }
+            const serverItem = await syncRequest(`${API_BASE_URL}/corporate-packages/${item.id}`, 'PUT', payload, `Updated corporate package for "${item.destination}"`)
+            if (serverItem && serverItem.id !== item.id) {
+              working = working.map(c => c.id === item.id ? { ...c, id: serverItem.id } : c)
+              rawSetCorporatePackages(working)
+              localStorage.setItem('kraft_cached_corporate_packages', JSON.stringify(working))
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to sync corporate packages to backend:', err)
+    }
+  }
+
+  const setGroupDepartures = async (newVal) => {
+    const current = groupDeparturesRef.current
+    const resolved = typeof newVal === 'function' ? newVal(current) : newVal
+    rawSetGroupDepartures(resolved)
+    localStorage.setItem('kraft_cached_group_departures', JSON.stringify(resolved))
+
+    try {
+      let working = resolved
+      if (resolved.length > current.length) {
+        const added = resolved.filter(item => !current.some(g => g.id === item.id))
+        for (const item of added) {
+          const payload = {
+            packageId: item.packageId,
+            title: item.title,
+            departureDate: item.departureDate,
+            returnDate: item.returnDate,
+            slotsTotal: item.slots?.total,
+            priceModifier: item.priceModifier,
+            status: item.status,
+            notes: item.notes
+          }
+          const serverItem = await syncRequest(`${API_BASE_URL}/group-departures`, 'POST', payload, `Created group departure for "${item.title}"`)
+          if (serverItem && serverItem.id !== item.id) {
+            working = working.map(g => g.id === item.id ? { ...g, id: serverItem.id } : g)
+            rawSetGroupDepartures(working)
+            localStorage.setItem('kraft_cached_group_departures', JSON.stringify(working))
+          }
+        }
+      } else if (resolved.length < current.length) {
+        const deleted = current.filter(item => !resolved.some(r => r.id === item.id))
+        for (const item of deleted) {
+          await syncRequest(`${API_BASE_URL}/group-departures/${item.id}`, 'DELETE', null, `Deleted group departure "${item.title}"`)
+        }
+      } else {
+        for (const item of resolved) {
+          const original = current.find(g => g.id === item.id)
+          if (original && JSON.stringify(original) !== JSON.stringify(item)) {
+            const payload = {
+              packageId: item.packageId,
+              title: item.title,
+              departureDate: item.departureDate,
+              returnDate: item.returnDate,
+              slotsTotal: item.slots?.total,
+              slotsBooked: item.slots?.booked,
+              priceModifier: item.priceModifier,
+              status: item.status,
+              notes: item.notes
+            }
+            const serverItem = await syncRequest(`${API_BASE_URL}/group-departures/${item.id}`, 'PUT', payload, `Updated group departure "${item.title}"`)
+            if (serverItem && serverItem.id !== item.id) {
+              working = working.map(g => g.id === item.id ? { ...g, id: serverItem.id } : g)
+              rawSetGroupDepartures(working)
+              localStorage.setItem('kraft_cached_group_departures', JSON.stringify(working))
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to sync group departures to backend:', err)
     }
   }
 
@@ -845,6 +996,8 @@ function App() {
               { id: 'bookings', label: 'Bookings', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', visible: roleHas(user?.role, 'read:bookings') },
               { id: 'clients', label: 'Clients', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', visible: roleHas(user?.role, 'read:clients') },
               { id: 'packages', label: 'Packages', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10', visible: roleHas(user?.role, 'read:packages') },
+              { id: 'corporatePackages', label: 'Corporate Tours', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', visible: roleHas(user?.role, 'read:packages') },
+              { id: 'groupDepartures', label: 'Group Departures', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', visible: roleHas(user?.role, 'read:packages') },
               { id: 'reports', label: 'Reports', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z', visible: roleHas(user?.role, 'read:reports') },
               { id: 'testimonials', label: 'Testimonials', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', visible: roleHas(user?.role, 'read:testimonials') },
               { id: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z', visible: roleHas(user?.role, 'read:settings') },
@@ -1264,7 +1417,7 @@ function App() {
         </header>
 
         {/* Main Content Render Block based on activeTab */}
-        <div className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 flex-1 max-w-7xl w-full mx-auto animate-in fade-in duration-300">
+        <div className={`p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 flex-1 w-full mx-auto animate-in fade-in duration-300 ${activeTab === 'groupDepartures' ? 'max-w-none px-6 sm:px-10 lg:px-16' : 'max-w-7xl'}`}>
           {activeTab === 'dashboard' && (
             <>
               {/* Quick Statistics Grid */}
@@ -1653,6 +1806,25 @@ function App() {
               token={token}
               initialSelectedPackageId={initialSelectedPackageId}
               onSelectPackage={setInitialSelectedPackageId}
+            />
+          )}
+
+          {activeTab === 'corporatePackages' && (
+            <CorporatePackagesPage
+              corporatePackages={corporatePackages}
+              setCorporatePackages={setCorporatePackages}
+              addNotification={addNotification}
+              user={user}
+            />
+          )}
+
+          {activeTab === 'groupDepartures' && (
+            <GroupDeparturesPage
+              groupDepartures={groupDepartures}
+              setGroupDepartures={setGroupDepartures}
+              packages={packages}
+              addNotification={addNotification}
+              user={user}
             />
           )}
 

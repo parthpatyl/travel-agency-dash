@@ -22,6 +22,7 @@ const formatUSD = (price) => price != null ? `$${Number(price).toLocaleString('e
 export default function PackagesPage({ packages, setPackages, clients, bookings, setBookings, settings, addNotification, onBookForPackage, user, token, initialSelectedPackageId, onSelectPackage }) {
   const [selectedPackage, setSelectedPackage] = useState(null)
   const [filterRegion, setFilterRegion] = useState('All')
+  const [filterCategory, setFilterCategory] = useState('All')
   const [showAddPackageForm, setShowAddPackageForm] = useState(false)
   const [bespokeMode, setBespokeMode] = useState(false)
 
@@ -44,6 +45,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   const [pkgPrice, setPkgPrice] = useState('3000')
   const [pkgCostPrice, setPkgCostPrice] = useState('')
   const [pkgRegion, setPkgRegion] = useState('Asia')
+  const [pkgCategory, setPkgCategory] = useState('standard')
   const [pkgSlots, setPkgSlots] = useState('15')
   const [pkgCardImage, setPkgCardImage] = useState(`${API_URL}/assets/unsplash-pkg-card.jpg`)
   const [pkgHeroImage, setPkgHeroImage] = useState(`${API_URL}/assets/unsplash-pkg-hero.jpg`)
@@ -71,6 +73,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   const [editPkgCostPrice, setEditPkgCostPrice] = useState('')
   const [priceInUsd, setPriceInUsd] = useState(false)
   const [editPkgRegion, setEditPkgRegion] = useState('Asia')
+  const [editPkgCategory, setEditPkgCategory] = useState('standard')
   const [editPkgSlots, setEditPkgSlots] = useState('15')
   const [editPkgCardImage, setEditPkgCardImage] = useState('')
   const [editPkgHeroImage, setEditPkgHeroImage] = useState('')
@@ -111,9 +114,11 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
 
 
   // Filter package catalog
-  const filteredPackages = filterRegion === 'All'
-    ? packages
-    : packages.filter(p => p.region === filterRegion)
+  const filteredPackages = packages.filter(p => {
+    if (filterRegion !== 'All' && p.region !== filterRegion) return false
+    if (filterCategory !== 'All' && (p.category || 'standard') !== filterCategory) return false
+    return true
+  })
 
   // Calculates Margin metrics
   const cost = parseFloat(calcCost) || 0
@@ -215,6 +220,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     setEditPkgExclusions(pkg.exclusions || [])
     setEditPkgExclusionInput('')
     setEditPkgIsBespoke(pkg.isBespoke || false)
+    setEditPkgCategory(pkg.category || 'standard')
     setShowEditPackageForm(true)
   }
 
@@ -240,6 +246,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       basePrice: parseFloat((editPkgPrice || '').replace(/,/g, '')) || 0,
       costPrice: editPkgCostPrice ? parseFloat((editPkgCostPrice || '').replace(/,/g, '')) : (selectedPackage.costPrice != null ? selectedPackage.costPrice : null),
       region: editPkgRegion,
+      category: editPkgCategory,
       slots: editPkgIsBespoke ? { booked: 0, total: 999 } : { ...(selectedPackage.slots || { booked: 0 }), total: parseInt(editPkgSlots) >= 0 ? parseInt(editPkgSlots) : 10 },
       inclusionsSelection: editPkgInclusions,
       cardImage: editPkgCardImage,
@@ -341,6 +348,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       basePrice: parseFloat((pkgPrice || '').replace(/,/g, '')) || 0,
       costPrice: pkgCostPrice ? parseFloat((pkgCostPrice || '').replace(/,/g, '')) : null,
       region: pkgRegion,
+      category: pkgCategory,
       slots: bespokeMode ? { booked: 0, total: 999 } : { booked: 0, total: parseInt(pkgSlots) || 10 },
       trend: 'New',
       inclusionsSelection: pkgInclusions,
@@ -368,6 +376,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     setPkgPrice('3000')
     setPkgCostPrice('')
     setPkgRegion('Asia')
+    setPkgCategory('standard')
     setPkgSlots('15')
     setPkgCardImage(`${API_URL}/assets/unsplash-pkg-card.jpg`)
     setPkgHeroImage(`${API_URL}/assets/unsplash-pkg-hero.jpg`)
@@ -489,20 +498,38 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Packages List & Calculator (2 cols) */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Destination Category Filters */}
-          <div className="flex gap-2 border-b border-stone-200 pb-3">
-            {['All', 'Africa', 'Asia', 'Australia', 'Europe', 'North America', 'South America'].map(reg => (
-              <button
-                key={reg}
-                onClick={() => setFilterRegion(reg)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${filterRegion === reg
-                  ? 'bg-amber-600 text-white shadow-sm'
-                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                  }`}
-              >
-                {reg === 'All' ? 'All Regions' : reg}
-              </button>
-            ))}
+          {/* Destination Category & Region Filters */}
+          <div className="space-y-3 border-b border-stone-200 pb-3">
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mr-2">Regions:</span>
+              {['All', 'Africa', 'Asia', 'Australia', 'Europe', 'North America', 'South America'].map(reg => (
+                <button
+                  key={reg}
+                  onClick={() => setFilterRegion(reg)}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${filterRegion === reg
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                >
+                  {reg === 'All' ? 'All Regions' : reg}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mr-2">Categories:</span>
+              {['All', 'standard', 'luxury', 'weekend', 'event'].map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setFilterCategory(cat)}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${filterCategory === cat
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                >
+                  {cat === 'All' ? 'All Categories' : cat.charAt(0).toUpperCase() + cat.slice(1)}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Packages List */}
@@ -1216,7 +1243,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       {/* Add Package Modal */}
       {showAddPackageForm && (
         <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-xl flex flex-col max-h-[85vh] animate-in zoom-in duration-200">
+          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-3xl flex flex-col max-h-[85vh] animate-in zoom-in duration-200">
             <div className="flex justify-between items-center p-6 pb-4 border-b border-stone-100 shrink-0">
               <h3 className="text-base font-bold text-stone-900">{bespokeMode ? 'Add Bespoke Package' : 'Add Vacation Package'}</h3>
               <button
@@ -1336,7 +1363,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                 )
               })()}
 
-              <div className={`grid ${bespokeMode ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}>
+              <div className={`grid ${bespokeMode ? 'grid-cols-2' : 'grid-cols-3'} gap-4`}>
                 <div>
                   <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Destination Region</label>
                   <select
@@ -1350,6 +1377,19 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     <option value="Europe">Europe</option>
                     <option value="North America">North America</option>
                     <option value="South America">South America</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Category</label>
+                  <select
+                    value={pkgCategory}
+                    onChange={(e) => setPkgCategory(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                  >
+                    <option value="standard">Standard</option>
+                    <option value="luxury">Luxury</option>
+                    <option value="weekend">Weekend Getaway</option>
+                    <option value="event">Events & Festivals</option>
                   </select>
                 </div>
                 {!bespokeMode && (
@@ -1564,7 +1604,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       {/* Edit Package Modal */}
       {showEditPackageForm && (
         <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-xl flex flex-col max-h-[85vh] animate-in zoom-in duration-200">
+          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-3xl flex flex-col max-h-[85vh] animate-in zoom-in duration-200">
             <div className="flex justify-between items-center p-6 pb-4 border-b border-stone-100 shrink-0">
               <h3 className="text-base font-bold text-stone-900">Edit Vacation Package</h3>
               <button
@@ -1757,7 +1797,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                 </div>
               )}
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-4 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Destination Region</label>
                   <select
@@ -1771,6 +1811,19 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     <option value="Europe">Europe</option>
                     <option value="North America">North America</option>
                     <option value="South America">South America</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Category</label>
+                  <select
+                    value={editPkgCategory}
+                    onChange={(e) => setEditPkgCategory(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                  >
+                    <option value="standard">Standard</option>
+                    <option value="luxury">Luxury</option>
+                    <option value="weekend">Weekend Getaway</option>
+                    <option value="event">Events & Festivals</option>
                   </select>
                 </div>
                 <div>

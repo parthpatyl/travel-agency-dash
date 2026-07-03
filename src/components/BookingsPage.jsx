@@ -5,6 +5,20 @@ import ReadOnlyBanner from './ReadOnlyBanner'
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const formatUSD = (price) => price != null ? `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
 
+const defaultProgress = {
+  quoteSent: true,
+  depositPaid: false,
+  flightsConfirmed: false,
+  finalPayment: false
+};
+
+const timelineSteps = [
+  { key: 'quoteSent', step: 'Quote Sent', defaultDate: 'Date of inquiry' },
+  { key: 'depositPaid', step: 'Deposit Paid', getSubtitle: (progress) => progress.depositPaid ? 'Confirmed' : 'Awaiting' },
+  { key: 'flightsConfirmed', step: 'Flights Confirmed', getSubtitle: (progress) => progress.flightsConfirmed ? 'PNR Assigned' : 'Awaiting payment' },
+  { key: 'finalPayment', step: 'Final Payment', getSubtitle: (progress) => progress.finalPayment ? 'Completed' : 'Awaiting' }
+];
+
 export default function BookingsPage({ 
   bookings, 
   setBookings, 
@@ -41,6 +55,7 @@ export default function BookingsPage({
   const [editDate, setEditDate] = useState('')
   const [editGuests, setEditGuests] = useState('1')
   const [editStatus, setEditStatus] = useState('Pending')
+  const [editDirectives, setEditDirectives] = useState('')
 
   // Form States
   const [newClient, setNewClient] = useState('')
@@ -50,6 +65,11 @@ export default function BookingsPage({
   const [newDate, setNewDate] = useState('')
   const [newGuests, setNewGuests] = useState('1')
   const [newStatus, setNewStatus] = useState('Pending')
+  const [newDirectives, setNewDirectives] = useState('')
+
+  // Sidebar Inline Tag Editor State
+  const [newTagInput, setNewTagInput] = useState('')
+  const [isAddingTag, setIsAddingTag] = useState(false)
 
   // Consume incoming bookingDraft from cross-tab quick actions
   useEffect(() => {
@@ -187,6 +207,10 @@ export default function BookingsPage({
 
     const formattedDate = formatDate(editDate)
 
+    const parsedDirectives = editDirectives
+      ? editDirectives.split(',').map(s => s.trim()).filter(Boolean)
+      : []
+
     // For operations: detect pricing changes — if amount or discount changed, route through approval
     const isOperations = user && roleHas(user.role, 'write:bookings') && !roleHas(user.role, 'write:bookings.pricing')
     if (isOperations) {
@@ -211,7 +235,8 @@ export default function BookingsPage({
               date: formattedDate,
               status: editStatus,
               guests: parseInt(editGuests) || 1,
-              notes: 'Pricing change — requires admin approval'
+              notes: 'Pricing change — requires admin approval',
+              specialDirectives: parsedDirectives
             })
           })
 
@@ -238,6 +263,11 @@ export default function BookingsPage({
       }
     }
 
+    const currentProgress = editBookingObj.progress || defaultProgress
+    const updatedProgress = editStatus === 'Paid'
+      ? { ...currentProgress, depositPaid: true, finalPayment: true }
+      : { ...currentProgress, finalPayment: false }
+
     const updatedBooking = {
       ...editBookingObj,
       client: editClient,
@@ -246,7 +276,9 @@ export default function BookingsPage({
       discountValue: editDiscount ? parseFloat(editDiscount) : 0,
       date: formattedDate,
       status: editStatus,
-      guests: parseInt(editGuests) || 1
+      guests: parseInt(editGuests) || 1,
+      specialDirectives: parsedDirectives,
+      progress: updatedProgress
     }
 
     setBookings(bookings.map(b => b.id === editBookingObj.id ? updatedBooking : b))
@@ -366,6 +398,14 @@ export default function BookingsPage({
     const newId = `BK-${crypto.randomUUID()}`
     const guestCount = parseInt(newGuests) || 1
 
+    const parsedDirectives = newDirectives
+      ? newDirectives.split(',').map(s => s.trim()).filter(Boolean)
+      : []
+
+    const initialProgress = newStatus === 'Paid'
+      ? { quoteSent: true, depositPaid: true, flightsConfirmed: true, finalPayment: true }
+      : { quoteSent: true, depositPaid: false, flightsConfirmed: false, finalPayment: false }
+
     const newBookingObj = {
       id: newId,
       client: newClient,
@@ -374,7 +414,9 @@ export default function BookingsPage({
       discountValue: newDiscount ? parseFloat(newDiscount) : 0,
       date: formatDate(newDate),
       status: newStatus,
-      guests: guestCount
+      guests: guestCount,
+      specialDirectives: parsedDirectives,
+      progress: initialProgress
     }
 
     setBookings([newBookingObj, ...bookings])
@@ -411,6 +453,7 @@ export default function BookingsPage({
     setNewDate('')
     setNewGuests('1')
     setNewStatus('Pending')
+    setNewDirectives('')
     setShowAddForm(false)
   }
 
@@ -424,16 +467,97 @@ export default function BookingsPage({
     return matchesSearch && matchesStatus
   })
 
-  // Simulated Booking Details Workflow
-  const getBookingTimeline = (status) => {
-    const isPaid = status === 'Paid'
-    return [
-      { step: 'Quote Sent', status: 'complete', date: 'Date of inquiry' },
-      { step: 'Deposit Paid', status: isPaid ? 'complete' : 'pending', date: isPaid ? 'Confirmed' : 'Awaiting' },
-      { step: 'Flights Confirmed', status: isPaid ? 'complete' : 'pending', date: isPaid ? 'PNR Assigned' : 'Awaiting payment' },
-      { step: 'Vouchers Issued', status: isPaid ? 'active' : 'pending', date: isPaid ? 'Pending release' : 'Locked' },
-    ]
-  }
+  const handleAddDirective = (tag) => {
+    if (!tag || !tag.trim() || !selectedBooking) return;
+    if (!canWriteBooking) {
+      if (addNotification) addNotification('You do not have permission to edit bookings', 'error');
+      return;
+    }
+    const currentTags = selectedBooking.specialDirectives || [];
+    if (currentTags.includes(tag.trim())) {
+      if (addNotification) addNotification('Directive already exists', 'warning');
+      return;
+    }
+    const updatedTags = [...currentTags, tag.trim()];
+    const updatedBooking = {
+      ...selectedBooking,
+      specialDirectives: updatedTags
+    };
+    setBookings(bookings.map(b => b.id === selectedBooking.id ? updatedBooking : b));
+    setSelectedBooking(updatedBooking);
+    if (addNotification) addNotification('Directive added successfully', 'success');
+  };
+
+  const handleRemoveDirective = (tagToRemove) => {
+    if (!selectedBooking) return;
+    if (!canWriteBooking) {
+      if (addNotification) addNotification('You do not have permission to edit bookings', 'error');
+      return;
+    }
+    const currentTags = selectedBooking.specialDirectives || [];
+    const updatedTags = currentTags.filter(t => t !== tagToRemove);
+    const updatedBooking = {
+      ...selectedBooking,
+      specialDirectives: updatedTags
+    };
+    setBookings(bookings.map(b => b.id === selectedBooking.id ? updatedBooking : b));
+    setSelectedBooking(updatedBooking);
+    if (addNotification) addNotification('Directive removed successfully', 'success');
+  };
+
+  const handleToggleProgressStep = (stepKey, value) => {
+    if (!canWriteBooking) {
+      if (addNotification) addNotification('You do not have permission to edit bookings', 'error');
+      return;
+    }
+    const currentProgress = selectedBooking.progress || defaultProgress;
+    const updatedProgress = {
+      ...currentProgress,
+      [stepKey]: value
+    };
+
+    // Logical dependencies between depositPaid and finalPayment
+    if (stepKey === 'finalPayment' && value) {
+      updatedProgress.depositPaid = true;
+    } else if (stepKey === 'depositPaid' && !value) {
+      updatedProgress.finalPayment = false;
+    }
+
+    // Status is 'Paid' only when finalPayment is true
+    const newStatus = updatedProgress.finalPayment ? 'Paid' : 'Pending';
+
+    const updatedBooking = {
+      ...selectedBooking,
+      progress: updatedProgress,
+      status: newStatus
+    };
+
+    setBookings(bookings.map(b => b.id === selectedBooking.id ? updatedBooking : b));
+    setSelectedBooking(updatedBooking);
+
+    // Update client logs
+    setClients(clients.map(c => {
+      if (c.name === selectedBooking.client) {
+        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16);
+        return {
+          ...c,
+          lastContact: timestamp.split(' ')[0],
+          logs: [
+            {
+              time: timestamp,
+              text: `System: Updated progress step "${stepKey}" to ${value ? 'completed' : 'pending'} for booking ${selectedBooking.id}`
+            },
+            ...c.logs
+          ]
+        };
+      }
+      return c;
+    }));
+
+    if (addNotification) {
+      addNotification(`Booking progress updated successfully.`, 'success');
+    }
+  };
 
   return (
     <div className="space-y-6 relative">
@@ -591,47 +715,159 @@ export default function BookingsPage({
               </div>
 
               {/* Status workflow */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Flight & Booking Lifecycle</h4>
-                <div className="relative pl-6 border-l border-stone-200 space-y-4 py-1">
-                  {getBookingTimeline(selectedBooking.status).map((step, idx) => (
-                    <div key={idx} className="relative">
-                      {/* Timeline dot */}
-                      <span className={`absolute -left-[29px] top-0.5 w-3.5 h-3.5 rounded-full border-2 border-white flex items-center justify-center ${
-                        step.status === 'complete' ? 'bg-emerald-500' :
-                        step.status === 'active' ? 'bg-amber-500 animate-pulse' :
-                        'bg-stone-300'
-                      }`}>
-                        {step.status === 'complete' && (
-                          <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </span>
-                      <div>
-                        <p className={`text-xs font-semibold ${step.status === 'pending' ? 'text-stone-400' : 'text-stone-800'}`}>
-                          {step.step}
-                        </p>
-                        <span className="text-[10px] text-stone-400 font-medium">{step.date}</span>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Flight & Booking Lifecycle</h4>
+                  <span className="text-[10px] bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full font-mono font-semibold">
+                    {Object.values(selectedBooking.progress || defaultProgress).filter(Boolean).length} / {timelineSteps.length} Done
+                  </span>
+                </div>
+                <div className="relative space-y-2 py-1">
+                  {timelineSteps.map((step, idx) => {
+                    const progressVal = selectedBooking.progress || defaultProgress;
+                    const isCompleted = progressVal[step.key] ?? false;
+                    const subtitle = step.getSubtitle ? step.getSubtitle(progressVal) : step.defaultDate;
+
+                    return (
+                      <div 
+                        key={idx} 
+                        className={`relative flex items-center justify-between p-3 rounded-xl border transition-all duration-300 ${
+                          isCompleted 
+                            ? 'bg-emerald-50/40 border-emerald-100 shadow-[0_2px_8px_-3px_rgba(16,185,129,0.08)]' 
+                            : 'bg-white hover:bg-stone-50/50 border-stone-100 hover:border-stone-200/80'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          {/* Timeline dot custom checkbox */}
+                          <label className="relative flex items-center justify-center cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              checked={isCompleted}
+                              disabled={!canWriteBooking}
+                              onChange={(e) => handleToggleProgressStep(step.key, e.target.checked)}
+                              className="sr-only"
+                            />
+                            {/* Outer Ring */}
+                            <span className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all duration-300 ${
+                              isCompleted 
+                                ? 'bg-gradient-to-br from-emerald-400 to-teal-500 border-transparent shadow-sm shadow-emerald-400/25 scale-100' 
+                                : 'bg-stone-50 border-stone-200 group-hover:border-stone-350 group-hover:scale-105 group-hover:rotate-6'
+                            } group-focus-within:ring-2 group-focus-within:ring-amber-500/40`}>
+                              {isCompleted ? (
+                                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : (
+                                <span className="text-[11px] font-bold text-stone-400 group-hover:text-stone-600 transition-colors">
+                                  {idx + 1}
+                                </span>
+                              )}
+                            </span>
+                          </label>
+                          
+                          <div>
+                            <p className={`text-xs font-bold transition-colors ${
+                              isCompleted ? 'text-emerald-950' : 'text-stone-700'
+                            }`}>
+                              {step.step}
+                            </p>
+                            <p className="text-[10px] text-stone-400 font-medium">{subtitle}</p>
+                          </div>
+                        </div>
+
+                        {/* Status indicators */}
+                        <div>
+                          {isCompleted ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                              Active
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-stone-100 text-stone-400">
+                              Pending
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Special Info */}
               <div className="border-t border-stone-100 pt-4 space-y-2">
-                <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Staff Special Directives</h4>
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-100 rounded text-[9px] font-bold">
-                    VIP Priority Lounge
-                  </span>
-                  <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded text-[9px] font-bold">
-                    Dietary: Gluten-Free
-                  </span>
-                  <span className="px-2 py-0.5 bg-stone-100 text-stone-700 border border-stone-200 rounded text-[9px] font-bold">
-                    Window Seats Preferred
-                  </span>
+                <div className="flex justify-between items-center">
+                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Staff Special Directives</h4>
+                  {canWriteBooking && !isAddingTag && (
+                    <button
+                      onClick={() => setIsAddingTag(true)}
+                      className="text-[10px] text-amber-600 hover:text-amber-500 font-bold transition-colors cursor-pointer"
+                    >
+                      + Add tag
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5 items-center">
+                  {(selectedBooking.specialDirectives || []).map((tag, idx) => {
+                    const colors = [
+                      { bg: 'bg-rose-50/85', text: 'text-rose-700', border: 'border-rose-100/50' },
+                      { bg: 'bg-amber-50/85', text: 'text-amber-700', border: 'border-amber-100/50' },
+                      { bg: 'bg-emerald-50/85', text: 'text-emerald-700', border: 'border-emerald-100/50' },
+                      { bg: 'bg-blue-50/85', text: 'text-blue-700', border: 'border-blue-100/50' },
+                      { bg: 'bg-stone-50/85', text: 'text-stone-700', border: 'border-stone-200/50' },
+                    ];
+                    const c = colors[tag.length % colors.length];
+                    return (
+                      <span
+                        key={idx}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 ${c.bg} ${c.text} border ${c.border} rounded-lg text-[10px] font-semibold transition-all duration-300 hover:scale-[1.02]`}
+                      >
+                        {tag}
+                        {canWriteBooking && (
+                          <button
+                            onClick={() => handleRemoveDirective(tag)}
+                            className="hover:bg-black/5 rounded-full p-0.5 transition-colors cursor-pointer ml-0.5 text-[11px] leading-none text-stone-400 hover:text-stone-700"
+                            title="Remove directive"
+                          >
+                            &times;
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })}
+                  {isAddingTag && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (newTagInput.trim()) {
+                          handleAddDirective(newTagInput);
+                          setNewTagInput('');
+                        }
+                        setIsAddingTag(false);
+                      }}
+                      className="inline-flex items-center"
+                    >
+                      <input
+                        type="text"
+                        autoFocus
+                        value={newTagInput}
+                        onChange={(e) => setNewTagInput(e.target.value)}
+                        onBlur={() => {
+                          setTimeout(() => {
+                            if (newTagInput.trim()) {
+                              handleAddDirective(newTagInput);
+                              setNewTagInput('');
+                            }
+                            setIsAddingTag(false);
+                          }, 150);
+                        }}
+                        placeholder="Type tag..."
+                        className="px-2 py-0.5 text-[10px] bg-white border border-stone-300 focus:border-amber-500 rounded-lg outline-none max-w-[120px] transition-all"
+                      />
+                    </form>
+                  )}
+                  {(!selectedBooking.specialDirectives || selectedBooking.specialDirectives.length === 0) && !isAddingTag && (
+                    <span className="text-[10px] text-stone-400 italic">No directives recorded for this booking.</span>
+                  )}
                 </div>
               </div>
 
@@ -649,7 +885,17 @@ export default function BookingsPage({
                 const gstAmount = taxableAmount * (taxRate / 100)
                 const netTotal = taxableAmount + gstAmount
                 const depositPct = parseFloat(settings.depositPercent ?? 20)
-                const depositCollected = selectedBooking.status === 'Paid' ? netTotal : Math.round(netTotal * (depositPct / 100))
+                const progressVal = selectedBooking.progress || defaultProgress
+                const hasFinalPayment = progressVal.finalPayment ?? false
+                const hasDepositPaid = progressVal.depositPaid ?? false
+
+                let depositCollected = 0
+                if (hasFinalPayment) {
+                  depositCollected = netTotal
+                } else if (hasDepositPaid) {
+                  depositCollected = Math.round(netTotal * (depositPct / 100))
+                }
+
                 const outstandingBalance = Math.round(netTotal) - Math.round(depositCollected)
                 const grossMargin = grossSubtotal - totalCost
                 const markupPct = parseFloat(settings.rules?.markup ?? settings.defaultMarkup ?? '15')
@@ -682,7 +928,12 @@ export default function BookingsPage({
                       <span className="font-extrabold text-stone-900">₹{Math.round(netTotal).toLocaleString('en-IN')}{usd(netTotal) && <span className="ml-1 text-[9px] text-stone-500">{usd(netTotal)}</span>}</span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-stone-500 font-medium">Deposit Collected <span className="text-[9px] text-stone-400">({selectedBooking.status === 'Paid' ? '100%' : depositPct + '% advance'})</span></span>
+                      <span className="text-stone-500 font-medium">
+                        {hasFinalPayment ? 'Total Paid' : 'Deposit Collected'}{' '}
+                        <span className="text-[9px] text-stone-400 font-normal">
+                          ({hasFinalPayment ? '100%' : hasDepositPaid ? `${depositPct}% advance` : `0% of ${depositPct}% advance`})
+                        </span>
+                      </span>
                       <span className="font-semibold text-stone-800">₹{Math.round(depositCollected).toLocaleString('en-IN')}{usd(depositCollected) && <span className="ml-1 text-[9px] text-stone-400">{usd(depositCollected)}</span>}</span>
                     </div>
                     <div className="flex justify-between text-xs border-t border-stone-100 pb-2">
@@ -751,8 +1002,19 @@ export default function BookingsPage({
                 <button 
                   onClick={() => {
                     const newStatus = selectedBooking.status === 'Paid' ? 'Pending' : 'Paid'
-                    setBookings(bookings.map(b => b.id === selectedBooking.id ? {...b, status: newStatus} : b))
-                    setSelectedBooking({...selectedBooking, status: newStatus})
+                    const currentProgress = selectedBooking.progress || defaultProgress
+                    const updatedProgress = newStatus === 'Paid'
+                      ? { ...currentProgress, depositPaid: true, finalPayment: true }
+                      : { ...currentProgress, finalPayment: false }
+
+                    const updatedBooking = {
+                      ...selectedBooking,
+                      status: newStatus,
+                      progress: updatedProgress
+                    }
+
+                    setBookings(bookings.map(b => b.id === selectedBooking.id ? updatedBooking : b))
+                    setSelectedBooking(updatedBooking)
 
                     // Log status change to client logs
                     setClients(clients.map(c => {
@@ -802,6 +1064,7 @@ export default function BookingsPage({
                     setEditDate(parseDateToInputFormat(selectedBooking.date))
                     setEditGuests(String(selectedBooking.guests || 1))
                     setEditStatus(selectedBooking.status)
+                    setEditDirectives((selectedBooking.specialDirectives || []).join(', '))
                     setShowEditModal(true)
                   }}
                   className="py-2 bg-stone-100 hover:bg-stone-200 border border-stone-300/40 text-stone-700 font-bold text-[10px] rounded-lg active:scale-95 transition-all text-center cursor-pointer flex items-center justify-center gap-1.5"
@@ -972,6 +1235,17 @@ export default function BookingsPage({
                 </div>
               </div>
 
+              <div>
+                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Special Directives (comma-separated)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. VIP Priority Lounge, Gluten-Free"
+                  value={newDirectives}
+                  onChange={(e) => setNewDirectives(e.target.value)}
+                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
+                />
+              </div>
+
               <div className="pt-4 border-t border-stone-100 flex justify-end gap-2">
                 <button
                   type="button"
@@ -1120,6 +1394,17 @@ export default function BookingsPage({
                     </label>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Special Directives (comma-separated)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. VIP Priority Lounge, Gluten-Free"
+                  value={editDirectives}
+                  onChange={(e) => setEditDirectives(e.target.value)}
+                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
+                />
               </div>
 
               <div className="pt-4 border-t border-stone-100 flex justify-end gap-2">

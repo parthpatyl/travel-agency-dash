@@ -761,23 +761,27 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
               )}
             </div>
 
-            {/* Representative Region Cities */}
+            {/* Country Coverage */}
             <div className="space-y-2">
-              <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block">Region Coverage</span>
+              <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block">Country Coverage (50 countries)</span>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { region: 'Asia', city: 'Tokyo', coords: '35.68°N, 139.69°E' },
-                  { region: 'Europe', city: 'Paris', coords: '48.85°N, 2.35°E' },
-                  { region: 'Middle East', city: 'Dubai', coords: '25.20°N, 55.27°E' },
-                  { region: 'India', city: 'Delhi', coords: '28.61°N, 77.23°E' },
+                  { country: 'India', city: 'New Delhi' },
+                  { country: 'Switzerland', city: 'Bern' },
+                  { country: 'UAE', city: 'Dubai' },
+                  { country: 'Kenya', city: 'Nairobi' },
+                  { country: 'Australia', city: 'Sydney' },
+                  { country: 'Japan', city: 'Tokyo' },
+                  { country: 'Maldives', city: 'Malé' },
+                  { country: 'USA', city: 'New York' },
                 ].map((loc) => (
-                  <div key={loc.region} className="p-2.5 bg-[#FAF9F5]/40 border border-stone-200/40 rounded-xl">
-                    <span className="text-[9px] text-stone-400 font-bold uppercase block">{loc.region}</span>
+                  <div key={loc.country} className="p-2.5 bg-[#FAF9F5]/40 border border-stone-200/40 rounded-xl">
+                    <span className="text-[9px] text-stone-400 font-bold uppercase block">{loc.country}</span>
                     <span className="text-xs font-semibold text-stone-800">{loc.city}</span>
-                    <span className="text-[9px] text-stone-400 block">{loc.coords}</span>
                   </div>
                 ))}
               </div>
+              <p className="text-[9px] text-stone-400 text-center">+ 42 more countries cached (France, Italy, Thailand, Peru, Iceland, etc.)</p>
             </div>
 
             {/* Refresh Button */}
@@ -792,7 +796,8 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
                     headers: {
                       'Content-Type': 'application/json',
                       ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                    }
+                    },
+                    body: JSON.stringify({ force: true })
                   })
                   if (!res.ok) throw new Error(`Server returned ${res.status}`)
                   // Re-fetch settings to get updated cache timestamp

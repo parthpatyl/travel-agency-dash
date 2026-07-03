@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
 
@@ -26,6 +26,64 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
   const [previewIndex, setPreviewIndex] = useState(0)
   const fileInputRef = useRef(null)
   const imageInputRef = useRef(null)
+
+  // Stats management state
+  const [stats, setStats] = useState({ tripsCrafted: '500+', satisfaction: '98%', destinations: '50+' })
+  const [statsForm, setStatsForm] = useState({ tripsCrafted: '', satisfaction: '', destinations: '' })
+  const [editingStats, setEditingStats] = useState(false)
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/stats`)
+        if (res.ok) {
+          const data = await res.json()
+          setStats(data)
+          setStatsForm(data)
+        }
+      } catch (err) {
+        console.error('Failed to fetch stats:', err)
+      }
+    }
+    fetchStats()
+  }, [])
+
+  const handleSaveStats = async (e) => {
+    e.preventDefault();
+    const trips = String(statsForm.tripsCrafted || '').trim();
+    const sat = String(statsForm.satisfaction || '').trim();
+    const dest = String(statsForm.destinations || '').trim();
+
+    if (!trips || !sat || !dest) {
+      if (addNotification) addNotification('Please fill in all stat fields', 'warning');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('kraft_token');
+      const response = await fetch(`${API_URL}/api/stats`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(statsForm)
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to update stats');
+      }
+
+      const updated = await response.json();
+      setStats(updated);
+      setEditingStats(false);
+      if (addNotification) addNotification('Hero statistics updated successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      if (addNotification) addNotification(err.message || 'Failed to save stats', 'error');
+    }
+  }
 
   const openAdd = () => {
     if (!canWriteTestimonial) {
@@ -174,6 +232,97 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
             </svg>
             Add Testimonial
           </button>
+        )}
+      </div>
+
+      {/* Dynamic Stats Management Panel */}
+      <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <h3 className="text-sm font-bold tracking-tight text-stone-900 flex items-center gap-2">
+              <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              Hero Section Statistics
+            </h3>
+            <p className="text-[11px] text-stone-400">Configure the key stats displayed in the hero banner of the customer site.</p>
+          </div>
+          {canWriteTestimonial && !editingStats && (
+            <button
+              onClick={() => { setStatsForm(stats); setEditingStats(true); }}
+              className="py-1.5 px-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-semibold border border-stone-200 transition-all cursor-pointer"
+            >
+              Edit Stats
+            </button>
+          )}
+        </div>
+
+        {editingStats ? (
+          <form onSubmit={handleSaveStats} className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-stone-50 p-4 rounded-xl border border-stone-200">
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">Trips Crafted</label>
+              <input
+                type="number"
+                required
+                value={statsForm.tripsCrafted}
+                onChange={(e) => setStatsForm({ ...statsForm, tripsCrafted: e.target.value })}
+                placeholder="e.g. 500"
+                className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-850 outline-none"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">Satisfaction Rate</label>
+              <input
+                type="number"
+                required
+                value={statsForm.satisfaction}
+                onChange={(e) => setStatsForm({ ...statsForm, satisfaction: e.target.value })}
+                placeholder="e.g. 98"
+                className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-850 outline-none"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">Destinations</label>
+              <input
+                type="number"
+                required
+                value={statsForm.destinations}
+                onChange={(e) => setStatsForm({ ...statsForm, destinations: e.target.value })}
+                placeholder="e.g. 50"
+                className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-850 outline-none"
+              />
+            </div>
+            <div className="sm:col-span-3 flex justify-end gap-2 pt-2 border-t border-stone-200">
+              <button
+                type="button"
+                onClick={() => setEditingStats(false)}
+                className="px-3 py-1.5 border border-stone-200 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-50 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow transition-all cursor-pointer"
+              >
+                Save Stats
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="grid grid-cols-3 gap-2 text-center bg-stone-50/50 p-4 rounded-xl border border-stone-200 divide-x divide-stone-200">
+            <div className="space-y-0.5">
+              <span className="text-lg sm:text-xl font-bold font-mono text-stone-900">{stats.tripsCrafted || '—'}</span>
+              <p className="text-[10px] text-stone-500 font-medium uppercase tracking-wider">Trips Crafted</p>
+            </div>
+            <div className="space-y-0.5">
+              <span className="text-lg sm:text-xl font-bold font-mono text-stone-900">{stats.satisfaction || '—'}</span>
+              <p className="text-[10px] text-stone-500 font-medium uppercase tracking-wider">Satisfaction</p>
+            </div>
+            <div className="space-y-0.5">
+              <span className="text-lg sm:text-xl font-bold font-mono text-stone-900">{stats.destinations || '—'}</span>
+              <p className="text-[10px] text-stone-500 font-medium uppercase tracking-wider">Destinations</p>
+            </div>
+          </div>
         )}
       </div>
 
