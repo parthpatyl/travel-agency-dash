@@ -53,6 +53,10 @@ export default function TeamPage({ addNotification, token, user: currentUser }) 
   const [resetting, setResetting] = useState(null)
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'operations', avatar_url: '' })
   const [newPassword, setNewPassword] = useState('')
+  const [resetModal, setResetModal] = useState(null)
+  const [resetForm, setResetForm] = useState({ password: '', confirmPassword: '' })
+  const [resetError, setResetError] = useState('')
+  const [showPasswords, setShowPasswords] = useState(false)
 
   const headers = {
     'Content-Type': 'application/json',
@@ -84,6 +88,14 @@ export default function TeamPage({ addNotification, token, user: currentUser }) 
 
   const handleCreate = async (e) => {
     e.preventDefault()
+    if (form.password.length < 8) {
+      addNotification?.('Password must be at least 8 characters', 'error')
+      return
+    }
+    if (!/[a-zA-Z]/.test(form.password) || !/[0-9]/.test(form.password)) {
+      addNotification?.('Password must contain both letters and numbers (alphanumeric)', 'error')
+      return
+    }
     try {
       const res = await fetch(`${API_URL}/api/users`, {
         method: 'POST',
@@ -148,23 +160,45 @@ export default function TeamPage({ addNotification, token, user: currentUser }) 
     }
   }
 
-  const handleResetPassword = async (id) => {
+  const handleResetPasswordSubmit = async (e) => {
+    e.preventDefault()
+    setResetError('')
+
+    const { password, confirmPassword } = resetForm
+
+    if (!password) {
+      setResetError('Password is required')
+      return
+    }
+    if (password.length < 8) {
+      setResetError('Password must be at least 8 characters')
+      return
+    }
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      setResetError('Password must contain both letters and numbers (alphanumeric)')
+      return
+    }
+    if (password !== confirmPassword) {
+      setResetError('Passwords do not match')
+      return
+    }
+
     try {
-      const res = await fetch(`${API_URL}/api/users/${id}/reset-password`, {
+      const res = await fetch(`${API_URL}/api/users/${resetModal.id}/reset-password`, {
         method: 'POST',
-        headers
+        headers,
+        body: JSON.stringify({ password })
       })
       if (res.ok) {
-        const data = await res.json()
-        setNewPassword(data.newPassword)
-        setResetting(id)
-        addNotification?.('Password reset. Copy the new password.', 'info')
+        addNotification?.(`Password reset successfully for ${resetModal.name}`, 'success')
+        setResetModal(null)
+        setResetForm({ password: '', confirmPassword: '' })
       } else {
         const err = await res.json()
-        addNotification?.(err.error || 'Failed to reset password', 'error')
+        setResetError(err.error || 'Failed to reset password')
       }
     } catch {
-      addNotification?.('Failed to reset password', 'error')
+      setResetError('Failed to reset password')
     }
   }
 
@@ -212,11 +246,11 @@ export default function TeamPage({ addNotification, token, user: currentUser }) 
               <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wide">Password</label>
               <input
                 required
-                type="text"
+                type="password"
                 value={form.password}
                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                 className="w-full mt-1 px-3 py-2 border border-stone-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-300 focus:border-amber-400 outline-none"
-                placeholder="Min 6 characters"
+                placeholder="Min 8 characters, alphanumeric"
               />
             </div>
             <div>
@@ -328,7 +362,11 @@ export default function TeamPage({ addNotification, token, user: currentUser }) 
                         Edit
                       </button>
                       <button
-                        onClick={() => handleResetPassword(user.id)}
+                        onClick={() => {
+                          setResetModal({ id: user.id, name: user.name })
+                          setResetForm({ password: '', confirmPassword: '' })
+                          setResetError('')
+                        }}
                         className="px-3 py-1.5 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                       >
                         Reset PW
@@ -350,6 +388,78 @@ export default function TeamPage({ addNotification, token, user: currentUser }) 
 
       {users.length === 0 && (
         <div className="text-center py-12 text-stone-400 text-xs">No users found. Create one to get started.</div>
+      )}
+
+      {resetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-sm bg-white border border-stone-200 rounded-2xl shadow-xl p-5 space-y-4">
+            <div>
+              <h3 className="font-bold text-sm text-stone-900">Reset Password</h3>
+              <p className="text-[11px] text-stone-400">Set a new secure password for <span className="font-semibold text-stone-700">{resetModal.name}</span>.</p>
+            </div>
+
+            {resetError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-[11px] rounded-xl font-medium">
+                {resetError}
+              </div>
+            )}
+
+            <form onSubmit={handleResetPasswordSubmit} className="space-y-3.5">
+              <div>
+                <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wide">New Password</label>
+                <input
+                  required
+                  type={showPasswords ? 'text' : 'password'}
+                  value={resetForm.password}
+                  onChange={e => setResetForm(f => ({ ...f, password: e.target.value }))}
+                  className="w-full mt-1 px-3 py-1.5 border border-stone-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-300 focus:border-amber-400 outline-none"
+                  placeholder="Min 8 characters, alphanumeric"
+                />
+              </div>
+
+              <div>
+                <label className="text-[9px] font-bold text-stone-400 uppercase tracking-wide">Confirm Password</label>
+                <input
+                  required
+                  type={showPasswords ? 'text' : 'password'}
+                  value={resetForm.confirmPassword}
+                  onChange={e => setResetForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                  className="w-full mt-1 px-3 py-1.5 border border-stone-200 rounded-xl text-xs focus:ring-2 focus:ring-amber-300 focus:border-amber-400 outline-none"
+                  placeholder="Re-enter password"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  id="show-passwords"
+                  checked={showPasswords}
+                  onChange={e => setShowPasswords(e.target.checked)}
+                  className="rounded border-stone-300 text-amber-500 focus:ring-amber-500 w-3.5 h-3.5"
+                />
+                <label htmlFor="show-passwords" className="text-[10px] text-stone-400 select-none">
+                  Show passwords
+                </label>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setResetModal(null)}
+                  className="px-3.5 py-1.5 border border-stone-200 text-stone-400 hover:bg-stone-50 text-[11px] font-bold rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-xl transition-colors shadow-sm"
+                >
+                  Reset Password
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   )

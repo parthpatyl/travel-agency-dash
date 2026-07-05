@@ -11,6 +11,8 @@ import LoginPage from './components/LoginPage'
 import CorporatePackagesPage from './components/CorporatePackagesPage'
 import CorporateLeadsPage from './components/CorporateLeadsPage'
 import GroupDeparturesPage from './components/GroupDeparturesPage'
+import EnquiriesPage from './components/EnquiriesPage'
+import EnquiryDetailModal from './components/EnquiryDetailModal'
 import logo from './assets/logo.png'
 import { roleHas } from './utils/permissions'
 import { 
@@ -44,7 +46,7 @@ const initialBookings = []
 
 const initialTestimonials = []
 
-const VALID_TABS = ['dashboard', 'bookings', 'corporateLeads', 'clients', 'packages', 'reports', 'testimonials', 'settings', 'team', 'approvals', 'corporatePackages', 'groupDepartures']
+const VALID_TABS = ['dashboard', 'enquiries', 'bookings', 'corporateLeads', 'clients', 'packages', 'reports', 'testimonials', 'settings', 'team', 'approvals', 'corporatePackages', 'groupDepartures']
 
 function getTabFromHash() {
   const hash = window.location.hash.replace('#', '')
@@ -55,6 +57,11 @@ function App() {
   const [activeTab, setActiveTabRaw] = useState(getTabFromHash)
   const [searchQuery, setSearchQuery] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [selectedEnquiryIdForModal, setSelectedEnquiryIdForModal] = useState(() => {
+    const path = window.location.pathname;
+    const match = path.match(/^\/enquiries\/([\w-]+)$/);
+    return match ? match[1] : null;
+  })
   const isPopstateRef = useRef(false)
 
   // Wrap setActiveTab to push browser history entries and ping activity
@@ -74,13 +81,24 @@ function App() {
   // Listen for browser back/forward
   useEffect(() => {
     // Set initial history entry
-    window.history.replaceState({ tab: getTabFromHash() }, '', `#${getTabFromHash()}`)
+    const path = window.location.pathname;
+    const match = path.match(/^\/enquiries\/([\w-]+)$/);
+    if (match) {
+      window.history.replaceState({ tab: 'dashboard', enquiryId: match[1] }, '', `/enquiries/${match[1]}`)
+    } else {
+      window.history.replaceState({ tab: getTabFromHash() }, '', `#${getTabFromHash()}`)
+    }
 
     const handlePopState = (e) => {
       const tab = e.state?.tab || getTabFromHash()
       if (VALID_TABS.includes(tab)) {
         isPopstateRef.current = true
         setActiveTab(tab)
+      }
+      if (e.state?.enquiryId) {
+        setSelectedEnquiryIdForModal(e.state.enquiryId)
+      } else {
+        setSelectedEnquiryIdForModal(null)
       }
     }
     window.addEventListener('popstate', handlePopState)
@@ -934,6 +952,9 @@ function App() {
     } else if (kind === 'approval') {
       setInitialApprovalId(id)
       setActiveTab('approvals')
+    } else if (kind === 'enquiry') {
+      setSelectedEnquiryIdForModal(id)
+      window.history.pushState({ tab: activeTab, enquiryId: id }, '', `/enquiries/${id}`)
     }
   }
 
@@ -994,6 +1015,7 @@ function App() {
           <nav className="p-4 space-y-1">
             {[
               { id: 'dashboard', label: 'Dashboard', icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z' },
+              { id: 'enquiries', label: 'Enquiries', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z', visible: roleHas(user?.role, 'read:bookings') },
               { id: 'bookings', label: 'Bookings', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', visible: roleHas(user?.role, 'read:bookings') },
               { id: 'corporateLeads', label: 'Corporate Bookings', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', visible: roleHas(user?.role, 'read:bookings') },
               { id: 'clients', label: 'Clients', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', visible: roleHas(user?.role, 'read:clients') },
@@ -1848,6 +1870,19 @@ function App() {
             />
           )}
 
+          {activeTab === 'enquiries' && (
+            <EnquiriesPage
+              token={token}
+              API_URL={API_URL}
+              authHeaders={authHeaders}
+              addNotification={addNotification}
+              onSelectEnquiry={(id) => {
+                setSelectedEnquiryIdForModal(id)
+                window.history.pushState({ tab: 'enquiries', enquiryId: id }, '', `/enquiries/${id}`)
+              }}
+            />
+          )}
+
           {activeTab === 'reports' && (
             <ReportsPage 
               bookings={bookings}
@@ -1925,6 +1960,19 @@ function App() {
           </div>
         ))}
       </div>
+
+      <EnquiryDetailModal
+        enquiryId={selectedEnquiryIdForModal}
+        isOpen={!!selectedEnquiryIdForModal}
+        onClose={() => {
+          setSelectedEnquiryIdForModal(null)
+          window.history.pushState({ tab: activeTab }, '', `#${activeTab}`)
+        }}
+        token={token}
+        addNotification={addNotification}
+        setBookingDraft={setBookingDraft}
+        setActiveTab={setActiveTab}
+      />
     </div>
   )
 }

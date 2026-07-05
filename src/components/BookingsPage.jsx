@@ -74,7 +74,13 @@ export default function BookingsPage({
   // Consume incoming bookingDraft from cross-tab quick actions
   useEffect(() => {
     if (!bookingDraft) return
-    if (bookingDraft.client) setNewClient(bookingDraft.client)
+    if (bookingDraft.client) {
+      // Match by email first, fall back to name
+      const byEmail = bookingDraft.clientEmail
+        ? clients.find(c => c.email === bookingDraft.clientEmail)
+        : null
+      setNewClient(byEmail ? byEmail.name : bookingDraft.client)
+    }
     if (bookingDraft.guests) setNewGuests(bookingDraft.guests.toString())
     if (bookingDraft.package) {
       setNewPackage(bookingDraft.package)
