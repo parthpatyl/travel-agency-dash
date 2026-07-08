@@ -51,6 +51,13 @@ const ArrowRightIcon = ({ className }) => (
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
+const formatDateDisplay = (dateStr) => {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return dateStr
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+}
+
 export default function EnquiryDetailModal({ 
   enquiryId, 
   isOpen, 
@@ -208,7 +215,7 @@ export default function EnquiryDetailModal({
                     <div>
                       <span className="text-[9px] text-stone-400 font-medium block">Travel Date</span>
                       <span className="text-xs font-bold text-stone-800">
-                        {new Date(enquiry.travelDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}
+                        {formatDateDisplay(enquiry.travelDate)}
                       </span>
                     </div>
                   </div>

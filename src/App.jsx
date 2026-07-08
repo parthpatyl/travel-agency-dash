@@ -1631,7 +1631,7 @@ function App() {
                     {/* Minimal CSS Bar Chart */}
                     <div className="flex items-end justify-between h-36 sm:h-48 pt-4 px-1 sm:px-2 border-b border-stone-100">
                       {chartData.map((data, idx) => (
-                        <div key={idx} className="flex flex-col items-center flex-1 group">
+                        <div key={idx} className="flex flex-col items-center justify-end flex-1 group h-full">
                            {/* Hover Tooltip */}
                           <span className="opacity-0 group-hover:opacity-100 bg-stone-900 text-white text-[9px] font-bold px-2 py-0.5 rounded mb-2 transition-all duration-300 transform translate-y-1 group-hover:translate-y-0 shadow">
                             {data.label}

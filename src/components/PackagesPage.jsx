@@ -627,7 +627,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                         <div className="w-full bg-stone-100 rounded-full h-1.5 overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all duration-500 ${isLowAllotment ? 'bg-rose-500' : 'bg-amber-500'}`}
-                            style={{ width: `${(pkg.slots.booked / pkg.slots.total) * 100}%` }}
+                            style={{ width: `${pkg.slots.total > 0 ? (pkg.slots.booked / pkg.slots.total) * 100 : 0}%` }}
                           ></div>
                         </div>
                       </>

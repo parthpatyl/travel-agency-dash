@@ -108,7 +108,7 @@ export default function ReportsPage({ bookings = [], packages = [], clients = []
                 <h3 className="text-sm font-bold text-stone-900 tracking-tight">Agent Sales Performance</h3>
                 <p className="text-[11px] text-stone-400">Monthly booking volumes and individual commission earnings.</p>
               </div>
-              <span className="bg-amber-500/10 text-amber-705 px-2 py-0.5 rounded text-[9px] font-extrabold uppercase border border-amber-500/10">Active Period</span>
+              <span className="bg-amber-500/10 text-amber-700 px-2 py-0.5 rounded text-[9px] font-extrabold uppercase border border-amber-500/10">Active Period</span>
             </div>
 
             <div className="overflow-x-auto">
