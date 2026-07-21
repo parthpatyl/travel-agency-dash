@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
+import SpecialityCategoriesAdmin from './SpecialityCategoriesAdmin'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
@@ -243,6 +244,10 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
   const agencyAddress = settings.agencyAddress ?? ''
   const agencyPhone = settings.agencyPhone ?? ''
   const agencyEmail = settings.agencyEmail ?? ''
+  const agencyTagline = settings.agencyTagline ?? ''
+  const workingHours = settings.workingHours ?? ''
+  const socialLinks = settings.socialLinks ?? {}
+
   const setAgencyAddress = (val) => {
     setSettings({
       ...settings,
@@ -264,6 +269,157 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
     })
   }
 
+  const setAgencyTagline = (val) => {
+    setSettings({
+      ...settings,
+      agencyTagline: val
+    })
+  }
+
+  const setWorkingHours = (val) => {
+    setSettings({
+      ...settings,
+      workingHours: val
+    })
+  }
+
+  const setSocialLink = (platform, val) => {
+    setSettings({
+      ...settings,
+      socialLinks: {
+        ...(settings.socialLinks || {}),
+        [platform]: val
+      }
+    })
+  }
+
+  const heroSection = settings.heroSection ?? {
+    bgImage: '/photo-1506929562872-bb421503ef21.jpeg',
+    titleMain: 'Kraft your perfect',
+    titleItalic: 'journey.',
+    description: "Handcrafted travel to the world's most extraordinary places \nfrom ancient temples in Kyoto to overwater villas in the Maldives. Your escape, designed end-to-end.",
+    btnPrimaryText: 'Explore Packages',
+    btnSecondaryText: 'Plan a Custom Trip',
+    stats: [
+      { value: '10+', label: 'Trips Crafted', icon: 'Compass' },
+      { value: '52%', label: 'Satisfaction', icon: 'Sparkles' },
+      { value: '40+', label: 'Destinations', icon: 'Globe' }
+    ]
+  }
+
+  const ctaSection = settings.ctaSection ?? {
+    bgImage: '/assets/unsplash-app-hero.jpg',
+    badgeText: 'Your Next Chapter',
+    heading: 'Ready to start planning your escape?',
+    description: 'Get in touch with our expert luxury travel specialists. We will customize every detail of your itinerary to build your perfect journey.',
+    buttonText: 'Request custom quote'
+  }
+
+  const updateHeroField = (field, value) => {
+    setSettings({
+      ...settings,
+      heroSection: {
+        ...heroSection,
+        [field]: value
+      }
+    })
+  }
+
+  const updateHeroStat = (index, field, value) => {
+    const updatedStats = [...(heroSection.stats || [])]
+    while (updatedStats.length <= index) {
+      updatedStats.push({ value: '', label: '', icon: 'Compass' })
+    }
+    updatedStats[index] = { ...updatedStats[index], [field]: value }
+    setSettings({
+      ...settings,
+      heroSection: {
+        ...heroSection,
+        stats: updatedStats
+      }
+    })
+  }
+
+  const updateCtaField = (field, value) => {
+    setSettings({
+      ...settings,
+      ctaSection: {
+        ...ctaSection,
+        [field]: value
+      }
+    })
+  }
+
+  const handleHeroBgUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!canWriteSettings) {
+      if (addNotification) addNotification('You do not have permission to modify settings', 'error')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      if (addNotification) addNotification('File size exceeds the 5MB limit!', 'warning')
+      return
+    }
+    const formData = new FormData()
+    formData.append('image', file)
+    try {
+      if (addNotification) addNotification('Uploading hero image...', 'info')
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+      const token = localStorage.getItem('kraft_token')
+      const response = await fetch(`${API_URL}/api/upload`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        method: 'POST',
+        body: formData
+      })
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || 'Failed to upload image')
+      }
+      const data = await response.json()
+      updateHeroField('bgImage', data.imageUrl)
+      if (addNotification) addNotification('Hero background image updated!', 'success')
+    } catch (err) {
+      console.error(err)
+      if (addNotification) addNotification(err.message || 'Hero image upload failed', 'error')
+    }
+  }
+
+  const handleCtaBgUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!canWriteSettings) {
+      if (addNotification) addNotification('You do not have permission to modify settings', 'error')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      if (addNotification) addNotification('File size exceeds the 5MB limit!', 'warning')
+      return
+    }
+    const formData = new FormData()
+    formData.append('image', file)
+    try {
+      if (addNotification) addNotification('Uploading CTA background image...', 'info')
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+      const token = localStorage.getItem('kraft_token')
+      const response = await fetch(`${API_URL}/api/upload`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        method: 'POST',
+        body: formData
+      })
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || 'Failed to upload image')
+      }
+      const data = await response.json()
+      updateCtaField('bgImage', data.imageUrl)
+      if (addNotification) addNotification('CTA background image updated!', 'success')
+    } catch (err) {
+      console.error(err)
+      if (addNotification) addNotification(err.message || 'CTA image upload failed', 'error')
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -275,6 +431,267 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
         {/* Left column (2 cols) */}
         <div className="xl:col-span-2 space-y-6">
+          {/* Homepage Content Control (Hero & CTA) */}
+          <section className="bg-white border border-stone-200/80 rounded-2xl p-6 shadow-sm space-y-6">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-stone-900 tracking-tight">Homepage Content Control</h3>
+                <p className="text-xs text-stone-500">Manage main Hero banner text, background media, stat counters, and bottom call-to-action section.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleSaveSection('homepage')}
+                disabled={saving === 'homepage'}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
+              >
+                {saving === 'homepage' ? 'Saving...' : 'Save Homepage Content'}
+              </button>
+            </div>
+
+            {/* Hero Section Form */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 bg-amber-50 text-amber-800 text-[10px] font-bold uppercase tracking-wider rounded-md">Hero Section</span>
+                <span className="text-xs text-stone-400">Main landing banner at the top of the home page</span>
+              </div>
+
+              {/* Hero Background Image Upload */}
+              <div className="p-4 bg-stone-50/70 border border-stone-200/60 rounded-xl space-y-3">
+                <label className="block text-xs font-bold text-stone-700">Hero Background Image</label>
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-full sm:w-48 h-28 rounded-lg overflow-hidden bg-stone-900 border border-stone-300 shadow-inner relative group shrink-0">
+                    <img
+                      src={imgUrl(heroSection.bgImage)}
+                      alt="Hero background preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-[10px] text-white font-medium">Preview</span>
+                    </div>
+                  </div>
+                  <div className="flex-grow space-y-2 w-full">
+                    <p className="text-xs text-stone-500">Upload a high-resolution hero image (JPG, PNG, WebP up to 5MB).</p>
+                    <label className="inline-flex items-center justify-center px-4 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-sm cursor-pointer transition-colors">
+                      <svg className="w-4 h-4 mr-2 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Upload New Hero Image
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleHeroBgUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Title & Accent */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 mb-1">Headline Main Text</label>
+                  <input
+                    type="text"
+                    value={heroSection.titleMain || ''}
+                    onChange={(e) => updateHeroField('titleMain', e.target.value)}
+                    placeholder="e.g. Kraft your perfect"
+                    className="w-full px-3.5 py-2 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 mb-1">Headline Accent (Italic)</label>
+                  <input
+                    type="text"
+                    value={heroSection.titleItalic || ''}
+                    onChange={(e) => updateHeroField('titleItalic', e.target.value)}
+                    placeholder="e.g. journey."
+                    className="w-full px-3.5 py-2 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 italic font-serif"
+                  />
+                </div>
+              </div>
+
+              {/* Subheadline Description */}
+              <div>
+                <label className="block text-xs font-semibold text-stone-700 mb-1">Subheadline Description</label>
+                <textarea
+                  rows={3}
+                  value={heroSection.description || ''}
+                  onChange={(e) => updateHeroField('description', e.target.value)}
+                  placeholder="Describe your luxury travel offerings..."
+                  className="w-full px-3.5 py-2 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
+                />
+              </div>
+
+              {/* Action Buttons Labels */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 mb-1">Primary Button Text</label>
+                  <input
+                    type="text"
+                    value={heroSection.btnPrimaryText || ''}
+                    onChange={(e) => updateHeroField('btnPrimaryText', e.target.value)}
+                    placeholder="e.g. Explore Packages"
+                    className="w-full px-3.5 py-2 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 mb-1">Secondary Button Text</label>
+                  <input
+                    type="text"
+                    value={heroSection.btnSecondaryText || ''}
+                    onChange={(e) => updateHeroField('btnSecondaryText', e.target.value)}
+                    placeholder="e.g. Plan a Custom Trip"
+                    className="w-full px-3.5 py-2 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
+                  />
+                </div>
+              </div>
+
+              {/* Stat Counters */}
+              <div className="space-y-3 pt-2">
+                <label className="block text-xs font-bold text-stone-800">Hero Stat Counters (3 Highlights)</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[0, 1, 2].map((idx) => {
+                    const stat = (heroSection.stats && heroSection.stats[idx]) || { value: '', label: '', icon: 'Compass' }
+                    return (
+                      <div key={idx} className="p-3 bg-stone-50 border border-stone-200/80 rounded-xl space-y-2">
+                        <div className="flex items-center justify-between text-[10px] font-bold text-stone-500 uppercase">
+                          <span>Stat #{idx + 1}</span>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-stone-500 mb-0.5">Metric Value</label>
+                          <input
+                            type="text"
+                            value={stat.value}
+                            onChange={(e) => updateHeroStat(idx, 'value', e.target.value)}
+                            placeholder="e.g. 10+"
+                            className="w-full px-2.5 py-1 text-xs border border-stone-300 rounded focus:ring-1 focus:ring-amber-500 font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-stone-500 mb-0.5">Label</label>
+                          <input
+                            type="text"
+                            value={stat.label}
+                            onChange={(e) => updateHeroStat(idx, 'label', e.target.value)}
+                            placeholder="e.g. Trips Crafted"
+                            className="w-full px-2.5 py-1 text-xs border border-stone-300 rounded focus:ring-1 focus:ring-amber-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-stone-500 mb-0.5">Icon</label>
+                          <select
+                            value={stat.icon || 'Compass'}
+                            onChange={(e) => updateHeroStat(idx, 'icon', e.target.value)}
+                            className="w-full px-2.5 py-1 text-xs border border-stone-300 rounded focus:ring-1 focus:ring-amber-500 bg-white"
+                          >
+                            <option value="Compass">Compass</option>
+                            <option value="Sparkles">Sparkles</option>
+                            <option value="Globe">Globe</option>
+                            <option value="MapPin">Map Pin</option>
+                            <option value="Award">Award</option>
+                            <option value="Heart">Heart</option>
+                            <option value="CalendarRange">Calendar Range</option>
+                          </select>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <hr className="border-stone-100 my-6" />
+
+            {/* CTA Section Form */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 bg-amber-50 text-amber-800 text-[10px] font-bold uppercase tracking-wider rounded-md">CTA Section</span>
+                <span className="text-xs text-stone-400">Call-to-action banner displayed at the bottom of the home page</span>
+              </div>
+
+              {/* CTA Background Image Upload */}
+              <div className="p-4 bg-stone-50/70 border border-stone-200/60 rounded-xl space-y-3">
+                <label className="block text-xs font-bold text-stone-700">CTA Background Image</label>
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-full sm:w-48 h-28 rounded-lg overflow-hidden bg-stone-900 border border-stone-300 shadow-inner relative group shrink-0">
+                    <img
+                      src={imgUrl(ctaSection.bgImage)}
+                      alt="CTA background preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-[10px] text-white font-medium">Preview</span>
+                    </div>
+                  </div>
+                  <div className="flex-grow space-y-2 w-full">
+                    <p className="text-xs text-stone-500">Upload a background image for the CTA banner (JPG, PNG, WebP up to 5MB).</p>
+                    <label className="inline-flex items-center justify-center px-4 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-sm cursor-pointer transition-colors">
+                      <svg className="w-4 h-4 mr-2 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Upload New CTA Image
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleCtaBgUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Badge Tagline & Heading */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 mb-1">Tagline Badge Text</label>
+                  <input
+                    type="text"
+                    value={ctaSection.badgeText || ''}
+                    onChange={(e) => updateCtaField('badgeText', e.target.value)}
+                    placeholder="e.g. Your Next Chapter"
+                    className="w-full px-3.5 py-2 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 mb-1">CTA Heading</label>
+                  <input
+                    type="text"
+                    value={ctaSection.heading || ''}
+                    onChange={(e) => updateCtaField('heading', e.target.value)}
+                    placeholder="e.g. Ready to start planning your escape?"
+                    className="w-full px-3.5 py-2 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* Description & Button Text */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-stone-700 mb-1">CTA Description</label>
+                  <textarea
+                    rows={2}
+                    value={ctaSection.description || ''}
+                    onChange={(e) => updateCtaField('description', e.target.value)}
+                    placeholder="e.g. Get in touch with our luxury travel specialists..."
+                    className="w-full px-3.5 py-2 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-700 mb-1">Button Text</label>
+                  <input
+                    type="text"
+                    value={ctaSection.buttonText || ''}
+                    onChange={(e) => updateCtaField('buttonText', e.target.value)}
+                    placeholder="e.g. Request custom quote"
+                    className="w-full px-3.5 py-2 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
           {/* Access Control Matrix */}
           <section className="bg-white border border-stone-200/80 rounded-2xl shadow-sm overflow-hidden">
             <div className="p-5 border-b border-stone-200/50">
@@ -576,6 +993,9 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
               )}
             </div>
           </section>
+
+          {/* Speciality Categories Management */}
+          <SpecialityCategoriesAdmin addNotification={addNotification} />
         </div>
 
         {/* Right column (1 col) */}
@@ -702,6 +1122,90 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
                   onChange={(e) => setAgencyEmail(e.target.value)}
                   className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Tagline & Philosophy</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Handcrafting bespoke luxury travel experiences."
+                  value={agencyTagline}
+                  onChange={(e) => setAgencyTagline(e.target.value)}
+                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Working Hours</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Mon – Sat: 9 AM – 6 PM"
+                  value={workingHours}
+                  onChange={(e) => setWorkingHours(e.target.value)}
+                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                />
+              </div>
+
+              {/* Social Media Handles */}
+              <div className="pt-2 border-t border-stone-200/60 space-y-2.5">
+                <span className="block text-[9px] font-bold text-stone-500 uppercase tracking-wider">Social Media Handles & Links</span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[8px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">Instagram URL</label>
+                    <input
+                      type="url"
+                      placeholder="https://instagram.com/yourhandle"
+                      value={socialLinks.instagram || ''}
+                      onChange={(e) => setSocialLink('instagram', e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-1.5 text-xs text-stone-800 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[8px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">Facebook URL</label>
+                    <input
+                      type="url"
+                      placeholder="https://facebook.com/yourhandle"
+                      value={socialLinks.facebook || ''}
+                      onChange={(e) => setSocialLink('facebook', e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-1.5 text-xs text-stone-800 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[8px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">Twitter / X URL</label>
+                    <input
+                      type="url"
+                      placeholder="https://x.com/yourhandle"
+                      value={socialLinks.twitter || ''}
+                      onChange={(e) => setSocialLink('twitter', e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-1.5 text-xs text-stone-800 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[8px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">LinkedIn URL</label>
+                    <input
+                      type="url"
+                      placeholder="https://linkedin.com/company/yourhandle"
+                      value={socialLinks.linkedin || ''}
+                      onChange={(e) => setSocialLink('linkedin', e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-1.5 text-xs text-stone-800 outline-none"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-[8px] font-bold text-stone-400 uppercase tracking-wider mb-0.5">YouTube URL</label>
+                    <input
+                      type="url"
+                      placeholder="https://youtube.com/@yourchannel"
+                      value={socialLinks.youtube || ''}
+                      onChange={(e) => setSocialLink('youtube', e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-1.5 text-xs text-stone-800 outline-none"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="pt-2">

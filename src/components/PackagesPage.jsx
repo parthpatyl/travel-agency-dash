@@ -94,6 +94,17 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   const [editPkgIsBespoke, setEditPkgIsBespoke] = useState(false)
   const [packageToDelete, setPackageToDelete] = useState(null)
 
+  const [specialityCategories, setSpecialityCategories] = useState([])
+  const [pkgCategoryIds, setPkgCategoryIds] = useState([])
+  const [editPkgCategoryIds, setEditPkgCategoryIds] = useState([])
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/speciality-categories`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setSpecialityCategories(data))
+      .catch(() => {})
+  }, [])
+
   // Margin Calculator Tool State
   const [calcClient, setCalcClient] = useState('')
   const [calcPackageId, setCalcPackageId] = useState('')
@@ -221,6 +232,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     setEditPkgExclusionInput('')
     setEditPkgIsBespoke(pkg.isBespoke || false)
     setEditPkgCategory(pkg.category || 'standard')
+    setEditPkgCategoryIds(pkg.categoryIds || [])
     setShowEditPackageForm(true)
   }
 
@@ -255,7 +267,8 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       highlights: editPkgHighlights,
       inclusions: editPkgInclusionsList,
       exclusions: editPkgExclusions,
-      isBespoke: editPkgIsBespoke
+      isBespoke: editPkgIsBespoke,
+      categoryIds: editPkgCategoryIds
     }
 
     if (user && !roleHas(user.role, 'write:packages.pricing')) {
@@ -359,7 +372,8 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       highlights: pkgHighlights,
       inclusions: pkgInclusionsList,
       exclusions: pkgExclusions,
-      isBespoke: bespokeMode
+      isBespoke: bespokeMode,
+      categoryIds: pkgCategoryIds
     }
 
     setPackages([newPkgObj, ...packages])
@@ -378,6 +392,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     setPkgRegion('Asia')
     setPkgCategory('standard')
     setPkgSlots('15')
+    setPkgCategoryIds([])
     setPkgCardImage(`${API_URL}/assets/unsplash-pkg-card.jpg`)
     setPkgHeroImage(`${API_URL}/assets/unsplash-pkg-hero.jpg`)
     setPkgInclusions({
@@ -1409,6 +1424,41 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                 )}
               </div>
 
+              {specialityCategories.length > 0 && (
+                <div className="pt-2">
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2">Speciality Experience Tags</label>
+                  <div className="flex flex-wrap gap-2">
+                    {specialityCategories.map(cat => {
+                      const isChecked = pkgCategoryIds.includes(cat.id)
+                      return (
+                        <label
+                          key={cat.id}
+                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold cursor-pointer transition-all ${
+                            isChecked
+                              ? 'bg-amber-600 text-white border-amber-650 shadow-xs'
+                              : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setPkgCategoryIds([...pkgCategoryIds, cat.id])
+                              } else {
+                                setPkgCategoryIds(pkgCategoryIds.filter(id => id !== cat.id))
+                              }
+                            }}
+                            className="sr-only"
+                          />
+                          <span>{cat.name}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2">Package Inclusions Selection</label>
                 <div className="grid grid-cols-2 gap-2 bg-stone-50 p-3 rounded-xl border border-stone-200">
@@ -1864,6 +1914,41 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   </div>
                 </div>
               </div>
+
+              {specialityCategories.length > 0 && (
+                <div className="pt-2">
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2">Speciality Experience Tags</label>
+                  <div className="flex flex-wrap gap-2">
+                    {specialityCategories.map(cat => {
+                      const isChecked = editPkgCategoryIds.includes(cat.id)
+                      return (
+                        <label
+                          key={cat.id}
+                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold cursor-pointer transition-all ${
+                            isChecked
+                              ? 'bg-amber-600 text-white border-amber-650 shadow-xs'
+                              : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditPkgCategoryIds([...editPkgCategoryIds, cat.id])
+                              } else {
+                                setEditPkgCategoryIds(editPkgCategoryIds.filter(id => id !== cat.id))
+                              }
+                            }}
+                            className="sr-only"
+                          />
+                          <span>{cat.name}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2">Package Inclusions Selection</label>
