@@ -1,12 +1,38 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
 
-export default function GroupDeparturesPage({ groupDepartures, setGroupDepartures, packages, addNotification, user }) {
+const API_URL_DEFAULT = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
+export default function GroupDeparturesPage({ groupDepartures, setGroupDepartures, packages = [], setPackages, addNotification, user, token }) {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [filterStatus, setFilterStatus] = useState('All')
+  const [filterStatus, setFilterStatus] = useState('scheduled')
   const [deleteTarget, setDeleteTarget] = useState(null)
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (showForm) {
+          setShowForm(false)
+          setEditing(null)
+        } else if (deleteTarget) {
+          setDeleteTarget(null)
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showForm, deleteTarget])
+
+  // Package Mode: 'existing' vs 'new'
+  const [pkgMode, setPkgMode] = useState('existing')
+  const [newPkgName, setNewPkgName] = useState('')
+  const [newPkgDuration, setNewPkgDuration] = useState('5')
+  const [newPkgPrice, setNewPkgPrice] = useState('3000')
+  const [newPkgRegion, setNewPkgRegion] = useState('Asia')
+  const [newPkgCategory, setNewPkgCategory] = useState('standard')
+  const [newPkgDescription, setNewPkgDescription] = useState('')
 
   const activePackages = (packages || []).filter(p => !p.isBespoke)
 
@@ -18,9 +44,31 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
     slotsTotal: 20,
     slotsBooked: 0,
     priceModifier: 0,
+    costPrice: 0,
+    ctaBadge: 'Guaranteed Departure',
+    inclusions: '',
+    exclusions: '',
     status: 'scheduled',
     notes: ''
   })
+
+  // Auto-populate departure details when base package is selected
+  const handleSelectBasePackage = (pkgId) => {
+    const selectedPkg = packages.find(p => p.id === pkgId)
+    if (selectedPkg) {
+      setForm(prev => ({
+        ...prev,
+        packageId: pkgId,
+        title: prev.title || selectedPkg.name || '',
+        costPrice: selectedPkg.costPrice != null ? selectedPkg.costPrice : (selectedPkg.basePrice || prev.costPrice),
+        inclusions: Array.isArray(selectedPkg.inclusions) ? selectedPkg.inclusions.join(', ') : (selectedPkg.inclusions || ''),
+        exclusions: Array.isArray(selectedPkg.exclusions) ? selectedPkg.exclusions.join(', ') : (selectedPkg.exclusions || ''),
+        notes: selectedPkg.description || prev.notes
+      }))
+    } else {
+      setForm(prev => ({ ...prev, packageId: pkgId }))
+    }
+  }
 
   const canWrite = roleHas(user?.role, 'write:packages') || roleHas(user?.role, 'create:packages')
 
@@ -37,10 +85,15 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
       slotsTotal: 20,
       slotsBooked: 0,
       priceModifier: 0,
+      costPrice: 0,
+      ctaBadge: 'Guaranteed Departure',
+      inclusions: '',
+      exclusions: '',
       status: 'scheduled',
       notes: ''
     })
     setEditing(null)
+    setPkgMode('existing')
     setShowForm(true)
   }
 
@@ -66,6 +119,10 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
       slotsTotal: dep.slots?.total ?? dep.slotsTotal ?? 20,
       slotsBooked: dep.slots?.booked ?? dep.slotsBooked ?? 0,
       priceModifier: dep.priceModifier ?? 0,
+      costPrice: dep.costPrice ?? 0,
+      ctaBadge: dep.ctaBadge || 'Guaranteed Departure',
+      inclusions: Array.isArray(dep.inclusions) ? dep.inclusions.join(', ') : (dep.inclusions || ''),
+      exclusions: Array.isArray(dep.exclusions) ? dep.exclusions.join(', ') : (dep.exclusions || ''),
       status: dep.status || 'scheduled',
       notes: dep.notes || ''
     })
@@ -75,7 +132,45 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
 
   const handleSave = (e) => {
     e.preventDefault()
-    if (!form.packageId) {
+
+    let activePackageId = form.packageId
+    let createdPkgObj = null
+
+    if (pkgMode === 'new' && !editing) {
+      if (!newPkgName.trim()) {
+        if (addNotification) addNotification('Please enter Package Name', 'warning')
+        return
+      }
+      activePackageId = `PKG-${crypto.randomUUID()}`
+      createdPkgObj = {
+        id: activePackageId,
+        name: newPkgName.trim(),
+        duration: `${newPkgDuration} Days`,
+        basePrice: parseFloat(newPkgPrice) || 0,
+        region: newPkgRegion,
+        category: newPkgCategory,
+        slots: { booked: 0, total: parseInt(form.slotsTotal) || 20 },
+        trend: 'New',
+        description: newPkgDescription.trim() || `${newPkgName} scheduled tour package.`,
+        cardImage: `${API_URL_DEFAULT}/assets/unsplash-pkg-card.jpg`,
+        heroImage: `${API_URL_DEFAULT}/assets/unsplash-pkg-hero.jpg`,
+        isBespoke: false
+      }
+
+      if (setPackages) setPackages([createdPkgObj, ...packages])
+
+      // Persist package to backend
+      fetch(`${API_URL_DEFAULT}/api/packages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(createdPkgObj)
+      }).catch(err => console.error('Failed to create package:', err))
+    }
+
+    if (!activePackageId) {
       if (addNotification) addNotification('Please select a base package', 'warning')
       return
     }
@@ -88,8 +183,10 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
       return
     }
 
+    const parseList = (str) => typeof str === 'string' ? str.split(',').map(s => s.trim()).filter(Boolean) : (str || [])
+
     const payload = {
-      packageId: form.packageId,
+      packageId: activePackageId,
       title: form.title.trim(),
       departureDate: form.departureDate,
       returnDate: form.returnDate,
@@ -98,11 +195,15 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
         total: parseInt(form.slotsTotal) || 20
       },
       priceModifier: parseFloat(form.priceModifier) || 0,
+      costPrice: parseFloat(form.costPrice) || 0,
+      ctaBadge: form.ctaBadge || 'Guaranteed Departure',
+      inclusions: parseList(form.inclusions),
+      exclusions: parseList(form.exclusions),
       status: form.status,
       notes: form.notes
     }
 
-    const pkg = activePackages.find(p => p.id === form.packageId)
+    const pkg = createdPkgObj || packages.find(p => p.id === activePackageId)
     if (pkg) {
       payload.packageName = pkg.name
       payload.packageRegion = pkg.region
@@ -120,10 +221,24 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
         ...payload
       }
       setGroupDepartures([...groupDepartures, newDep])
+
+      // Persist Group Departure to backend
+      fetch(`${API_URL_DEFAULT}/api/group-departures`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      }).catch(err => console.error('Failed to create group departure:', err))
+
       if (addNotification) addNotification(`Group departure "${form.title}" created`, 'success')
     }
     setShowForm(false)
     setEditing(null)
+    setPkgMode('existing')
+    setNewPkgName('')
+    setNewPkgDescription('')
   }
 
   const confirmDelete = () => {
@@ -174,7 +289,7 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
 
       {/* Filter tabs */}
       <div className="flex gap-2 border-b border-stone-200 pb-4">
-        {['All', 'scheduled', 'confirmed', 'departed', 'cancelled'].map(status => (
+        {['scheduled'].map(status => (
           <button
             key={status}
             onClick={() => setFilterStatus(status)}
@@ -184,7 +299,7 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
                 : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
             }`}
           >
-            {status === 'All' ? 'All Departures' : status.charAt(0).toUpperCase() + status.slice(1)}
+            Scheduled
           </button>
         ))}
       </div>
@@ -271,36 +386,123 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
 
       {/* Add / Edit Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-2xl p-8 animate-in zoom-in duration-200">
-            <div className="flex justify-between items-center pb-5 border-b border-stone-100">
-              <h3 className="text-lg font-bold text-stone-900">{editing ? 'Edit Group Departure' : 'Add Group Departure'}</h3>
-              <button onClick={() => { setShowForm(false); setEditing(null) }} className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 cursor-pointer">
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-3 sm:p-6 pt-20 sm:pt-24 pb-8 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="group-dep-modal-title">
+          <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col my-auto overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header (Fixed / Sticky) */}
+            <div className="px-6 py-4 border-b border-stone-100 flex justify-between items-center bg-stone-50/50 shrink-0">
+              <div>
+                <h3 id="group-dep-modal-title" className="text-base sm:text-lg font-bold text-stone-900">{editing ? 'Edit Group Departure' : 'Add Group Departure'}</h3>
+                <p className="text-xs text-stone-500 font-light mt-0.5">Configure departure batch details, slots, pricing, and inclusions</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowForm(false); setEditing(null) }}
+                className="p-1.5 rounded-lg hover:bg-stone-200/70 text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
+                title="Close (Esc)"
+              >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <form onSubmit={handleSave} className="space-y-5 pt-5">
-              {!canWrite && <ReadOnlyBanner message="View-only mode — you do not have permission to manage group departures" />}
-              <fieldset disabled={!canWrite} className="space-y-5">
+
+            <form onSubmit={handleSave} className="flex flex-col min-h-0 flex-1 overflow-hidden">
+              <div className="p-6 overflow-y-auto space-y-5 flex-1 custom-scrollbar">
+                {!canWrite && <ReadOnlyBanner message="View-only mode — you do not have permission to manage group departures" />}
+                <fieldset disabled={!canWrite} className="space-y-5">
                 
+                {/* Base Package Selector */}
                 <div>
-                  <label htmlFor="form-package-id" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                    Base Package <span className="text-rose-500" aria-hidden="true">*</span>
-                  </label>
-                  <select
-                    id="form-package-id"
-                    value={form.packageId}
-                    onChange={(e) => setForm({ ...form, packageId: e.target.value })}
-                    className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-850 outline-none transition-all"
-                    required
-                  >
-                    <option value="">— Select Base Package —</option>
-                    {activePackages.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.duration})</option>
-                    ))}
-                  </select>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label htmlFor="form-package-id" className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
+                      Base Package <span className="text-rose-500" aria-hidden="true">*</span>
+                    </label>
+                    {!editing && (
+                      <div className="flex gap-1 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() => setPkgMode('existing')}
+                          className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${pkgMode === 'existing' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                        >
+                          Existing
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPkgMode('new')}
+                          className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${pkgMode === 'new' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                        >
+                          + Create New Package
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {pkgMode === 'existing' || editing ? (
+                    <select
+                      id="form-package-id"
+                      value={form.packageId}
+                      onChange={(e) => handleSelectBasePackage(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-850 outline-none transition-all"
+                      required={pkgMode === 'existing'}
+                    >
+                      <option value="">— Select Base Package —</option>
+                      {activePackages.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.duration})</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="space-y-3.5 bg-amber-50/40 p-4 rounded-xl border border-amber-200/60">
+                      <div>
+                        <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">Package Name *</label>
+                        <input
+                          type="text"
+                          required={pkgMode === 'new'}
+                          placeholder="e.g. Greece & Turkey Wonders Odyssey"
+                          value={newPkgName}
+                          onChange={(e) => setNewPkgName(e.target.value)}
+                          className="w-full bg-white border border-stone-300 focus:border-amber-500 rounded-lg p-3 text-sm text-stone-800 outline-none"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">Duration (Days)</label>
+                          <input
+                            type="number"
+                            min="1"
+                            required={pkgMode === 'new'}
+                            value={newPkgDuration}
+                            onChange={(e) => setNewPkgDuration(e.target.value)}
+                            className="w-full bg-white border border-stone-300 focus:border-amber-500 rounded-lg p-3 text-sm text-stone-800 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">Price (₹)</label>
+                          <input
+                            type="number"
+                            required={pkgMode === 'new'}
+                            value={newPkgPrice}
+                            onChange={(e) => setNewPkgPrice(e.target.value)}
+                            className="w-full bg-white border border-stone-300 focus:border-amber-500 rounded-lg p-3 text-sm text-stone-800 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">Region</label>
+                          <select
+                            value={newPkgRegion}
+                            onChange={(e) => setNewPkgRegion(e.target.value)}
+                            className="w-full bg-white border border-stone-300 focus:border-amber-500 rounded-lg p-3 text-sm text-stone-800 outline-none"
+                          >
+                            <option value="Asia">Asia</option>
+                            <option value="Europe">Europe</option>
+                            <option value="Africa">Africa</option>
+                            <option value="Middle East">Middle East</option>
+                            <option value="North America">North America</option>
+                            <option value="South America">South America</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -318,7 +520,7 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="form-departure-date" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
                       Departure Date <span className="text-rose-500" aria-hidden="true">*</span>
@@ -347,10 +549,10 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="form-slots-total" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                      Total Slots <span className="text-rose-500" aria-hidden="true">*</span>
+                      Total Allotment Slots <span className="text-rose-500" aria-hidden="true">*</span>
                     </label>
                     <input
                       id="form-slots-total"
@@ -378,7 +580,7 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label htmlFor="form-price-modifier" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
                       Price Modifier (₹)
@@ -388,31 +590,93 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
                       type="number"
                       value={form.priceModifier}
                       onChange={(e) => setForm({ ...form, priceModifier: e.target.value })}
-                      placeholder="e.g. +5000 or -2000"
-                      className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-855 outline-none transition-all"
+                      placeholder="e.g. 0"
+                      className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-3 text-sm text-stone-855 outline-none"
                     />
                   </div>
                   <div>
-                    <label htmlFor="form-status" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                      Status
+                    <label htmlFor="form-cost-price" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                      Supplier Cost (₹)
+                    </label>
+                    <input
+                      id="form-cost-price"
+                      type="number"
+                      value={form.costPrice}
+                      onChange={(e) => setForm({ ...form, costPrice: e.target.value })}
+                      placeholder="e.g. 150000"
+                      className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-3 text-sm text-stone-855 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="form-cta-badge" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                      CTA / Urgency Badge
                     </label>
                     <select
-                      id="form-status"
-                      value={form.status}
-                      onChange={(e) => setForm({ ...form, status: e.target.value })}
-                      className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-855 outline-none cursor-pointer transition-all"
+                      id="form-cta-badge"
+                      value={form.ctaBadge}
+                      onChange={(e) => setForm({ ...form, ctaBadge: e.target.value })}
+                      className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-3 text-sm text-stone-855 outline-none"
                     >
-                      <option value="scheduled">Scheduled</option>
-                      <option value="confirmed">Confirmed</option>
-                      <option value="departed">Departed</option>
-                      <option value="cancelled">Cancelled</option>
+                      <option value="Guaranteed Departure">Guaranteed Departure</option>
+                      <option value="Filling Fast">Filling Fast</option>
+                      <option value="Limited Seats">Limited Seats</option>
+                      <option value="Early Bird Special">Early Bird Special</option>
+                      <option value="Seasonal Special">Seasonal Special</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* Live Margin Calculation Preview */}
+                {(() => {
+                  const cost = parseFloat(form.costPrice) || 0
+                  const modifier = parseFloat(form.priceModifier) || 0
+                  const basePkg = packages.find(p => p.id === form.packageId)
+                  const basePrice = basePkg?.basePrice || 0
+                  const finalPrice = basePrice + modifier
+                  const marginINR = finalPrice - cost
+                  return (
+                    <div className="flex items-center justify-between p-3 bg-[#FAF9F5] border border-stone-200/80 rounded-xl">
+                      <span className="text-xs text-stone-600 font-semibold">
+                        Retail Price: <strong className="text-stone-900 font-bold mr-3">₹{finalPrice.toLocaleString('en-IN')}</strong>
+                        Margin: <span className="text-amber-700 font-bold">₹{marginINR.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </span>
+                      <span className="text-xs text-stone-400 font-medium">Batch Departure Allotment</span>
+                    </div>
+                  )
+                })()}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="form-inclusions" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                      Batch Inclusions (comma-separated)
+                    </label>
+                    <input
+                      id="form-inclusions"
+                      type="text"
+                      value={form.inclusions}
+                      onChange={(e) => setForm({ ...form, inclusions: e.target.value })}
+                      placeholder="e.g. Flight tickets, Hotel stay, Tour Manager"
+                      className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-3 text-sm text-stone-855 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="form-exclusions" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                      Batch Exclusions (comma-separated)
+                    </label>
+                    <input
+                      id="form-exclusions"
+                      type="text"
+                      value={form.exclusions}
+                      onChange={(e) => setForm({ ...form, exclusions: e.target.value })}
+                      placeholder="e.g. Personal expenses, Visa fees, Travel Insurance"
+                      className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-3 text-sm text-stone-855 outline-none"
+                    />
                   </div>
                 </div>
 
                 <div>
                   <label htmlFor="form-notes" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                    Notes / Instructions
+                    Notes / Flight Instructions
                   </label>
                   <textarea
                     id="form-notes"
@@ -424,10 +688,24 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
                   />
                 </div>
 
-              </fieldset>
-              <div className="pt-5 border-t border-stone-100 flex justify-end gap-3">
-                <button type="button" onClick={() => { setShowForm(false); setEditing(null) }} className="px-5 py-2.5 border border-stone-200 rounded-lg text-sm font-semibold text-stone-600 hover:bg-stone-50 active:scale-95 transition-all cursor-pointer">Cancel</button>
-                <button type="submit" className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-sm font-bold shadow active:scale-95 transition-all cursor-pointer">{editing ? 'Save Changes' : 'Create Departure'}</button>
+                </fieldset>
+              </div>
+
+              {/* Sticky Action Footer */}
+              <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3 shrink-0 bg-stone-50/60 rounded-b-2xl">
+                <button
+                  type="button"
+                  onClick={() => { setShowForm(false); setEditing(null) }}
+                  className="px-5 py-2.5 border border-stone-200 rounded-xl text-xs sm:text-sm font-semibold text-stone-600 hover:bg-stone-100 active:scale-95 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow active:scale-95 transition-all cursor-pointer"
+                >
+                  {editing ? 'Save Changes' : 'Create Departure'}
+                </button>
               </div>
             </form>
           </div>

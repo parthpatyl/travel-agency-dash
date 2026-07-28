@@ -391,8 +391,8 @@ export default function TeamPage({ addNotification, token, user: currentUser }) 
       )}
 
       {resetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-sm bg-white border border-stone-200 rounded-2xl shadow-xl p-5 space-y-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-sm bg-white border border-stone-200 rounded-2xl shadow-2xl p-5 space-y-4">
             <div>
               <h3 className="font-bold text-sm text-stone-900">Reset Password</h3>
               <p className="text-[11px] text-stone-400">Set a new secure password for <span className="font-semibold text-stone-700">{resetModal.name}</span>.</p>

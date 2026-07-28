@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
 
@@ -20,11 +20,11 @@ const timelineSteps = [
 ];
 
 export default function BookingsPage({ 
-  bookings, 
+  bookings = [], 
   setBookings, 
-  clients, 
+  clients = [], 
   setClients, 
-  packages, 
+  packages = [], 
   setPackages, 
   settings, 
   addNotification,
@@ -32,10 +32,11 @@ export default function BookingsPage({
   setBookingDraft,
   initialSelectedBookingId,
   onSelectBooking,
-  user,
+  user = { role: 'admin' },
   token
 }) {
   const [search, setSearch] = useState('')
+  const searchInputRef = useRef(null)
   const [statusFilter, setStatusFilter] = useState('All')
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -65,7 +66,52 @@ export default function BookingsPage({
   const [newDate, setNewDate] = useState('')
   const [newGuests, setNewGuests] = useState('1')
   const [newStatus, setNewStatus] = useState('Pending')
+  const [newPaymentMethod, setNewPaymentMethod] = useState('Bank Transfer')
+  const [newPaymentStatus, setNewPaymentStatus] = useState('Pending')
   const [newDirectives, setNewDirectives] = useState('')
+  const [clientMode, setClientMode] = useState('existing') // 'existing' | 'new'
+  const [newClientName, setNewClientName] = useState('')
+  const [newClientEmail, setNewClientEmail] = useState('')
+  const [newClientPhone, setNewClientPhone] = useState('')
+  const [newClientLocation, setNewClientLocation] = useState('')
+
+  // Keyboard Shortcuts (Esc, Arrow keys, J/K navigation, / search focus)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (showAddForm) setShowAddForm(false)
+        else if (showEditModal) setShowEditModal(false)
+        else if (bookingToDelete) setBookingToDelete(null)
+        else if (selectedBooking) setSelectedBooking(null)
+        return
+      }
+
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return
+
+      if (e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key === 'k')) {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        return
+      }
+
+      if (['ArrowDown', 'j'].includes(e.key)) {
+        e.preventDefault()
+        if (bookings.length === 0) return
+        const currentIndex = bookings.findIndex(b => b.id === selectedBooking?.id)
+        const nextIndex = currentIndex < bookings.length - 1 ? currentIndex + 1 : 0
+        setSelectedBooking(bookings[nextIndex])
+      } else if (['ArrowUp', 'k'].includes(e.key)) {
+        e.preventDefault()
+        if (bookings.length === 0) return
+        const currentIndex = bookings.findIndex(b => b.id === selectedBooking?.id)
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : bookings.length - 1
+        setSelectedBooking(bookings[prevIndex])
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showAddForm, showEditModal, bookingToDelete, selectedBooking, bookings])
 
   // Sidebar Inline Tag Editor State
   const [newTagInput, setNewTagInput] = useState('')
@@ -385,7 +431,56 @@ export default function BookingsPage({
 
   const handleAddBooking = (e) => {
     e.preventDefault()
-    if (!newClient || !newPackage || !newAmount || !newDate) return
+    
+    let activeClientName = newClient
+    if (clientMode === 'new') {
+      if (!newClientName.trim() || !newClientEmail.trim()) {
+        if (addNotification) addNotification('Please enter Client Name and Email', 'warning')
+        return
+      }
+      activeClientName = newClientName.trim()
+
+      // Create new client object
+      const newClientId = `CLI-${crypto.randomUUID()}`
+      const newClientObj = {
+        id: newClientId,
+        name: activeClientName,
+        email: newClientEmail.trim(),
+        phone: newClientPhone.trim() || '+1 555-0100',
+        country: newClientLocation.trim() || 'United States',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
+        tier: 'Silver',
+        status: 'Inquiry',
+        totalSpent: parseFloat(newAmount) || 0,
+        tripsCount: 1,
+        nextTrip: newDate ? formatDate(newDate) : 'Pending',
+        lastContact: new Date().toISOString().split('T')[0],
+        preferences: { accommodations: '5-Star Luxury', dietary: 'None' },
+        logs: [
+          {
+            time: new Date().toISOString().replace('T', ' ').substring(0, 16),
+            text: `Manual Inquiry / Booking created for package "${newPackage}"`
+          }
+        ]
+      }
+
+      setClients([newClientObj, ...clients])
+
+      // Save client to backend
+      fetch(`${API_URL}/api/clients`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newClientObj)
+      }).catch(err => console.error('Failed to create client:', err))
+    }
+
+    if (!activeClientName || !newPackage || !newAmount || !newDate) {
+      if (addNotification) addNotification('Please fill in all required booking fields', 'warning')
+      return
+    }
     
     // Check package availability (per-guest slot consumption)
     const targetPkg = packages.find(p => p.name === newPackage)
@@ -415,7 +510,7 @@ export default function BookingsPage({
 
     const newBookingObj = {
       id: newId,
-      client: newClient,
+      client: activeClientName,
       package: newPackage,
       amount: parseFloat(newAmount) || 0,
       discountValue: newDiscount ? parseFloat(newDiscount) : 0,
@@ -428,32 +523,49 @@ export default function BookingsPage({
 
     setBookings([newBookingObj, ...bookings])
 
+    // Save booking to backend API
+    fetch(`${API_URL}/api/bookings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(newBookingObj)
+    }).catch(err => console.error('Failed to create booking:', err))
+
     // Log to client profile logs
-    setClients(clients.map(c => {
-      if (c.name === newClient) {
-        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16)
-        const datePart = timestamp.split(' ')[0]
-        return {
-          ...c,
-          lastContact: datePart,
-          logs: [
-            {
-              time: timestamp,
-              text: `System: Created new booking ${newId} for package "${newPackage}" (Departure: ${newDate}, Status: ${newStatus})`
-            },
-            ...c.logs
-          ]
+    if (clientMode === 'existing') {
+      setClients(clients.map(c => {
+        if (c.name === activeClientName) {
+          const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16)
+          const datePart = timestamp.split(' ')[0]
+          return {
+            ...c,
+            lastContact: datePart,
+            logs: [
+              {
+                time: timestamp,
+                text: `System: Created new booking ${newId} for package "${newPackage}" (Departure: ${newDate}, Status: ${newStatus})`
+              },
+              ...c.logs
+            ]
+          }
         }
-      }
-      return c
-    }))
+        return c
+      }))
+    }
     
     if (addNotification) {
-      addNotification(`Successfully created booking ${newId} for ${newClient}`, 'success')
+      addNotification(`Successfully created booking ${newId} for ${activeClientName}`, 'success')
     }
     
     // Reset Form
     setNewClient('')
+    setNewClientName('')
+    setNewClientEmail('')
+    setNewClientPhone('')
+    setNewClientLocation('')
+    setClientMode('existing')
     setNewPackage('')
     setNewAmount('')
     setNewDiscount('')
@@ -600,11 +712,12 @@ export default function BookingsPage({
                 </svg>
               </span>
               <input
+                ref={searchInputRef}
                 type="text"
-                placeholder="Search Client or PNR..."
+                placeholder="Search Client, PNR, or Package... (⌘K / Esc to close)"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg py-2 pl-9 pr-3 text-xs text-stone-800 placeholder-stone-400 outline-none focus:ring-1 focus:ring-amber-500 transition-all"
+                className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg py-2 pl-9 pr-3 text-xs sm:text-sm text-stone-800 placeholder-stone-400 outline-none focus:ring-2 focus:ring-amber-500/20 transition-all"
               />
             </div>
             
@@ -1113,15 +1226,20 @@ export default function BookingsPage({
         </div>
       </div>
 
-      {/* Create Booking Overlay Modal */}
+      {/* Add Booking Modal */}
       {showAddForm && (
-        <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-md p-6 animate-in zoom-in duration-200">
-            <div className="flex justify-between items-center pb-4 border-b border-stone-100">
-              <h3 className="text-base font-bold text-stone-900">Create New Client Reservation</h3>
-              <button 
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-3 sm:p-6 pt-20 sm:pt-24 pb-8 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="add-booking-modal-title">
+          <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col my-auto overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header (Fixed / Sticky) */}
+            <div className="px-6 py-4 border-b border-stone-100 flex justify-between items-center bg-stone-50/50 shrink-0">
+              <div>
+                <h3 id="add-booking-modal-title" className="text-base sm:text-lg font-bold text-stone-900">Create New Client Reservation</h3>
+                <p className="text-xs text-stone-500 font-light mt-0.5">Log custom reservation and payment details</p>
+              </div>
+              <button
+                type="button"
                 onClick={() => setShowAddForm(false)}
-                className="p-1 rounded-lg hover:bg-stone-100 text-stone-400"
+                className="p-1.5 rounded-lg hover:bg-stone-200/70 text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
               >
                 <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1129,146 +1247,213 @@ export default function BookingsPage({
               </button>
             </div>
             
-            <form onSubmit={handleAddBooking} className="space-y-4 pt-4">
-              {!canWriteBooking && <ReadOnlyBanner message="View-only mode — you can view but not edit bookings" />}
-              <fieldset disabled={!canWriteBooking}>
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Client Full Name</label>
-                <select
-                  required
-                  value={newClient}
-                  onChange={(e) => setNewClient(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
-                >
-                  <option value="">Select a client...</option>
-                  {clients.map(c => (
-                    <option key={c.id} value={c.name}>{c.name} ({c.id})</option>
-                  ))}
-                </select>
-              </div>
+            <form onSubmit={handleAddBooking} className="flex flex-col min-h-0 flex-1 overflow-hidden">
+              <div className="p-6 overflow-y-auto space-y-4 flex-1 custom-scrollbar">
+                {!canWriteBooking && <ReadOnlyBanner message="View-only mode — you can view but not edit bookings" />}
+                <fieldset disabled={!canWriteBooking} className="space-y-4">
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">Client Profile</label>
+                    <div className="flex gap-1 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setClientMode('existing')}
+                        className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${clientMode === 'existing' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                      >
+                        Existing
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setClientMode('new')}
+                        className={`px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${clientMode === 'new' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                      >
+                        + New Client
+                      </button>
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Travel Package</label>
-                <select
-                  required
-                  value={newPackage}
-                  onChange={(e) => {
-                    const pkgName = e.target.value
-                    setNewPackage(pkgName)
-                    const selectedPkg = packages.find(p => p.name === pkgName)
-                    if (selectedPkg) {
-                      const guests = parseInt(newGuests) || 1
-                      setNewAmount((selectedPkg.basePrice * guests).toString())
-                    }
-                  }}
-                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
-                >
-                  <option value="">Select a package...</option>
-                  {packages.map(p => (
-                    <option key={p.id} value={p.name}>{p.name} ({p.duration} - ₹{p.basePrice})</option>
-                  ))}
-                </select>
-              </div>
+                  {clientMode === 'existing' ? (
+                    <select
+                      required={clientMode === 'existing'}
+                      value={newClient}
+                      onChange={(e) => setNewClient(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
+                    >
+                      <option value="">Select a client...</option>
+                      {clients.map(c => (
+                        <option key={c.id} value={c.name}>{c.name} ({c.id})</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="space-y-2 bg-amber-50/40 p-3 rounded-xl border border-amber-200/60">
+                      <input
+                        type="text"
+                        required={clientMode === 'new'}
+                        placeholder="Client Full Name *"
+                        value={newClientName}
+                        onChange={(e) => setNewClientName(e.target.value)}
+                        className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                      />
+                      <input
+                        type="email"
+                        required={clientMode === 'new'}
+                        placeholder="Email Address *"
+                        value={newClientEmail}
+                        onChange={(e) => setNewClientEmail(e.target.value)}
+                        className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          placeholder="Phone (e.g. +1 555-0199)"
+                          value={newClientPhone}
+                          onChange={(e) => setNewClientPhone(e.target.value)}
+                          className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Country / Location"
+                          value={newClientLocation}
+                          onChange={(e) => setNewClientLocation(e.target.value)}
+                          className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
 
-              <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Amount (INR)</label>
-                  <input
-                    type="number"
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Selected Package</label>
+                  <select
                     required
-                    placeholder="4500"
-                    value={newAmount}
-                    onChange={(e) => setNewAmount(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Discount (INR)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={newDiscount}
-                    onChange={(e) => setNewDiscount(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Guests</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={newGuests}
+                    value={newPackage}
                     onChange={(e) => {
-                      setNewGuests(e.target.value)
-                      const selectedPkg = packages.find(p => p.name === newPackage)
-                      if (selectedPkg) {
-                        const guests = parseInt(e.target.value) || 1
-                        setNewAmount((selectedPkg.basePrice * guests).toString())
+                      setNewPackage(e.target.value)
+                      const pkg = packages.find(p => p.name === e.target.value)
+                      if (pkg) {
+                        setNewAmount(pkg.basePrice || '')
                       }
                     }}
                     className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
-                  />
+                  >
+                    <option value="">Select a package...</option>
+                    {packages.map(p => (
+                      <option key={p.id} value={p.name}>{p.name} ({p.duration} - ₹{p.basePrice})</option>
+                    ))}
+                  </select>
                 </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Amount (INR)</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="4500"
+                      value={newAmount}
+                      onChange={(e) => setNewAmount(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Discount (INR)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={newDiscount}
+                      onChange={(e) => setNewDiscount(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Travel Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={newDate}
+                      onChange={(e) => setNewDate(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Payment Method</label>
+                    <select
+                      value={newPaymentMethod}
+                      onChange={(e) => setNewPaymentMethod(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none transition-all"
+                    >
+                      <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="Credit Card">Credit Card</option>
+                      <option value="UPI / GPay">UPI / GPay</option>
+                      <option value="Cash">Cash</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Payment Status</label>
+                    <select
+                      value={newPaymentStatus}
+                      onChange={(e) => setNewPaymentStatus(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none transition-all"
+                    >
+                      <option value="Paid">Paid (Full)</option>
+                      <option value="Partial">Partial (Deposit)</option>
+                      <option value="Pending">Pending</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Departure Date</label>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Booking Status</label>
+                  <div className="flex gap-4 items-center bg-stone-50 p-2.5 rounded-lg border border-stone-200 text-xs">
+                    {['Confirmed', 'Pending', 'Cancelled'].map((status) => (
+                      <label key={status} className="flex items-center gap-1.5 cursor-pointer text-stone-700">
+                        <input
+                          type="radio"
+                          name="status"
+                          checked={newStatus === status}
+                          onChange={() => setNewStatus(status)}
+                          className="text-amber-600 focus:ring-amber-500"
+                        />
+                        {status}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Special Directives (comma-separated)</label>
                   <input
                     type="text"
-                    placeholder="DD/MM/YYYY"
-                    required
-                    value={formatDateDisplay(newDate)}
-                    onChange={(e) => setNewDate(parseDateDisplay(e.target.value))}
+                    placeholder="e.g. VIP Priority Lounge, Gluten-Free"
+                    value={newDirectives}
+                    onChange={(e) => setNewDirectives(e.target.value)}
                     className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
                   />
                 </div>
+                </fieldset>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Initial Status</label>
-                <div className="flex gap-4">
-                  {['Pending', 'Paid'].map(status => (
-                    <label key={status} className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
-                      <input
-                        type="radio"
-                        name="status"
-                        checked={newStatus === status}
-                        onChange={() => setNewStatus(status)}
-                        className="text-amber-600 focus:ring-amber-500"
-                      />
-                      {status}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Special Directives (comma-separated)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. VIP Priority Lounge, Gluten-Free"
-                  value={newDirectives}
-                  onChange={(e) => setNewDirectives(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
-                />
-              </div>
-
-              <div className="pt-4 border-t border-stone-100 flex justify-end gap-2">
+              {/* Fixed / Sticky Action Footer */}
+              <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3 shrink-0 bg-stone-50/60 rounded-b-2xl">
                 <button
                   type="button"
                   onClick={() => setShowAddForm(false)}
-                  className="px-4 py-2 border border-stone-200 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-50 active:scale-95 transition-all"
+                  className="px-4 py-2 border border-stone-200 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-100 active:scale-95 transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition-all"
+                  disabled={!canWriteBooking}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition-all cursor-pointer"
                 >
-                  Confirm & Create
+                  Create Booking
                 </button>
               </div>
-              </fieldset>
             </form>
           </div>
         </div>

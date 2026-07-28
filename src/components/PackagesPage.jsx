@@ -2,6 +2,13 @@ import { useState, useRef, useEffect } from 'react'
 import Markdown from 'react-markdown'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
+import PackageBrochureModal from './PackageBrochureModal'
+
+const PrinterIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+  </svg>
+)
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const imgUrl = (url) => url?.startsWith('http') ? url : `${API_URL}${url || ''}`
@@ -25,6 +32,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   const [filterCategory, setFilterCategory] = useState('All')
   const [showAddPackageForm, setShowAddPackageForm] = useState(false)
   const [bespokeMode, setBespokeMode] = useState(false)
+  const [brochurePkg, setBrochurePkg] = useState(null)
 
   // Deep-link: auto-open package detail when navigated via notification click
   useEffect(() => {
@@ -63,6 +71,9 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   const [pkgInclusionInput, setPkgInclusionInput] = useState('')
   const [pkgExclusions, setPkgExclusions] = useState([])
   const [pkgExclusionInput, setPkgExclusionInput] = useState('')
+  const [isScheduledDeparture, setIsScheduledDeparture] = useState(false)
+  const [pkgDepartureDate, setPkgDepartureDate] = useState('')
+  const [pkgReturnDate, setPkgReturnDate] = useState('')
 
 
   // Edit Package Form States
@@ -118,7 +129,22 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   const [newDayNum, setNewDayNum] = useState('')
   const [newDayTitle, setNewDayTitle] = useState('')
   const [newDayDesc, setNewDayDesc] = useState('')
+  const [editingDayNum, setEditingDayNum] = useState(null)
   const [itineraryError, setItineraryError] = useState('')
+
+  // Keybindings for Esc closing modals and deselecting
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (showAddPackageForm) setShowAddPackageForm(false)
+        else if (showEditPackageForm) setShowEditPackageForm(false)
+        else if (packageToDelete) setPackageToDelete(null)
+        else if (selectedPackage) setSelectedPackage(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showAddPackageForm, showEditPackageForm, packageToDelete, selectedPackage])
 
   // Ref for smooth-scrolling to calculator from Quick Quote
   const calculatorRef = useRef(null)
@@ -380,6 +406,36 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     setSelectedPackage(newPkgObj)
     setShowAddPackageForm(false)
 
+    // Save package to backend API
+    fetch(`${API_URL}/api/packages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(newPkgObj)
+    }).catch(err => console.error('Failed to persist package:', err))
+
+    // Create Group Departure if marked as scheduled departure
+    if (isScheduledDeparture && pkgDepartureDate && pkgReturnDate) {
+      fetch(`${API_URL}/api/group-departures`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          packageId: newPkgObj.id,
+          title: `${newPkgObj.name} Scheduled Departure`,
+          departureDate: pkgDepartureDate,
+          returnDate: pkgReturnDate,
+          slots: newPkgObj.slots,
+          status: 'scheduled',
+          priceModifier: 0
+        })
+      }).catch(err => console.error('Failed to persist group departure:', err))
+    }
+
     if (addNotification) {
       addNotification(`Package ${newPkgObj.name} created successfully`, 'success')
     }
@@ -393,6 +449,9 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     setPkgCategory('standard')
     setPkgSlots('15')
     setPkgCategoryIds([])
+    setIsScheduledDeparture(false)
+    setPkgDepartureDate('')
+    setPkgReturnDate('')
     setPkgCardImage(`${API_URL}/assets/unsplash-pkg-card.jpg`)
     setPkgHeroImage(`${API_URL}/assets/unsplash-pkg-hero.jpg`)
     setPkgInclusions({
@@ -438,20 +497,19 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       return
     }
 
-    // Prevent duplicate days
-    if (selectedPackage.itinerary.some(item => item.day === dayNum)) {
-      const errMsg = `Day ${dayNum} already exists in the itinerary sequence. Delete it first to overwrite.`
-      setItineraryError(errMsg)
-      if (addNotification) addNotification(errMsg, 'warning')
-      return
+    // Update or add day
+    const existingIndex = selectedPackage.itinerary.findIndex(item => item.day === dayNum || item.day === editingDayNum)
+    let newItinerary = [...selectedPackage.itinerary]
+    if (existingIndex >= 0) {
+      newItinerary[existingIndex] = { day: dayNum, title: newDayTitle, desc: newDayDesc }
+    } else {
+      newItinerary.push({ day: dayNum, title: newDayTitle, desc: newDayDesc })
     }
+    newItinerary.sort((a, b) => a.day - b.day)
 
     const updatedPackage = {
       ...selectedPackage,
-      itinerary: [
-        ...selectedPackage.itinerary,
-        { day: dayNum, title: newDayTitle, desc: newDayDesc }
-      ].sort((a, b) => a.day - b.day)
+      itinerary: newItinerary
     }
 
     setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
@@ -461,6 +519,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     setNewDayNum('')
     setNewDayTitle('')
     setNewDayDesc('')
+    setEditingDayNum(null)
     setItineraryError('')
   }
 
@@ -853,17 +912,29 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     <span className="text-[10px] text-stone-500 font-bold ml-auto">{selectedPackage.id}</span>
                   </div>
                 </div>
-                {canWritePackage && (
-                <button
-                  onClick={() => handleOpenEditPackage(selectedPackage)}
-                  className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-50 text-stone-500 hover:text-stone-700 transition-all cursor-pointer"
-                  title="Edit Package"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
-                )}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setBrochurePkg(selectedPackage)}
+                    className="p-1.5 px-2.5 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold transition-all cursor-pointer flex items-center gap-1.5 text-[11px]"
+                    title="Print / Save PDF Brochure"
+                  >
+                    <PrinterIcon className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Print PDF</span>
+                  </button>
+                  {canWritePackage && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditPackage(selectedPackage)}
+                      className="p-1.5 rounded-lg border border-stone-200 hover:bg-stone-50 text-stone-500 hover:text-stone-700 transition-all cursor-pointer"
+                      title="Edit Package"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Manage Inclusions */}
@@ -1138,20 +1209,38 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                       <span className="w-6 h-6 rounded-full bg-amber-500/10 border border-amber-300 text-amber-700 flex items-center justify-center font-bold shrink-0">
                         D{item.day}
                       </span>
-                      <div className="space-y-0.5 flex-1 pr-6">
+                      <div className="space-y-0.5 flex-1 pr-12">
                         <h4 className="font-bold text-stone-800">{item.title}</h4>
-                        <div className="text-[11px] text-stone-500 leading-relaxed"><Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{item.desc}</Markdown></div>
+                        <div className="text-[11px] text-stone-500 leading-relaxed whitespace-pre-line"><Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{item.desc}</Markdown></div>
                       </div>
-                      {/* Hover delete day button */}
-                      <button
-                        onClick={() => handleRemoveItineraryDay(item.day)}
-                        className="absolute right-0 top-0.5 p-1 rounded hover:bg-rose-50 text-stone-400 hover:text-rose-600 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-                        title={`Remove Day ${item.day}`}
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                      {/* Action buttons (Edit + Delete) */}
+                      <div className="absolute right-0 top-0.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingDayNum(item.day)
+                            setNewDayNum(item.day.toString())
+                            setNewDayTitle(item.title)
+                            setNewDayDesc(item.desc)
+                          }}
+                          className="p-1 rounded hover:bg-amber-50 text-stone-400 hover:text-amber-600 cursor-pointer"
+                          title={`Edit Day ${item.day}`}
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItineraryDay(item.day)}
+                          className="p-1 rounded hover:bg-rose-50 text-stone-400 hover:text-rose-600 cursor-pointer"
+                          title={`Remove Day ${item.day}`}
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -1159,10 +1248,12 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                 )}
               </div>
 
-              {/* Form to Add Day */}
+              {/* Form to Add / Edit Day */}
               <div className="border-t border-stone-100 pt-4 space-y-3">
                 <div className="flex justify-between items-center">
-                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Add Day Itinerary Event</h4>
+                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                    {editingDayNum !== null ? `Edit Day ${editingDayNum} Event` : 'Add Day Itinerary Event'}
+                  </h4>
                   <span className="text-[10px] text-stone-500 font-bold bg-stone-100 px-1.5 py-0.5 rounded">
                     Limit: {selectedPackage.itinerary.length}/{parseInt(selectedPackage.duration)}
                   </span>
@@ -1204,28 +1295,44 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   <div>
                     <textarea
                       required
-                      rows="2"
-                      placeholder="Details on hotels, restaurants, excursions, ground transport schedules..."
+                      rows="4"
+                      placeholder="Details on hotels, restaurants, excursions, ground transport schedules... (Press Enter for paragraphs)"
                       value={newDayDesc}
                       onChange={(e) => setNewDayDesc(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none resize-none"
+                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none resize-y"
                     ></textarea>
                     {newDayDesc && (
-                      <div className="mt-1 p-2 bg-stone-50 border border-stone-200 rounded text-[11px] text-stone-600 leading-relaxed">
+                      <div className="mt-1 p-2 bg-stone-50 border border-stone-200 rounded text-[11px] text-stone-600 leading-relaxed whitespace-pre-line">
                         <Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{newDayDesc}</Markdown>
                       </div>
                     )}
                   </div>
 
-                  <button
-                    type="submit"
-                    className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                    Append Itinerary Day
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      className="flex-1 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      {editingDayNum !== null ? `Update Day ${editingDayNum}` : 'Append Itinerary Day'}
+                    </button>
+                    {editingDayNum !== null && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingDayNum(null)
+                          setNewDayNum('')
+                          setNewDayTitle('')
+                          setNewDayDesc('')
+                        }}
+                        className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
                 </form>
               </div>
 
@@ -1257,8 +1364,8 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
 
       {/* Add Package Modal */}
       {showAddPackageForm && (
-        <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-3xl flex flex-col max-h-[85vh] animate-in zoom-in duration-200">
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-3 sm:p-6 pt-20 sm:pt-24 pb-8 overflow-y-auto" role="dialog" aria-modal="true">
+          <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[85vh] my-auto overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center p-6 pb-4 border-b border-stone-100 shrink-0">
               <h3 className="text-base font-bold text-stone-900">{bespokeMode ? 'Add Bespoke Package' : 'Add Vacation Package'}</h3>
               <button
@@ -1420,6 +1527,43 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                       onChange={(e) => setPkgSlots(e.target.value)}
                       className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                     />
+                  </div>
+                )}
+              </div>
+
+              {/* Scheduled Departure Toggle & Dates */}
+              <div className="p-3 bg-amber-50/50 border border-amber-200/80 rounded-xl space-y-3">
+                <label className="flex items-center gap-2 text-xs font-bold text-stone-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isScheduledDeparture}
+                    onChange={(e) => setIsScheduledDeparture(e.target.checked)}
+                    className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+                  />
+                  Mark as Scheduled Departure (Group Tour)
+                </label>
+                {isScheduledDeparture && (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1">Departure Date <span className="text-rose-500">*</span></label>
+                      <input
+                        type="date"
+                        required={isScheduledDeparture}
+                        value={pkgDepartureDate}
+                        onChange={(e) => setPkgDepartureDate(e.target.value)}
+                        className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1">Return Date <span className="text-rose-500">*</span></label>
+                      <input
+                        type="date"
+                        required={isScheduledDeparture}
+                        value={pkgReturnDate}
+                        onChange={(e) => setPkgReturnDate(e.target.value)}
+                        className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
@@ -1654,8 +1798,8 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
 
       {/* Edit Package Modal */}
       {showEditPackageForm && (
-        <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-3xl flex flex-col max-h-[85vh] animate-in zoom-in duration-200">
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-3 sm:p-6 pt-20 sm:pt-24 pb-8 overflow-y-auto" role="dialog" aria-modal="true">
+          <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[85vh] my-auto overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center p-6 pb-4 border-b border-stone-100 shrink-0">
               <h3 className="text-base font-bold text-stone-900">Edit Vacation Package</h3>
               <button
@@ -2169,6 +2313,13 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
           </div>
         </div>
       )}
+      {/* Package Brochure Print Modal */}
+      <PackageBrochureModal
+        pkg={brochurePkg}
+        isOpen={!!brochurePkg}
+        onClose={() => setBrochurePkg(null)}
+        settings={settings}
+      />
     </div>
   )
 }

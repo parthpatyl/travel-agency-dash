@@ -605,8 +605,8 @@ export default function CorporateLeadsPage({ addNotification, token, user, onCon
 
       {/* Delete confirmation modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-md">
+          <div className="bg-white border border-stone-200 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
             <h3 className="text-sm font-bold text-stone-900 mb-2">Delete Lead</h3>
             <p className="text-xs text-stone-500 mb-6">
               Are you sure you want to delete <span className="font-semibold text-stone-700">{deleteTarget.name}</span>'s lead? This cannot be undone.

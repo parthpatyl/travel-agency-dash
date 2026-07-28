@@ -128,8 +128,8 @@ export default function EnquiryDetailModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-white border border-stone-200 rounded-2xl shadow-xl overflow-hidden animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 pt-20 sm:pt-24 pb-8 bg-stone-900/60 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200" role="dialog" aria-modal="true">
+      <div className="relative w-full max-w-2xl bg-white border border-stone-200/90 rounded-2xl shadow-2xl max-h-[85vh] flex flex-col my-auto overflow-hidden animate-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b border-stone-100">

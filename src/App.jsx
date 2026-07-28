@@ -56,6 +56,7 @@ function getTabFromHash() {
 function App() {
   const [activeTab, setActiveTabRaw] = useState(getTabFromHash)
   const [searchQuery, setSearchQuery] = useState('')
+  const globalSearchInputRef = useRef(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [selectedEnquiryIdForModal, setSelectedEnquiryIdForModal] = useState(() => {
     const path = window.location.pathname;
@@ -63,6 +64,20 @@ function App() {
     return match ? match[1] : null;
   })
   const isPopstateRef = useRef(false)
+
+  // Global Keyboard Shortcuts (⌘K / Ctrl+K for search, Esc to clear search / close dropdowns)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        globalSearchInputRef.current?.focus()
+      } else if (e.key === 'Escape') {
+        if (searchQuery) setSearchQuery('')
+      }
+    }
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown)
+  }, [searchQuery])
 
   // Wrap setActiveTab to push browser history entries and ping activity
   const setActiveTab = (tab) => {
@@ -1093,11 +1108,12 @@ function App() {
               </svg>
             </span>
             <input
+              ref={globalSearchInputRef}
               type="text"
-              placeholder="Search bookings, clients, packages..."
+              placeholder="Search bookings, clients, packages... (⌘K)"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-xl py-2.5 pl-11 pr-4 text-xs text-stone-800 placeholder-stone-400 outline-none focus:ring-1 focus:ring-amber-500 transition-all duration-300"
+              className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-xl py-2.5 pl-11 pr-4 text-xs text-stone-800 placeholder-stone-400 outline-none focus:ring-2 focus:ring-amber-500/20 transition-all duration-300"
             />
           </div>
 
@@ -1865,8 +1881,10 @@ function App() {
               groupDepartures={groupDepartures}
               setGroupDepartures={setGroupDepartures}
               packages={packages}
+              setPackages={setPackages}
               addNotification={addNotification}
               user={user}
+              token={token}
             />
           )}
 
@@ -1876,6 +1894,9 @@ function App() {
               API_URL={API_URL}
               authHeaders={authHeaders}
               addNotification={addNotification}
+              clients={clients}
+              setClients={setClients}
+              packages={packages}
               onSelectEnquiry={(id) => {
                 setSelectedEnquiryIdForModal(id)
                 window.history.pushState({ tab: 'enquiries', enquiryId: id }, '', `/enquiries/${id}`)

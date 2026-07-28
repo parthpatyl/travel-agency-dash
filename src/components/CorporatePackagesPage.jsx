@@ -1,6 +1,13 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
+import PackageBrochureModal from './PackageBrochureModal'
+
+const PrinterIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+  </svg>
+)
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const DEFAULT_IMAGE = `${API_URL}/assets/unsplash-pkg-card.jpg`
@@ -28,7 +35,23 @@ export default function CorporatePackagesPage({ corporatePackages, setCorporateP
   const [highlightInput, setHighlightInput] = useState('')
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [filterCategory, setFilterCategory] = useState('All')
+  const [brochurePkg, setBrochurePkg] = useState(null)
   const fileInputRef = useRef(null)
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (showForm) {
+          setShowForm(false)
+          setEditing(null)
+        } else if (deleteTarget) {
+          setDeleteTarget(null)
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showForm, deleteTarget])
 
   const canWrite = roleHas(user?.role, 'write:packages') || roleHas(user?.role, 'create:packages')
 
@@ -255,11 +278,19 @@ export default function CorporatePackagesPage({ corporatePackages, setCorporateP
                 </div>
               </div>
               <div className="px-5 pb-5 pt-3 border-t border-stone-100 flex gap-2">
+                <button
+                  onClick={() => setBrochurePkg(pkg)}
+                  className="flex-grow py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                  title="Print / Save PDF Brochure"
+                >
+                  <PrinterIcon className="w-3.5 h-3.5 text-amber-700" />
+                  <span>PDF Brochure</span>
+                </button>
                 {canWrite && (
-                  <button onClick={() => openEdit(pkg)} className="flex-grow py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold cursor-pointer transition-all">Edit</button>
+                  <button onClick={() => openEdit(pkg)} className="py-2 px-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold cursor-pointer transition-all">Edit</button>
                 )}
                 {canWrite && (
-                  <button onClick={() => setDeleteTarget(pkg)} className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold cursor-pointer transition-all">Delete</button>
+                  <button onClick={() => setDeleteTarget(pkg)} className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold cursor-pointer transition-all">Delete</button>
                 )}
               </div>
             </div>
@@ -269,175 +300,200 @@ export default function CorporatePackagesPage({ corporatePackages, setCorporateP
 
       {/* Add / Edit Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-lg p-6 animate-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center pb-4 border-b border-stone-100">
-              <h3 className="text-base font-bold text-stone-900">{editing ? 'Edit Corporate Package' : 'Add Corporate Package'}</h3>
-              <button onClick={() => { setShowForm(false); setEditing(null) }} className="p-1 rounded-lg hover:bg-stone-100 text-stone-400 cursor-pointer">
-                <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-3 sm:p-6 pt-20 sm:pt-24 pb-8 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="corp-pkg-modal-title">
+          <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col my-auto overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header (Sticky / Fixed) */}
+            <div className="px-6 py-4 border-b border-stone-100 flex justify-between items-center bg-stone-50/50 shrink-0">
+              <div>
+                <h3 id="corp-pkg-modal-title" className="text-base sm:text-lg font-bold text-stone-900">{editing ? 'Edit Corporate Package' : 'Add Corporate Package'}</h3>
+                <p className="text-xs text-stone-500 font-light mt-0.5">Configure corporate travel retreat details and pricing</p>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => { setShowForm(false); setEditing(null) }} 
+                className="p-1.5 rounded-lg hover:bg-stone-200/70 text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
+                title="Close (Esc)"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <form onSubmit={handleSave} className="space-y-4 pt-4">
-              {!canWrite && <ReadOnlyBanner message="View-only mode — you do not have permission to manage corporate packages" />}
-              <fieldset disabled={!canWrite} className="space-y-4">
-                
-                {/* Image Upload Banner */}
-                <div className="flex items-center gap-4 p-3 bg-stone-50/50 border border-stone-200 rounded-xl">
-                  <div className="w-20 h-14 rounded-lg bg-stone-100 shadow-inner shrink-0 relative group overflow-hidden border border-stone-250">
-                    <img
-                      src={imgUrl(form.imageUrl)}
-                      alt="Cover Preview"
-                      className="w-full h-full object-cover"
+
+            <form onSubmit={handleSave} className="flex flex-col min-h-0 flex-1 overflow-hidden">
+              <div className="p-6 overflow-y-auto space-y-5 flex-1 custom-scrollbar">
+                {!canWrite && <ReadOnlyBanner message="View-only mode — you do not have permission to manage corporate packages" />}
+                <fieldset disabled={!canWrite} className="space-y-5">
+                  
+                  {/* Image Upload Banner */}
+                  <div className="flex items-center gap-4 p-4 bg-stone-50/70 border border-stone-200 rounded-xl">
+                    <div className="w-20 h-14 rounded-lg bg-stone-100 shadow-inner shrink-0 relative group overflow-hidden border border-stone-200">
+                      <img
+                        src={imgUrl(form.imageUrl)}
+                        alt="Cover Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-grow">
+                      <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">Cover Photo</label>
+                      <div className="relative flex items-center gap-2">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          className="px-3.5 py-2 bg-white border border-stone-300 hover:bg-stone-50 rounded-lg text-xs font-semibold text-stone-700 shadow-xs transition-all cursor-pointer"
+                        >
+                          Upload Image
+                        </button>
+                        <span className="text-xs text-stone-400">Max 5MB</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">Destination Name <span className="text-rose-500">*</span></label>
+                      <input
+                        type="text"
+                        required
+                        value={form.destination}
+                        onChange={(e) => setForm({ ...form, destination: e.target.value })}
+                        placeholder="e.g. Goa Corporate Retreat"
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-850 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">Nights / Duration</label>
+                      <input
+                        type="text"
+                        value={form.nights}
+                        onChange={(e) => setForm({ ...form, nights: e.target.value })}
+                        placeholder="e.g. 3 Nights / 4 Days"
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-850 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">Starting Price (₹)</label>
+                      <input
+                        type="number"
+                        value={form.startingPrice}
+                        onChange={(e) => setForm({ ...form, startingPrice: e.target.value })}
+                        placeholder="e.g. 18500"
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-850 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">Category</label>
+                      <select
+                        value={form.category}
+                        onChange={(e) => setForm({ ...form, category: e.target.value })}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-850 outline-none transition-all"
+                      >
+                        <option value="india">India Tours</option>
+                        <option value="international">International Tours</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">Description</label>
+                    <textarea
+                      rows="3"
+                      value={form.description}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      placeholder="Short description or pitch for corporate clients..."
+                      className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-850 outline-none resize-none transition-all"
                     />
                   </div>
-                  <div className="flex-grow">
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Cover Photo</label>
-                    <div className="relative">
+
+                  {/* Highlights Tags */}
+                  <div className="space-y-2.5">
+                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">Highlights</label>
+                    <div className="flex gap-2">
                       <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        type="text"
+                        value={highlightInput}
+                        onChange={(e) => setHighlightInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addHighlight(); } }}
+                        placeholder="Add retreat highlight (e.g. Team Bonding Games)"
+                        className="flex-1 bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-xs sm:text-sm text-stone-800 outline-none"
                       />
                       <button
                         type="button"
-                        className="px-3 py-1.5 bg-white border border-stone-200 hover:bg-stone-50 rounded-lg text-xs font-semibold text-stone-600 transition-all cursor-pointer"
+                        onClick={addHighlight}
+                        className="px-4 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300 rounded-lg text-xs font-bold cursor-pointer transition-all active:scale-95"
                       >
-                        Upload Image
+                        Add
                       </button>
-                      <span className="text-[9px] text-stone-400 ml-2">Max 5MB</span>
                     </div>
+                    {form.highlights.length > 0 && (
+                      <div className="flex flex-wrap gap-2 p-3 bg-stone-50 border border-stone-200 rounded-xl">
+                        {form.highlights.map((hl, idx) => (
+                          <span key={idx} className="bg-amber-100 text-amber-900 border border-amber-200 text-xs font-semibold py-1 px-3 rounded-lg flex items-center gap-2">
+                            {hl}
+                            <button
+                              type="button"
+                              onClick={() => removeHighlight(idx)}
+                              className="text-amber-600 hover:text-amber-900 font-bold"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Destination Name <span className="text-rose-500">*</span></label>
-                    <input
-                      type="text"
-                      required
-                      value={form.destination}
-                      onChange={(e) => setForm({ ...form, destination: e.target.value })}
-                      placeholder="e.g. Goa Corporate Retreat"
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Nights / Duration</label>
-                    <input
-                      type="text"
-                      value={form.nights}
-                      onChange={(e) => setForm({ ...form, nights: e.target.value })}
-                      placeholder="e.g. 3 Nights / 4 Days"
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Starting Price (₹)</label>
-                    <input
-                      type="number"
-                      value={form.startingPrice}
-                      onChange={(e) => setForm({ ...form, startingPrice: e.target.value })}
-                      placeholder="e.g. 18500"
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Category</label>
-                    <select
-                      value={form.category}
-                      onChange={(e) => setForm({ ...form, category: e.target.value })}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    >
-                      <option value="india">India Tours</option>
-                      <option value="international">International Tours</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Description</label>
-                  <textarea
-                    rows="3"
-                    value={form.description}
-                    onChange={(e) => setForm({ ...form, description: e.target.value })}
-                    placeholder="Short description or pitch for corporate clients..."
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none resize-none"
-                  />
-                </div>
-
-                {/* Highlights Tags */}
-                <div className="space-y-2">
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">Highlights</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={highlightInput}
-                      onChange={(e) => setHighlightInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addHighlight(); } }}
-                      placeholder="Add retreat highlight (e.g. Team Bonding Games)"
-                      className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={addHighlight}
-                      className="px-4 bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 rounded-lg text-xs font-bold cursor-pointer"
-                    >
-                      Add
-                    </button>
-                  </div>
-                  {form.highlights.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 p-2 bg-stone-50 border border-stone-200 rounded-xl">
-                      {form.highlights.map((hl, idx) => (
-                        <span key={idx} className="bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-semibold py-1 px-2.5 rounded-lg flex items-center gap-1.5">
-                          {hl}
-                          <button
-                            type="button"
-                            onClick={() => removeHighlight(idx)}
-                            className="text-amber-500 hover:text-amber-800 font-bold"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
+                  {editing && (
+                    <div className="grid grid-cols-2 gap-4 pt-3 border-t border-stone-200">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="isActive"
+                          checked={form.isActive}
+                          onChange={(e) => setForm(prev => ({ ...prev, isActive: e.target.checked }))}
+                          className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                        />
+                        <label htmlFor="isActive" className="text-xs font-bold text-stone-700 cursor-pointer">Active / Visible</label>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">Display Order</label>
+                        <input
+                          type="number"
+                          value={form.displayOrder}
+                          onChange={(e) => setForm({ ...form, displayOrder: e.target.value })}
+                          className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                        />
+                      </div>
                     </div>
                   )}
-                </div>
 
-                {editing && (
-                  <div className="grid grid-cols-2 gap-4 pt-2 border-t border-stone-150">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        id="isActive"
-                        checked={form.isActive}
-                        onChange={(e) => setForm(prev => ({ ...prev, isActive: e.target.checked }))}
-                        className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                      />
-                      <label htmlFor="isActive" className="text-xs font-bold text-stone-600 cursor-pointer">Active / Visible</label>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Display Order</label>
-                      <input
-                        type="number"
-                        value={form.displayOrder}
-                        onChange={(e) => setForm({ ...form, displayOrder: e.target.value })}
-                        className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                      />
-                    </div>
-                  </div>
-                )}
+                </fieldset>
+              </div>
 
-              </fieldset>
-              <div className="pt-4 border-t border-stone-100 flex justify-end gap-2">
-                <button type="button" onClick={() => { setShowForm(false); setEditing(null) }} className="px-4 py-2 border border-stone-200 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-50 active:scale-95 transition-all cursor-pointer">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition-all cursor-pointer">{editing ? 'Save Changes' : 'Create Package'}</button>
+              {/* Sticky Action Footer */}
+              <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3 shrink-0 bg-stone-50/60 rounded-b-2xl">
+                <button 
+                  type="button" 
+                  onClick={() => { setShowForm(false); setEditing(null) }} 
+                  className="px-5 py-2.5 border border-stone-200 rounded-xl text-xs sm:text-sm font-semibold text-stone-600 hover:bg-stone-100 active:scale-95 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow active:scale-95 transition-all cursor-pointer"
+                >
+                  {editing ? 'Save Changes' : 'Create Package'}
+                </button>
               </div>
             </form>
           </div>
@@ -457,6 +513,12 @@ export default function CorporatePackagesPage({ corporatePackages, setCorporateP
           </div>
         </div>
       )}
+      {/* Brochure Modal for Printing / Download */}
+      <PackageBrochureModal
+        pkg={brochurePkg}
+        isOpen={!!brochurePkg}
+        onClose={() => setBrochurePkg(null)}
+      />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
 
@@ -19,9 +19,9 @@ const calculatePassportStatus = (expiresStr) => {
   today.setHours(0, 0, 0, 0)
   expDate.setHours(0, 0, 0, 0)
   if (expDate < today) return 'Expired'
-  const sixMonthsLater = new Date(today)
-  sixMonthsLater.setMonth(today.getMonth() + 6)
-  if (expDate <= sixMonthsLater) return 'Expiring Soon'
+  const sixMonths = new Date(today)
+  sixMonths.setMonth(today.getMonth() + 6)
+  if (expDate <= sixMonths) return 'Expiring Soon'
   return 'Valid'
 }
 
@@ -36,14 +36,26 @@ const formatPhoneDisplay = (phone) => {
   return phone
 }
 
-export default function ClientsPage({ clients, setClients, bookings, addNotification, user, initialSelectedClientId, onSelectClient, onBookForClient }) {
+export default function ClientsPage({ clients = [], setClients, bookings = [], initialSelectedClientId = null, onSelectClient = null, user = { role: 'admin' }, addNotification }) {
   const [search, setSearch] = useState('')
+  const searchInputRef = useRef(null)
   const [selectedClient, setSelectedClient] = useState(() => {
     if (initialSelectedClientId) {
       return clients.find(c => c.id === initialSelectedClientId) || null
     }
     return null
   })
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   useEffect(() => {
     if (initialSelectedClientId) {
@@ -70,6 +82,50 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
   const [showEditForm, setShowEditForm] = useState(false)
   const [logClient, setLogClient] = useState(null)
   const [logText, setLogText] = useState('')
+
+  // Comprehensive keybindings for ClientsPage (Esc to close modal/deselect, / or Cmd+K search focus, Arrow key / J / K list navigation)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (showAddForm) setShowAddForm(false)
+        else if (showEditForm) setShowEditForm(false)
+        else if (logClient) setLogClient(null)
+        else if (selectedClient) setSelectedClient(null)
+        return
+      }
+
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return
+
+      if (e.key === '/' || ((e.metaKey || e.ctrlKey) && e.key === 'k')) {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+        return
+      }
+
+      const filtered = clients.filter(c => 
+        c.name.toLowerCase().includes(search.toLowerCase()) || 
+        c.id.toLowerCase().includes(search.toLowerCase()) || 
+        (c.email && c.email.toLowerCase().includes(search.toLowerCase()))
+      )
+
+      if (['ArrowDown', 'j'].includes(e.key)) {
+        e.preventDefault()
+        if (filtered.length === 0) return
+        const currentIndex = filtered.findIndex(c => c.id === selectedClient?.id)
+        const nextIndex = currentIndex < filtered.length - 1 ? currentIndex + 1 : 0
+        setSelectedClient(filtered[nextIndex])
+      } else if (['ArrowUp', 'k'].includes(e.key)) {
+        e.preventDefault()
+        if (filtered.length === 0) return
+        const currentIndex = filtered.findIndex(c => c.id === selectedClient?.id)
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : filtered.length - 1
+        setSelectedClient(filtered[prevIndex])
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showAddForm, showEditForm, logClient, selectedClient, clients, search])
 
   const formatDateDisplay = (dateStr) => {
     if (!dateStr) return dateStr
@@ -518,11 +574,12 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
               </svg>
             </span>
             <input
+              ref={searchInputRef}
               type="text"
-              placeholder="Search clients by name, ID, or email..."
+              placeholder="Search clients by name, ID, or email... (⌘K / Esc to close)"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-xl py-2.5 pl-12 pr-4 text-xs text-stone-800 outline-none transition-all duration-300"
+              className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-xl py-2.5 pl-12 pr-4 text-xs sm:text-sm text-stone-800 outline-none transition-all duration-300"
             />
           </div>
 
@@ -904,287 +961,306 @@ export default function ClientsPage({ clients, setClients, bookings, addNotifica
 
       {/* Add Client Modal */}
       {showAddForm && (
-        <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-lg p-6 animate-in zoom-in duration-200">
-            <div className="flex justify-between items-center pb-4 border-b border-stone-100">
-              <h3 className="text-base font-bold text-stone-900">Add New CRM Profile</h3>
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-3 sm:p-6 pt-20 sm:pt-24 pb-8 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="add-client-heading">
+          <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col my-auto overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header (Fixed / Sticky) */}
+            <div className="px-6 py-4 border-b border-stone-100 flex justify-between items-center bg-stone-50/50 shrink-0">
+              <div>
+                <h3 id="add-client-heading" className="text-base sm:text-lg font-bold text-stone-900">Add New CRM Profile</h3>
+                <p className="text-xs text-stone-500 font-light mt-0.5">Register client details, passport data, and preferences</p>
+              </div>
               <button 
+                type="button"
                 onClick={() => setShowAddForm(false)}
-                className="p-1 rounded-lg hover:bg-stone-100 text-stone-400"
+                className="p-1.5 rounded-lg hover:bg-stone-200/70 text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
+                aria-label="Close modal (Esc)"
+                title="Close (Esc)"
               >
-                <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
             
-            <form onSubmit={handleAddClient} className="space-y-4 pt-4 max-h-[70vh] overflow-y-auto pr-1">
-              {!canWriteClient && <ReadOnlyBanner message="View-only mode — you can view but not edit client profiles" />}
-              <fieldset disabled={!canWriteClient}>
-              {toast && (
-                <div className={`px-4 py-2.5 rounded-xl text-xs font-bold border ${
-                  toast.type === 'warning' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                  'bg-rose-50 text-rose-700 border-rose-200'
-                }`}>
-                  {toast.message}
-                </div>
-              )}
-              {/* Avatar Upload */}
-              <div className="flex items-center gap-4 p-3 bg-stone-50/50 border border-stone-200 rounded-xl">
-                <div className="w-12 h-12 rounded-xl bg-stone-100 p-0.5 shadow-inner shrink-0 relative group overflow-hidden">
-                  <img src={newAvatar} alt="Avatar Preview" className="w-full h-full object-cover rounded-[10px]" />
-                </div>
-                <div className="flex-grow">
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Client Photo / Avatar</label>
-                  <div className="relative">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleAvatarUpload(e, false)}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 bg-white border border-stone-200 hover:bg-stone-50 rounded-lg text-xs font-semibold text-stone-600 transition-all cursor-pointer"
-                    >
-                      Choose Image
-                    </button>
-                    <span className="text-[9px] text-stone-400 ml-2">Max 5MB</span>
+            <form onSubmit={handleAddClient} className="flex flex-col min-h-0 flex-1 overflow-hidden">
+              <div className="p-6 overflow-y-auto space-y-5 flex-1 custom-scrollbar">
+                {!canWriteClient && <ReadOnlyBanner message="View-only mode — you can view but not edit client profiles" />}
+                <fieldset disabled={!canWriteClient} className="space-y-5">
+                {toast && (
+                  <div className={`px-4 py-2.5 rounded-xl text-xs font-bold border ${
+                    toast.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-amber-50 border-amber-200 text-amber-700'
+                  }`}>
+                    {toast.message || toast.msg}
                   </div>
-                </div>
-              </div>
+                )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Full Name <span className="text-rose-500">*</span></label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. John Doe"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                  />
+                {/* Avatar Upload */}
+                <div className="flex items-center gap-4 p-3.5 bg-stone-50/60 border border-stone-200 rounded-xl">
+                  <div className="w-12 h-12 rounded-xl bg-stone-100 p-0.5 shadow-inner shrink-0 relative overflow-hidden">
+                    <img src={newAvatar} alt="Avatar Preview" className="w-full h-full object-cover rounded-[10px]" />
+                  </div>
+                  <div className="flex-grow">
+                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">Client Photo / Avatar</label>
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleAvatarUpload(e, false)}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          className="px-3.5 py-1.5 bg-white border border-stone-300 hover:bg-stone-50 rounded-lg text-xs font-bold text-stone-700 shadow-sm transition-all cursor-pointer"
+                        >
+                          Choose Image
+                        </button>
+                      </div>
+                      <span className="text-[11px] text-stone-400">Max 5MB</span>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Email Address <span className="text-rose-500">*</span></label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="e.g. john@doe.com"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Contact Phone <span className="text-rose-500">*</span></label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="e.g. +1 (555) 012-3456"
-                    value={newPhone}
-                    onChange={(e) => setNewPhone(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                      Full Name <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. John Evans"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-855 outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                      Email Address <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. john.evans@example.com"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-855 outline-none transition-all"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Initial Travel Credit (₹)</label>
-                  <input
-                    type="number"
-                    placeholder="e.g. 450"
-                    value={walletAmt}
-                    onChange={(e) => setWalletAmt(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                  />
-                </div>
-              </div>
 
-              {/* Preferences Section */}
-              <div className="border-t border-stone-100 pt-3">
-                <h4 className="text-xs font-bold text-stone-900 mb-2">Traveler Preferences Matrix</h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Preferred Airline</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Emirates"
-                      value={prefAirline}
-                      onChange={(e) => setPrefAirline(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Seat Option</label>
-                    <select
-                      value={prefSeat}
-                      onChange={(e) => setPrefSeat(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    >
-                      <option value="Window">Window</option>
-                      <option value="Aisle">Aisle</option>
-                      <option value="Middle">Middle (No preference)</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4 mt-2">
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Lodging Preference</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Suite / High Floor"
-                      value={prefRoom}
-                      onChange={(e) => setPrefRoom(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Dietary Restriction</label>
-                    <select
-                      value={prefDietary}
-                      onChange={(e) => setPrefDietary(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    >
-                      <option value="None">None</option>
-                      <option value="Gluten-Free">Gluten-Free</option>
-                      <option value="Vegetarian">Vegetarian</option>
-                      <option value="Vegan">Vegan</option>
-                      <option value="Nut Allergy">Nut Allergy</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Compliance Passport Section */}
-              <div className="border-t border-stone-100 pt-3">
-                <h4 className="text-xs font-bold text-stone-900 mb-2">Compliance Passport Details</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Passport Number</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. US4829103"
-                      value={passNo}
-                      onChange={(e) => setPassNo(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Passport Expiry Date</label>
-                    <input
-                      type="text"
-                      placeholder="DD/MM/YYYY"
-                      value={formatDateDisplay(passExp)}
-                      onChange={(e) => setPassExp(parseDateDisplay(e.target.value))}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Visa Clearances Section */}
-              <div className="border-t border-stone-100 pt-3">
-                <h4 className="text-xs font-bold text-stone-900 mb-2">Active Visa Clearance</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Target Country</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Japan"
-                      value={visaCountry}
-                      onChange={(e) => setVisaCountry(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Visa Expiry</label>
-                    <input
-                      type="text"
-                      placeholder="DD/MM/YYYY"
-                      value={formatDateDisplay(visaExp)}
-                      onChange={(e) => setVisaExp(parseDateDisplay(e.target.value))}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Visa Class</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. B1/B2"
-                      value={visaClass}
-                      onChange={(e) => setVisaClass(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Emergency Contact Section */}
-              <div className="border-t border-stone-100 pt-3">
-                <h4 className="text-xs font-bold text-stone-900 mb-2">Emergency Contact Information</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Full Name</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Sarah Evans"
-                      value={emergName}
-                      onChange={(e) => setEmergName(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Phone Number</label>
+                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                      Phone Number <span className="text-rose-500">*</span>
+                    </label>
                     <input
                       type="tel"
-                      placeholder="e.g. +44 7946 000"
-                      value={emergPhone}
-                      onChange={(e) => setEmergPhone(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                      required
+                      placeholder="e.g. +44 7946 0912"
+                      value={newPhone}
+                      onChange={(e) => setNewPhone(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-855 outline-none transition-all"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Relationship</label>
+                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">Initial Travel Credit (₹)</label>
                     <input
-                      type="text"
-                      placeholder="e.g. Spouse"
-                      value={emergRelation}
-                      onChange={(e) => setEmergRelation(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                      type="number"
+                      placeholder="e.g. 450"
+                      value={walletAmt}
+                      onChange={(e) => setWalletAmt(e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-855 outline-none transition-all"
                     />
                   </div>
                 </div>
+
+                {/* Preferences Section */}
+                <div className="border-t border-stone-100 pt-4 space-y-3">
+                  <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider">Traveler Preferences Matrix</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1">Preferred Airline</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Emirates / Qatar Airways"
+                        value={prefAirline}
+                        onChange={(e) => setPrefAirline(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-xs sm:text-sm text-stone-800 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1">Seat Preference</label>
+                      <select
+                        value={prefSeat}
+                        onChange={(e) => setPrefSeat(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-xs sm:text-sm text-stone-800 outline-none"
+                      >
+                        <option value="Window">Window</option>
+                        <option value="Aisle">Aisle</option>
+                        <option value="Middle">Middle (No preference)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1">Lodging Preference</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Suite / High Floor / Quiet Room"
+                        value={prefRoom}
+                        onChange={(e) => setPrefRoom(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-xs sm:text-sm text-stone-800 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1">Dietary Requirement</label>
+                      <select
+                        value={prefDietary}
+                        onChange={(e) => setPrefDietary(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-xs sm:text-sm text-stone-800 outline-none"
+                      >
+                        <option value="None">None</option>
+                        <option value="Gluten-Free">Gluten-Free</option>
+                        <option value="Vegetarian">Vegetarian</option>
+                        <option value="Vegan">Vegan</option>
+                        <option value="Nut Allergy">Nut Allergy</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Compliance Passport Section */}
+                <div className="border-t border-stone-100 pt-4 space-y-3">
+                  <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider">Compliance Passport Details</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1">Passport Number</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. US4829103"
+                        value={passNo}
+                        onChange={(e) => setPassNo(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-xs sm:text-sm text-stone-800 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1">Passport Expiry Date</label>
+                      <input
+                        type="text"
+                        placeholder="DD/MM/YYYY"
+                        value={formatDateDisplay(passExp)}
+                        onChange={(e) => setPassExp(parseDateDisplay(e.target.value))}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-xs sm:text-sm text-stone-800 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Visa Section */}
+                <div className="border-t border-stone-100 pt-4 space-y-3">
+                  <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider">Active Visa Clearance</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1">Target Country</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Japan"
+                        value={visaCountry}
+                        onChange={(e) => setVisaCountry(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-xs sm:text-sm text-stone-800 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1">Visa Expiry</label>
+                      <input
+                        type="text"
+                        placeholder="DD/MM/YYYY"
+                        value={formatDateDisplay(visaExp)}
+                        onChange={(e) => setVisaExp(parseDateDisplay(e.target.value))}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-xs sm:text-sm text-stone-800 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1">Visa Class</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Tourist B1/B2"
+                        value={visaClass}
+                        onChange={(e) => setVisaClass(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-xs sm:text-sm text-stone-800 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Emergency Contact Section */}
+                <div className="border-t border-stone-100 pt-4 space-y-3">
+                  <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider">Emergency Contact Information</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1">Full Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Sarah Evans"
+                        value={emergName}
+                        onChange={(e) => setEmergName(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-xs sm:text-sm text-stone-800 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1">Phone Number</label>
+                      <input
+                        type="tel"
+                        placeholder="e.g. +44 7946 000"
+                        value={emergPhone}
+                        onChange={(e) => setEmergPhone(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-xs sm:text-sm text-stone-800 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1">Relationship</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Spouse"
+                        value={emergRelation}
+                        onChange={(e) => setEmergRelation(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-xs sm:text-sm text-stone-800 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Agent Notes */}
+                <div className="border-t border-stone-100 pt-4">
+                  <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">Agent Notes & Directives</label>
+                  <textarea
+                    rows="3"
+                    placeholder="Insert any relevant context here (e.g. preferred departure hours, room upgrades requests, allergy alerts...)"
+                    value={agentNotes}
+                    onChange={(e) => setAgentNotes(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-855 outline-none resize-none transition-all"
+                  ></textarea>
+                </div>
+                </fieldset>
               </div>
 
-              {/* Agent context Notes textfield */}
-              <div className="border-t border-stone-100 pt-3">
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Agent Notes & Directives</label>
-                <textarea
-                  rows="3"
-                  placeholder="Insert any relevant context here (e.g. preferred departure hours, room upgrades requests, allergy alerts...)"
-                  value={agentNotes}
-                  onChange={(e) => setAgentNotes(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none resize-none"
-                ></textarea>
-              </div>
-
-              </fieldset>
-              <div className="pt-4 border-t border-stone-100 flex justify-end gap-2">
+              {/* Fixed / Sticky Action Footer */}
+              <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3 shrink-0 bg-stone-50/60 rounded-b-2xl">
                 <button
                   type="button"
                   onClick={() => setShowAddForm(false)}
-                  className="px-4 py-2 border border-stone-200 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-50 active:scale-95 transition-all"
+                  className="px-5 py-2.5 border border-stone-200 rounded-xl text-xs sm:text-sm font-semibold text-stone-600 hover:bg-stone-100 active:scale-95 transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition-all"
+                  disabled={!canWriteClient}
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-xl text-xs sm:text-sm font-bold shadow active:scale-95 transition-all cursor-pointer"
                 >
-                  Create Client
+                  Create Client Profile
                 </button>
               </div>
             </form>

@@ -205,3 +205,81 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Print Media Styles for Package Brochures ───────────────── */
+@media print {
+  body.is-printing #root {
+    display: none !important;
+  }
+
+  .print-portal-root {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #1c1917 !important;
+  }
+
+  .print-portal-root .fixed {
+    position: static !important;
+    inset: auto !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    width: 100% !important;
+  }
+
+  .print-portal-root .max-h-\[92vh\],
+  .print-portal-root .max-h-\[85vh\] {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .print-portal-root .print-area {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    padding: 1.25rem !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: 720px !important;
+    line-height: 1.4 !important;
+  }
+
+  .print-portal-root .print-area p,
+  .print-portal-root .print-area li,
+  .print-portal-root .print-area span {
+    line-height: 1.35 !important;
+  }
+
+  .no-print {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+
+  .print-break-inside-avoid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 8mm 12mm;
+  }
+}

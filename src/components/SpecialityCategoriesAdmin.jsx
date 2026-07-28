@@ -231,8 +231,8 @@ export default function SpecialityCategoriesAdmin({ addNotification }) {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-stone-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+        <div className="fixed inset-0 z-[100] bg-stone-900/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 pt-20 sm:pt-24 pb-8 overflow-y-auto" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl my-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-lg text-stone-900">
                 {editingId ? 'Edit Category' : 'New Speciality Category'}
