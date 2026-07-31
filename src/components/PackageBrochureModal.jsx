@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import Markdown from 'react-markdown'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const DEFAULT_IMAGE = `${API_URL}/assets/unsplash-pkg-card.jpg`
@@ -26,6 +27,11 @@ const XIcon = ({ className = "w-4 h-4" }) => (
 const CheckCircleIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+)
+const ShipIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9 1.2 5.6 3.1 7.5M12 10V4m0 0L9 7m3-3l3 3" />
   </svg>
 )
 const PhoneIcon = ({ className = "w-4 h-4" }) => (
@@ -225,13 +231,13 @@ export default function PackageBrochureModal({ pkg, isOpen, onClose, settings = 
             </div>
 
             {/* Key Facts & Pricing Info */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-stone-50 border border-stone-200 rounded-xl print-break-inside-avoid">
-              <div className="space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3 bg-stone-50 border border-stone-200 rounded-xl print-break-inside-avoid min-w-0">
+              <div className="sm:col-span-4 space-y-1 min-w-0">
                 <span className="text-[10px] uppercase font-bold tracking-widest text-stone-400 block">Pricing Details</span>
                 {isBespoke ? (
                   <span className="font-display text-lg font-bold text-amber-800">Custom Quote</span>
                 ) : pkgPrice ? (
-                  <div className="flex items-baseline gap-1.5">
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
                     <span className="font-display text-xl font-bold text-stone-900">{formatINR(pkgPrice)}</span>
                     <span className="text-xs text-stone-500 font-medium">INR / person</span>
                   </div>
@@ -240,37 +246,42 @@ export default function PackageBrochureModal({ pkg, isOpen, onClose, settings = 
                 )}
               </div>
 
-              <div className="space-y-1">
+              <div className="sm:col-span-3 space-y-1 min-w-0">
                 <span className="text-[10px] uppercase font-bold tracking-widest text-stone-400 block">Duration & Region</span>
                 <p className="text-sm font-semibold text-stone-800">{pkgDuration || 'N/A'} · {pkgRegion}</p>
               </div>
 
-              <div className="space-y-1">
+              <div className="sm:col-span-5 space-y-1 min-w-0">
                 <span className="text-[10px] uppercase font-bold tracking-widest text-stone-400 block">Included Amenities</span>
-                <div className="flex flex-wrap items-center gap-2 text-stone-700 pt-0.5">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-stone-700 pt-0.5 min-w-0 overflow-hidden">
                   {(inclusionsSelection.hotel || inclusionsSelection.hotels) && (
-                    <span className="flex items-center gap-1 text-xs font-medium" title="Hotel">
-                      <HotelIcon className="w-3.5 h-3.5 text-amber-700" /> Hotel
+                    <span className="inline-flex items-center gap-1 text-xs font-medium shrink-0" title="Hotel">
+                      <HotelIcon className="w-3.5 h-3.5 text-amber-700 shrink-0" /> Hotel
                     </span>
                   )}
                   {(inclusionsSelection.sightseeing || inclusionsSelection.tours) && (
-                    <span className="flex items-center gap-1 text-xs font-medium" title="Sightseeing">
-                      <CompassIcon className="w-3.5 h-3.5 text-amber-700" /> Tours
+                    <span className="inline-flex items-center gap-1 text-xs font-medium shrink-0" title="Sightseeing">
+                      <CompassIcon className="w-3.5 h-3.5 text-amber-700 shrink-0" /> Tours
                     </span>
                   )}
                   {inclusionsSelection.guide && (
-                    <span className="flex items-center gap-1 text-xs font-medium" title="Guide">
-                      <UserIcon className="w-3.5 h-3.5 text-amber-700" /> Guide
+                    <span className="inline-flex items-center gap-1 text-xs font-medium shrink-0" title="Guide">
+                      <UserIcon className="w-3.5 h-3.5 text-amber-700 shrink-0" /> Guide
                     </span>
                   )}
                   {(inclusionsSelection.airportTransfer || inclusionsSelection.transfers) && (
-                    <span className="flex items-center gap-1 text-xs font-medium" title="Transfers">
-                      <CarIcon className="w-3.5 h-3.5 text-amber-700" /> Transfer
+                    <span className="inline-flex items-center gap-1 text-xs font-medium shrink-0" title="Transfers">
+                      <CarIcon className="w-3.5 h-3.5 text-amber-700 shrink-0" /> Transfer
                     </span>
                   )}
                   {inclusionsSelection.flight && (
-                    <span className="flex items-center gap-1 text-xs font-medium" title="Flight">
-                      <PlaneIcon className="w-3.5 h-3.5 text-amber-700" /> Flight
+                    <span className="inline-flex items-center gap-1 text-xs font-medium shrink-0" title="Flight">
+                      <PlaneIcon className="w-3.5 h-3.5 text-amber-700 shrink-0" /> Flight
+                    </span>
+                  )}
+                  {inclusionsSelection.cruise && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium shrink-0" title="Cruise">
+                      <ShipIcon className="w-3.5 h-3.5 text-amber-700 shrink-0" /> Cruise
                     </span>
                   )}
                 </div>
@@ -286,6 +297,18 @@ export default function PackageBrochureModal({ pkg, isOpen, onClose, settings = 
                 <p className="text-sm text-stone-600 leading-relaxed font-light whitespace-pre-line">
                   {pkg.description}
                 </p>
+              </div>
+            )}
+
+            {/* Terms & Conditions */}
+            {(pkg.termsAndConditions || pkg.terms_and_conditions) && (
+              <div className="space-y-2 print-break-inside-avoid">
+                <h3 className="font-display text-base font-bold text-stone-900 border-b border-stone-200 pb-1">
+                  Terms & Conditions
+                </h3>
+                <div className="text-xs text-stone-600 leading-relaxed font-light bg-stone-50 p-3 rounded-xl border border-stone-200">
+                  <Markdown>{pkg.termsAndConditions || pkg.terms_and_conditions}</Markdown>
+                </div>
               </div>
             )}
 

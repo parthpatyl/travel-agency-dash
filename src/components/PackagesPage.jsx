@@ -10,6 +10,12 @@ const PrinterIcon = ({ className = "w-4 h-4" }) => (
   </svg>
 )
 
+const ShipIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1 .6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1M19.38 20A11.6 11.6 0 0 0 21 14l-9-4-9 4c0 2.9 1.2 5.6 3.1 7.5M12 10V4m0 0L9 7m3-3l3 3" />
+  </svg>
+)
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const imgUrl = (url) => url?.startsWith('http') ? url : `${API_URL}${url || ''}`
 
@@ -62,9 +68,12 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     sightseeing: true,
     guide: true,
     airportTransfer: true,
-    flight: false
+    flight: false,
+    cruise: false
   })
   const [pkgDescription, setPkgDescription] = useState('')
+  const [pkgTerms, setPkgTerms] = useState('')
+  const [pkgTermsTab, setPkgTermsTab] = useState('write')
   const [pkgHighlights, setPkgHighlights] = useState([])
   const [pkgHighlightInput, setPkgHighlightInput] = useState('')
   const [pkgInclusionsList, setPkgInclusionsList] = useState([])
@@ -93,9 +102,12 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     sightseeing: true,
     guide: true,
     airportTransfer: true,
-    flight: false
+    flight: false,
+    cruise: false
   })
   const [editPkgDescription, setEditPkgDescription] = useState('')
+  const [editPkgTerms, setEditPkgTerms] = useState('')
+  const [editPkgTermsTab, setEditPkgTermsTab] = useState('write')
   const [editPkgHighlights, setEditPkgHighlights] = useState([])
   const [editPkgHighlightInput, setEditPkgHighlightInput] = useState('')
   const [editPkgInclusionsList, setEditPkgInclusionsList] = useState([])
@@ -247,9 +259,11 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       sightseeing: false,
       guide: false,
       airportTransfer: false,
-      flight: false
+      flight: false,
+      cruise: false
     })
     setEditPkgDescription(pkg.description || '')
+    setEditPkgTerms(pkg.termsAndConditions || '')
     setEditPkgHighlights(pkg.highlights || [])
     setEditPkgHighlightInput('')
     setEditPkgInclusionsList(pkg.inclusions || [])
@@ -290,6 +304,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       cardImage: editPkgCardImage,
       heroImage: editPkgHeroImage,
       description: editPkgDescription,
+      termsAndConditions: editPkgTerms,
       highlights: editPkgHighlights,
       inclusions: editPkgInclusionsList,
       exclusions: editPkgExclusions,
@@ -395,6 +410,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       cardImage: pkgCardImage,
       itinerary: [],
       description: pkgDescription,
+      termsAndConditions: pkgTerms,
       highlights: pkgHighlights,
       inclusions: pkgInclusionsList,
       exclusions: pkgExclusions,
@@ -663,6 +679,9 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                           <svg className="w-3.5 h-3.5 text-stone-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" title="Flight Included">
                             <path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3.5S19 4 17.5 5.5L14 9L5.8 7.2L3 8.6L11 13l-4 4H3.8L3 21l4-.8l4-4l4.4 8l1.4-2.8z" />
                           </svg>
+                        )}
+                        {pkg.inclusionsSelection?.cruise && (
+                          <ShipIcon className="w-3.5 h-3.5 text-stone-500 shrink-0" />
                         )}
                       </div>
                     </div>
@@ -1017,7 +1036,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     />
                     <span>Transfer</span>
                   </label>
-                  <label className="flex items-center gap-2 text-[11px] font-semibold text-stone-700 cursor-pointer col-span-2 mt-1 pt-1.5 border-t border-stone-200/60">
+                  <label className="flex items-center gap-2 text-[11px] font-semibold text-stone-700 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={selectedPackage.inclusionsSelection?.flight ?? false}
@@ -1034,7 +1053,26 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                       }}
                       className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
                     />
-                    <span>Flight Included</span>
+                    <span>Flight</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-[11px] font-semibold text-stone-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedPackage.inclusionsSelection?.cruise ?? false}
+                      onChange={(e) => {
+                        const updatedPackage = {
+                          ...selectedPackage,
+                          inclusionsSelection: {
+                            ...(selectedPackage.inclusionsSelection || {}),
+                            cruise: e.target.checked
+                          }
+                        }
+                        setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
+                        setSelectedPackage(updatedPackage)
+                      }}
+                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span>Cruise</span>
                   </label>
                 </div>
               </div>
@@ -1045,6 +1083,16 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Overview</h4>
                   <div className="text-[11px] text-stone-600 leading-relaxed">
                     <Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{selectedPackage.description}</Markdown>
+                  </div>
+                </div>
+              )}
+
+              {/* Terms & Conditions */}
+              {selectedPackage.termsAndConditions && (
+                <div className="border-t border-stone-100 pt-4 space-y-1">
+                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Terms & Conditions</h4>
+                  <div className="text-[11px] text-stone-600 leading-relaxed bg-amber-50/50 p-3 border border-amber-200/60 rounded-xl">
+                    <Markdown>{selectedPackage.termsAndConditions}</Markdown>
                   </div>
                 </div>
               )}
@@ -1642,14 +1690,23 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     />
                     <span>Airport Transfer</span>
                   </label>
-                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer col-span-2 mt-1 pt-1.5 border-t border-stone-200/60">
+                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={pkgInclusions.flight}
                       onChange={(e) => setPkgInclusions(prev => ({ ...prev, flight: e.target.checked }))}
                       className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
                     />
-                    <span>Flight Included</span>
+                    <span>Flight</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={pkgInclusions.cruise}
+                      onChange={(e) => setPkgInclusions(prev => ({ ...prev, cruise: e.target.checked }))}
+                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                    <span>Cruise</span>
                   </label>
                 </div>
               </div>
@@ -1671,6 +1728,46 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                       <Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{pkgDescription}</Markdown>
                     </div>
                   </details>
+                )}
+              </div>
+
+              {/* Terms & Conditions (Markdown Support) */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">Terms & Conditions (Markdown Supported)</label>
+                  <div className="flex gap-1 text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setPkgTermsTab('write')}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${pkgTermsTab === 'write' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                    >
+                      Write
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPkgTermsTab('preview')}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${pkgTermsTab === 'preview' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                    >
+                      Preview
+                    </button>
+                  </div>
+                </div>
+                {pkgTermsTab === 'write' ? (
+                  <textarea
+                    rows="4"
+                    value={pkgTerms}
+                    onChange={(e) => setPkgTerms(e.target.value)}
+                    placeholder="Enter terms & conditions in markdown format (e.g. ## Cancellation Policy&#10;* 100% refund up to 15 days before travel)"
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none font-mono resize-y"
+                  />
+                ) : (
+                  <div className="p-3 bg-amber-50/50 border border-amber-200/60 rounded-lg text-xs text-stone-700 leading-relaxed min-h-[90px]">
+                    {pkgTerms.trim() ? (
+                      <Markdown>{pkgTerms}</Markdown>
+                    ) : (
+                      <span className="text-stone-400 italic">No terms entered yet.</span>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -2133,14 +2230,23 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                     />
                     <span>Airport Transfer</span>
                   </label>
-                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer col-span-2 mt-1 pt-1.5 border-t border-stone-200/60">
+                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={editPkgInclusions.flight}
                       onChange={(e) => setEditPkgInclusions(prev => ({ ...prev, flight: e.target.checked }))}
                       className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
                     />
-                    <span>Flight Included</span>
+                    <span>Flight</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editPkgInclusions.cruise}
+                      onChange={(e) => setEditPkgInclusions(prev => ({ ...prev, cruise: e.target.checked }))}
+                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                    <span>Cruise</span>
                   </label>
                 </div>
               </div>
@@ -2162,6 +2268,46 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                       <Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{editPkgDescription}</Markdown>
                     </div>
                   </details>
+                )}
+              </div>
+
+              {/* Terms & Conditions (Markdown Support) */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">Terms & Conditions (Markdown Supported)</label>
+                  <div className="flex gap-1 text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setEditPkgTermsTab('write')}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${editPkgTermsTab === 'write' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                    >
+                      Write
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditPkgTermsTab('preview')}
+                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${editPkgTermsTab === 'preview' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                    >
+                      Preview
+                    </button>
+                  </div>
+                </div>
+                {editPkgTermsTab === 'write' ? (
+                  <textarea
+                    rows="4"
+                    value={editPkgTerms}
+                    onChange={(e) => setEditPkgTerms(e.target.value)}
+                    placeholder="Enter terms & conditions in markdown format..."
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none font-mono resize-y"
+                  />
+                ) : (
+                  <div className="p-3 bg-amber-50/50 border border-amber-200/60 rounded-lg text-xs text-stone-700 leading-relaxed min-h-[90px]">
+                    {editPkgTerms.trim() ? (
+                      <Markdown>{editPkgTerms}</Markdown>
+                    ) : (
+                      <span className="text-stone-400 italic">No terms entered yet.</span>
+                    )}
+                  </div>
                 )}
               </div>
 

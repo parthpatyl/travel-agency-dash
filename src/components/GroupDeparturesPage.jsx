@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import Markdown from 'react-markdown'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
 
@@ -9,6 +10,7 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
   const [editing, setEditing] = useState(null)
   const [filterStatus, setFilterStatus] = useState('scheduled')
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [termsTab, setTermsTab] = useState('write')
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -49,7 +51,8 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
     inclusions: '',
     exclusions: '',
     status: 'scheduled',
-    notes: ''
+    notes: '',
+    termsAndConditions: ''
   })
 
   // Auto-populate departure details when base package is selected
@@ -63,7 +66,8 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
         costPrice: selectedPkg.costPrice != null ? selectedPkg.costPrice : (selectedPkg.basePrice || prev.costPrice),
         inclusions: Array.isArray(selectedPkg.inclusions) ? selectedPkg.inclusions.join(', ') : (selectedPkg.inclusions || ''),
         exclusions: Array.isArray(selectedPkg.exclusions) ? selectedPkg.exclusions.join(', ') : (selectedPkg.exclusions || ''),
-        notes: selectedPkg.description || prev.notes
+        notes: selectedPkg.description || prev.notes,
+        termsAndConditions: prev.termsAndConditions || selectedPkg.termsAndConditions || ''
       }))
     } else {
       setForm(prev => ({ ...prev, packageId: pkgId }))
@@ -90,7 +94,8 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
       inclusions: '',
       exclusions: '',
       status: 'scheduled',
-      notes: ''
+      notes: '',
+      termsAndConditions: activePackages[0]?.termsAndConditions || ''
     })
     setEditing(null)
     setPkgMode('existing')
@@ -124,7 +129,8 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
       inclusions: Array.isArray(dep.inclusions) ? dep.inclusions.join(', ') : (dep.inclusions || ''),
       exclusions: Array.isArray(dep.exclusions) ? dep.exclusions.join(', ') : (dep.exclusions || ''),
       status: dep.status || 'scheduled',
-      notes: dep.notes || ''
+      notes: dep.notes || '',
+      termsAndConditions: dep.termsAndConditions || ''
     })
     setEditing(dep)
     setShowForm(true)
@@ -154,7 +160,8 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
         description: newPkgDescription.trim() || `${newPkgName} scheduled tour package.`,
         cardImage: `${API_URL_DEFAULT}/assets/unsplash-pkg-card.jpg`,
         heroImage: `${API_URL_DEFAULT}/assets/unsplash-pkg-hero.jpg`,
-        isBespoke: false
+        isBespoke: false,
+        termsAndConditions: form.termsAndConditions
       }
 
       if (setPackages) setPackages([createdPkgObj, ...packages])
@@ -200,7 +207,8 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
       inclusions: parseList(form.inclusions),
       exclusions: parseList(form.exclusions),
       status: form.status,
-      notes: form.notes
+      notes: form.notes,
+      termsAndConditions: form.termsAndConditions
     }
 
     const pkg = createdPkgObj || packages.find(p => p.id === activePackageId)
@@ -686,6 +694,48 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
                     placeholder="e.g. Flight tickets included, local transfers covered, sightseeing details..."
                     className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-855 outline-none resize-y transition-all"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label htmlFor="form-terms" className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
+                      Terms & Conditions (Markdown Supported)
+                    </label>
+                    <div className="flex gap-1 text-[10px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setTermsTab('write')}
+                        className={`px-2 py-0.5 rounded transition-all cursor-pointer ${termsTab === 'write' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                      >
+                        Write
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTermsTab('preview')}
+                        className={`px-2 py-0.5 rounded transition-all cursor-pointer ${termsTab === 'preview' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                      >
+                        Preview
+                      </button>
+                    </div>
+                  </div>
+                  {termsTab === 'write' ? (
+                    <textarea
+                      id="form-terms"
+                      rows="4"
+                      value={form.termsAndConditions}
+                      onChange={(e) => setForm({ ...form, termsAndConditions: e.target.value })}
+                      placeholder="Enter batch terms & conditions in markdown format..."
+                      className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-855 outline-none font-mono resize-y transition-all"
+                    />
+                  ) : (
+                    <div className="p-3 bg-amber-50/50 border border-amber-200/60 rounded-lg text-xs text-stone-700 leading-relaxed min-h-[90px]">
+                      {form.termsAndConditions?.trim() ? (
+                        <Markdown>{form.termsAndConditions}</Markdown>
+                      ) : (
+                        <span className="text-stone-400 italic">No terms entered yet.</span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 </fieldset>

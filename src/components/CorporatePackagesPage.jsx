@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import Markdown from 'react-markdown'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
 import PackageBrochureModal from './PackageBrochureModal'
@@ -25,7 +26,8 @@ const defaultForm = {
   category: 'india',
   imageUrl: '',
   description: '',
-  highlights: []
+  highlights: [],
+  termsAndConditions: ''
 }
 
 export default function CorporatePackagesPage({ corporatePackages, setCorporatePackages, addNotification, user }) {
@@ -36,6 +38,7 @@ export default function CorporatePackagesPage({ corporatePackages, setCorporateP
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [filterCategory, setFilterCategory] = useState('All')
   const [brochurePkg, setBrochurePkg] = useState(null)
+  const [termsTab, setTermsTab] = useState('write')
   const fileInputRef = useRef(null)
 
   useEffect(() => {
@@ -110,7 +113,8 @@ export default function CorporatePackagesPage({ corporatePackages, setCorporateP
       description: pkg.description || '',
       highlights: pkg.highlights || [],
       isActive: pkg.isActive !== undefined ? pkg.isActive : (pkg.is_active !== undefined ? pkg.is_active : true),
-      displayOrder: pkg.displayOrder !== undefined ? pkg.displayOrder : (pkg.display_order !== undefined ? pkg.display_order : 0)
+      displayOrder: pkg.displayOrder !== undefined ? pkg.displayOrder : (pkg.display_order !== undefined ? pkg.display_order : 0),
+      termsAndConditions: pkg.termsAndConditions || pkg.terms_and_conditions || ''
     })
     setHighlightInput('')
     setEditing(pkg)
@@ -412,6 +416,47 @@ export default function CorporatePackagesPage({ corporatePackages, setCorporateP
                       placeholder="Short description or pitch for corporate clients..."
                       className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-850 outline-none resize-none transition-all"
                     />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">
+                        Terms & Conditions (Markdown Supported)
+                      </label>
+                      <div className="flex gap-1 text-[10px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setTermsTab('write')}
+                          className={`px-2 py-0.5 rounded transition-all cursor-pointer ${termsTab === 'write' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                        >
+                          Write
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTermsTab('preview')}
+                          className={`px-2 py-0.5 rounded transition-all cursor-pointer ${termsTab === 'preview' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                        >
+                          Preview
+                        </button>
+                      </div>
+                    </div>
+                    {termsTab === 'write' ? (
+                      <textarea
+                        rows="4"
+                        value={form.termsAndConditions}
+                        onChange={(e) => setForm({ ...form, termsAndConditions: e.target.value })}
+                        placeholder="Enter terms & conditions in markdown format..."
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-850 outline-none font-mono resize-y transition-all"
+                      />
+                    ) : (
+                      <div className="p-3 bg-amber-50/50 border border-amber-200/60 rounded-lg text-xs text-stone-700 leading-relaxed min-h-[90px]">
+                        {form.termsAndConditions?.trim() ? (
+                          <Markdown>{form.termsAndConditions}</Markdown>
+                        ) : (
+                          <span className="text-stone-400 italic">No terms entered yet.</span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Highlights Tags */}
