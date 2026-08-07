@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import Markdown from 'react-markdown'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
 import PackageBrochureModal from './PackageBrochureModal'
+import { SmartMarkdown, SmartMarkdownInline, formatTravelMarkdown, splitBulletedItems, flattenBulletedItems } from '../utils/markdownUtils'
 
 const PrinterIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -18,17 +18,6 @@ const ShipIcon = ({ className = "w-4 h-4" }) => (
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const imgUrl = (url) => url?.startsWith('http') ? url : `${API_URL}${url || ''}`
-
-const MdInline = ({ children, className }) => (
-  <Markdown
-    components={{
-      p: ({ children }) => <span className={className}>{children}</span>,
-      strong: ({ children }) => <strong className="font-extrabold">{children}</strong>,
-    }}
-  >
-    {children}
-  </Markdown>
-)
 
 const formatUSD = (price) => price != null ? `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
 
@@ -83,6 +72,12 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   const [isScheduledDeparture, setIsScheduledDeparture] = useState(false)
   const [pkgDepartureDate, setPkgDepartureDate] = useState('')
   const [pkgReturnDate, setPkgReturnDate] = useState('')
+  // Add Package Form Itinerary States
+  const [pkgFormItinerary, setPkgFormItinerary] = useState([])
+  const [pkgFormDayNum, setPkgFormDayNum] = useState('1')
+  const [pkgFormDayTitle, setPkgFormDayTitle] = useState('')
+  const [pkgFormDayDesc, setPkgFormDayDesc] = useState('')
+  const [editingPkgFormDayIdx, setEditingPkgFormDayIdx] = useState(null)
 
 
   // Edit Package Form States
@@ -115,11 +110,78 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
   const [editPkgExclusions, setEditPkgExclusions] = useState([])
   const [editPkgExclusionInput, setEditPkgExclusionInput] = useState('')
   const [editPkgIsBespoke, setEditPkgIsBespoke] = useState(false)
+  // Edit Package Form Itinerary States
+  const [editPkgFormItinerary, setEditPkgFormItinerary] = useState([])
+  const [editPkgFormDayNum, setEditPkgFormDayNum] = useState('1')
+  const [editPkgFormDayTitle, setEditPkgFormDayTitle] = useState('')
+  const [editPkgFormDayDesc, setEditPkgFormDayDesc] = useState('')
+  const [editingEditPkgFormDayIdx, setEditingEditPkgFormDayIdx] = useState(null)
+
   const [packageToDelete, setPackageToDelete] = useState(null)
+
+  // UX Tab Navigation States
+  const [sidebarTab, setSidebarTab] = useState('itinerary')
+  const [addFormTab, setAddFormTab] = useState('basic')
+  const [editFormTab, setEditFormTab] = useState('basic')
 
   const [specialityCategories, setSpecialityCategories] = useState([])
   const [pkgCategoryIds, setPkgCategoryIds] = useState([])
   const [editPkgCategoryIds, setEditPkgCategoryIds] = useState([])
+
+  // Modal Itinerary Day Helpers
+  const handleAddPkgFormItineraryDay = (e) => {
+    if (e) e.preventDefault()
+    if (!pkgFormDayNum || !pkgFormDayTitle || !pkgFormDayDesc) return
+    const dayNum = parseInt(pkgFormDayNum) || 1
+    let updated = [...pkgFormItinerary]
+    if (editingPkgFormDayIdx !== null && editingPkgFormDayIdx < updated.length) {
+      updated[editingPkgFormDayIdx] = { day: dayNum, title: pkgFormDayTitle.trim(), desc: pkgFormDayDesc.trim() }
+      setEditingPkgFormDayIdx(null)
+    } else {
+      const existingIdx = updated.findIndex(item => item.day === dayNum)
+      if (existingIdx >= 0) {
+        updated[existingIdx] = { day: dayNum, title: pkgFormDayTitle.trim(), desc: pkgFormDayDesc.trim() }
+      } else {
+        updated.push({ day: dayNum, title: pkgFormDayTitle.trim(), desc: pkgFormDayDesc.trim() })
+      }
+    }
+    updated.sort((a, b) => a.day - b.day)
+    setPkgFormItinerary(updated)
+    setPkgFormDayNum((updated.length + 1).toString())
+    setPkgFormDayTitle('')
+    setPkgFormDayDesc('')
+  }
+
+  const handleRemovePkgFormItineraryDay = (dayNum) => {
+    setPkgFormItinerary(pkgFormItinerary.filter(item => item.day !== dayNum))
+  }
+
+  const handleAddEditPkgFormItineraryDay = (e) => {
+    if (e) e.preventDefault()
+    if (!editPkgFormDayNum || !editPkgFormDayTitle || !editPkgFormDayDesc) return
+    const dayNum = parseInt(editPkgFormDayNum) || 1
+    let updated = [...editPkgFormItinerary]
+    if (editingEditPkgFormDayIdx !== null && editingEditPkgFormDayIdx < updated.length) {
+      updated[editingEditPkgFormDayIdx] = { day: dayNum, title: editPkgFormDayTitle.trim(), desc: editPkgFormDayDesc.trim() }
+      setEditingEditPkgFormDayIdx(null)
+    } else {
+      const existingIdx = updated.findIndex(item => item.day === dayNum)
+      if (existingIdx >= 0) {
+        updated[existingIdx] = { day: dayNum, title: editPkgFormDayTitle.trim(), desc: editPkgFormDayDesc.trim() }
+      } else {
+        updated.push({ day: dayNum, title: editPkgFormDayTitle.trim(), desc: editPkgFormDayDesc.trim() })
+      }
+    }
+    updated.sort((a, b) => a.day - b.day)
+    setEditPkgFormItinerary(updated)
+    setEditPkgFormDayNum((updated.length + 1).toString())
+    setEditPkgFormDayTitle('')
+    setEditPkgFormDayDesc('')
+  }
+
+  const handleRemoveEditPkgFormItineraryDay = (dayNum) => {
+    setEditPkgFormItinerary(editPkgFormItinerary.filter(item => item.day !== dayNum))
+  }
 
   useEffect(() => {
     fetch(`${API_URL}/api/speciality-categories`)
@@ -273,6 +335,11 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     setEditPkgIsBespoke(pkg.isBespoke || false)
     setEditPkgCategory(pkg.category || 'standard')
     setEditPkgCategoryIds(pkg.categoryIds || [])
+    setEditPkgFormItinerary(pkg.itinerary || [])
+    setEditPkgFormDayNum(((pkg.itinerary || []).length + 1).toString())
+    setEditPkgFormDayTitle('')
+    setEditPkgFormDayDesc('')
+    setEditingEditPkgFormDayIdx(null)
     setShowEditPackageForm(true)
   }
 
@@ -308,6 +375,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       highlights: editPkgHighlights,
       inclusions: editPkgInclusionsList,
       exclusions: editPkgExclusions,
+      itinerary: editPkgFormItinerary,
       isBespoke: editPkgIsBespoke,
       categoryIds: editPkgCategoryIds
     }
@@ -408,7 +476,7 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       inclusionsSelection: pkgInclusions,
       heroImage: pkgHeroImage,
       cardImage: pkgCardImage,
-      itinerary: [],
+      itinerary: pkgFormItinerary,
       description: pkgDescription,
       termsAndConditions: pkgTerms,
       highlights: pkgHighlights,
@@ -468,6 +536,11 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
     setIsScheduledDeparture(false)
     setPkgDepartureDate('')
     setPkgReturnDate('')
+    setPkgFormItinerary([])
+    setPkgFormDayNum('1')
+    setPkgFormDayTitle('')
+    setPkgFormDayDesc('')
+    setEditingPkgFormDayIdx(null)
     setPkgCardImage(`${API_URL}/assets/unsplash-pkg-card.jpg`)
     setPkgHeroImage(`${API_URL}/assets/unsplash-pkg-hero.jpg`)
     setPkgInclusions({
@@ -955,448 +1028,336 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                   )}
                 </div>
               </div>
-
-              {/* Manage Inclusions */}
-              <div className="border-t border-stone-100 pt-4 space-y-2">
-                <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Inclusions Selection</h4>
-                <div className="grid grid-cols-2 gap-2 bg-stone-50 p-3 rounded-xl border border-stone-200/60">
-                  <label className="flex items-center gap-2 text-[11px] font-semibold text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedPackage.inclusionsSelection?.hotel ?? false}
-                      onChange={(e) => {
-                        const updatedPackage = {
-                          ...selectedPackage,
-                          inclusionsSelection: {
-                            ...(selectedPackage.inclusionsSelection || {}),
-                            hotel: e.target.checked
-                          }
-                        }
-                        setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
-                        setSelectedPackage(updatedPackage)
-                      }}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
-                    />
-                    <span>Hotel</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-[11px] font-semibold text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedPackage.inclusionsSelection?.sightseeing ?? false}
-                      onChange={(e) => {
-                        const updatedPackage = {
-                          ...selectedPackage,
-                          inclusionsSelection: {
-                            ...(selectedPackage.inclusionsSelection || {}),
-                            sightseeing: e.target.checked
-                          }
-                        }
-                        setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
-                        setSelectedPackage(updatedPackage)
-                      }}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
-                    />
-                    <span>Sightseeing</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-[11px] font-semibold text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedPackage.inclusionsSelection?.guide ?? false}
-                      onChange={(e) => {
-                        const updatedPackage = {
-                          ...selectedPackage,
-                          inclusionsSelection: {
-                            ...(selectedPackage.inclusionsSelection || {}),
-                            guide: e.target.checked
-                          }
-                        }
-                        setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
-                        setSelectedPackage(updatedPackage)
-                      }}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
-                    />
-                    <span>Guide</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-[11px] font-semibold text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedPackage.inclusionsSelection?.airportTransfer ?? false}
-                      onChange={(e) => {
-                        const updatedPackage = {
-                          ...selectedPackage,
-                          inclusionsSelection: {
-                            ...(selectedPackage.inclusionsSelection || {}),
-                            airportTransfer: e.target.checked
-                          }
-                        }
-                        setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
-                        setSelectedPackage(updatedPackage)
-                      }}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
-                    />
-                    <span>Transfer</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-[11px] font-semibold text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedPackage.inclusionsSelection?.flight ?? false}
-                      onChange={(e) => {
-                        const updatedPackage = {
-                          ...selectedPackage,
-                          inclusionsSelection: {
-                            ...(selectedPackage.inclusionsSelection || {}),
-                            flight: e.target.checked
-                          }
-                        }
-                        setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
-                        setSelectedPackage(updatedPackage)
-                      }}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
-                    />
-                    <span>Flight</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-[11px] font-semibold text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedPackage.inclusionsSelection?.cruise ?? false}
-                      onChange={(e) => {
-                        const updatedPackage = {
-                          ...selectedPackage,
-                          inclusionsSelection: {
-                            ...(selectedPackage.inclusionsSelection || {}),
-                            cruise: e.target.checked
-                          }
-                        }
-                        setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
-                        setSelectedPackage(updatedPackage)
-                      }}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
-                    />
-                    <span>Cruise</span>
-                  </label>
-                </div>
+              {/* Sidebar Sub-Tab Bar */}
+              <div className="flex border border-stone-200 bg-stone-100/70 rounded-xl p-1 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSidebarTab('itinerary')}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    sidebarTab === 'itinerary'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
+                  }`}
+                >
+                  Itinerary ({selectedPackage.itinerary?.length || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSidebarTab('overview')}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    sidebarTab === 'overview'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
+                  }`}
+                >
+                  Overview & Info
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSidebarTab('terms')}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    sidebarTab === 'terms'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
+                  }`}
+                >
+                  Details & Terms
+                </button>
               </div>
 
-              {/* Overview / Description */}
-              {selectedPackage.description && (
-                <div className="border-t border-stone-100 pt-4 space-y-1">
-                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Overview</h4>
-                  <div className="text-[11px] text-stone-600 leading-relaxed">
-                    <Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{selectedPackage.description}</Markdown>
+              {/* Sub-Tab 1: Itinerary Schedule & Builder */}
+              {sidebarTab === 'itinerary' && (
+                <div className="space-y-4">
+                  {/* Day Timeline with Deletion */}
+                  <div className="space-y-4 max-h-64 overflow-y-auto pr-1">
+                    {selectedPackage.itinerary.length > 0 ? (
+                      selectedPackage.itinerary.map(item => (
+                        <div key={item.day} className="flex gap-3 text-xs items-start group relative">
+                          <span className="w-6 h-6 rounded-full bg-amber-500/10 border border-amber-300 text-amber-700 flex items-center justify-center font-bold shrink-0">
+                            D{item.day}
+                          </span>
+                          <div className="space-y-0.5 flex-1 pr-12">
+                            <h4 className="font-bold text-stone-800">{item.title}</h4>
+                            <SmartMarkdown content={item.desc} className="text-[11px] text-stone-500 leading-relaxed" />
+                          </div>
+                          {/* Action buttons (Edit + Delete) */}
+                          <div className="absolute right-0 top-0.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingDayNum(item.day)
+                                setNewDayNum(item.day.toString())
+                                setNewDayTitle(item.title)
+                                setNewDayDesc(item.desc)
+                              }}
+                              className="p-1 rounded hover:bg-amber-50 text-stone-400 hover:text-amber-600 cursor-pointer"
+                              title={`Edit Day ${item.day}`}
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItineraryDay(item.day)}
+                              className="p-1 rounded hover:bg-rose-50 text-stone-400 hover:text-rose-600 cursor-pointer"
+                              title={`Remove Day ${item.day}`}
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-stone-400 italic">No itinerary days added yet. Use the form below to append Day 1.</p>
+                    )}
                   </div>
-                </div>
-              )}
 
-              {/* Terms & Conditions */}
-              {selectedPackage.termsAndConditions && (
-                <div className="border-t border-stone-100 pt-4 space-y-1">
-                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Terms & Conditions</h4>
-                  <div className="text-[11px] text-stone-600 leading-relaxed bg-amber-50/50 p-3 border border-amber-200/60 rounded-xl">
-                    <Markdown>{selectedPackage.termsAndConditions}</Markdown>
-                  </div>
-                </div>
-              )}
-
-              {/* Trip Highlights */}
-              {selectedPackage.highlights && selectedPackage.highlights.length > 0 && (
-                <div className="border-t border-stone-100 pt-4 space-y-1">
-                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Trip Highlights</h4>
-                  <ul className="space-y-0.5">
-                    {selectedPackage.highlights.map((h, i) => (
-                      <li key={i} className="flex items-start gap-2 text-[11px] text-stone-600">
-                        <span className="text-amber-600 mt-0.5 shrink-0">&#9679;</span>
-                        <MdInline className="">{h}</MdInline>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Inclusions List */}
-              {selectedPackage.inclusions && selectedPackage.inclusions.length > 0 && (
-                <div className="border-t border-stone-100 pt-4 space-y-1">
-                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Inclusions</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedPackage.inclusions.map((item, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded text-[10px] text-emerald-700 font-medium"><MdInline>{item}</MdInline></span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Exclusions */}
-              {selectedPackage.exclusions && selectedPackage.exclusions.length > 0 && (
-                <div className="border-t border-stone-100 pt-4 space-y-1">
-                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Exclusions</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedPackage.exclusions.map((item, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-rose-50 border border-rose-200 rounded text-[10px] text-rose-700 font-medium"><MdInline>{item}</MdInline></span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Slots Booked Adjustment */}
-              {selectedPackage.isBespoke || (selectedPackage.slots?.total ?? 0) >= 999 ? (
-                <div className="border-t border-stone-100 pt-4 space-y-2">
-                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Availability</h4>
-                  <div className="flex items-center justify-between bg-violet-50/50 p-3 rounded-xl border border-violet-200/60">
-                    <div className="text-[11px] text-violet-700 font-semibold flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                      </svg>
-                      Bespoke — Unlimited Availability
-                    </div>
-                    <span className="px-2 py-0.5 rounded text-[9px] font-extrabold uppercase bg-violet-100 text-violet-700 border border-violet-200">On Request</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="border-t border-stone-100 pt-4 space-y-2">
-                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Booking Slots</h4>
-                  <div className="flex items-center justify-between bg-stone-50 p-3 rounded-xl border border-stone-200/60">
-                    <div className="text-[11px] text-stone-600 font-semibold">
-                      <span className="text-stone-900 font-bold">{selectedPackage.slots?.booked ?? 0}</span> / {selectedPackage.slots?.total ?? 10} booked
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => {
-                          const newBooked = Math.max(0, (selectedPackage.slots?.booked ?? 0) - 1)
-                          const updatedPackage = { ...selectedPackage, slots: { ...selectedPackage.slots, booked: newBooked } }
-                          setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
-                          setSelectedPackage(updatedPackage)
-                        }}
-                        className="w-6 h-6 rounded-md bg-white border border-stone-200 hover:border-amber-400 text-stone-600 hover:text-amber-700 flex items-center justify-center text-sm font-bold cursor-pointer transition-all"
-                        title="Decrease booked"
-                      >−</button>
-                      <button
-                        onClick={() => {
-                          const max = selectedPackage.slots?.total ?? 10
-                          const newBooked = Math.min(max, (selectedPackage.slots?.booked ?? 0) + 1)
-                          const updatedPackage = { ...selectedPackage, slots: { ...selectedPackage.slots, booked: newBooked } }
-                          setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
-                          setSelectedPackage(updatedPackage)
-                        }}
-                        className="w-6 h-6 rounded-md bg-white border border-stone-200 hover:border-amber-400 text-stone-600 hover:text-amber-700 flex items-center justify-center text-sm font-bold cursor-pointer transition-all"
-                        title="Increase booked"
-                      >+</button>
-                      <button
-                        onClick={() => {
-                          const updatedPackage = { ...selectedPackage, slots: { ...selectedPackage.slots, booked: 0 } }
-                          setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
-                          setSelectedPackage(updatedPackage)
-                        }}
-                        className="ml-1 px-2 py-1 rounded-md bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 text-[9px] font-bold cursor-pointer transition-all"
-                        title="Reset slots to 0"
-                      >Reset</button>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {/* Best Month & CTA Badge */}
-              <div className="border-t border-stone-100 pt-4 space-y-3">
-                <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Seasonal Promotion</h4>
-                <div className="space-y-2">
-                  <div>
-                    <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Best Month to Visit</label>
-                    <select
-                      value={selectedPackage.bestMonth || ''}
-                      onChange={(e) => {
-                        const updatedPackage = { ...selectedPackage, bestMonth: e.target.value }
-                        setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
-                        setSelectedPackage(updatedPackage)
-                      }}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-700 outline-none"
-                    >
-                      <option value="">— None —</option>
-                      <option value="January">January</option>
-                      <option value="February">February</option>
-                      <option value="March">March</option>
-                      <option value="April">April</option>
-                      <option value="May">May</option>
-                      <option value="June">June</option>
-                      <option value="July">July</option>
-                      <option value="August">August</option>
-                      <option value="September">September</option>
-                      <option value="October">October</option>
-                      <option value="November">November</option>
-                      <option value="December">December</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">CTA Badge</label>
-                    <select
-                      value={selectedPackage.ctaBadge || ''}
-                      onChange={(e) => {
-                        const updatedPackage = { ...selectedPackage, ctaBadge: e.target.value }
-                        setPackages(packages.map(p => p.id === selectedPackage.id ? updatedPackage : p))
-                        setSelectedPackage(updatedPackage)
-                      }}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-700 outline-none"
-                    >
-                      <option value="">— None —</option>
-                      <option value="Best Seller">🔥 Best Seller</option>
-                      <option value="Best This Month">⭐ Best This Month</option>
-                      <option value="Monsoon Special">🌧️ Monsoon Special</option>
-                      <option value="Winter Escape">❄️ Winter Escape</option>
-                      <option value="Summer Pick">☀️ Summer Pick</option>
-                      <option value="Honeymoon Favorite">💕 Honeymoon Favorite</option>
-                      <option value="Early Bird Deal">🐦 Early Bird Deal</option>
-                      <option value="Limited Time">⏰ Limited Time</option>
-                      <option value="Staff Pick">👑 Staff Pick</option>
-                      <option value="New Launch">🚀 New Launch</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Day Timeline with Deletion */}
-              <div className="space-y-4 max-h-64 overflow-y-auto pr-1">
-                {selectedPackage.itinerary.length > 0 ? (
-                  selectedPackage.itinerary.map(item => (
-                    <div key={item.day} className="flex gap-3 text-xs items-start group relative">
-                      <span className="w-6 h-6 rounded-full bg-amber-500/10 border border-amber-300 text-amber-700 flex items-center justify-center font-bold shrink-0">
-                        D{item.day}
+                  {/* Form to Add / Edit Day */}
+                  <div className="border-t border-stone-100 pt-4 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                        {editingDayNum !== null ? `Edit Day ${editingDayNum} Event` : 'Add Day Itinerary Event'}
+                      </h4>
+                      <span className="text-[10px] text-stone-500 font-bold bg-stone-100 px-1.5 py-0.5 rounded">
+                        Limit: {selectedPackage.itinerary.length}/{parseInt(selectedPackage.duration)}
                       </span>
-                      <div className="space-y-0.5 flex-1 pr-12">
-                        <h4 className="font-bold text-stone-800">{item.title}</h4>
-                        <div className="text-[11px] text-stone-500 leading-relaxed whitespace-pre-line"><Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{item.desc}</Markdown></div>
-                      </div>
-                      {/* Action buttons (Edit + Delete) */}
-                      <div className="absolute right-0 top-0.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingDayNum(item.day)
-                            setNewDayNum(item.day.toString())
-                            setNewDayTitle(item.title)
-                            setNewDayDesc(item.desc)
-                          }}
-                          className="p-1 rounded hover:bg-amber-50 text-stone-400 hover:text-amber-600 cursor-pointer"
-                          title={`Edit Day ${item.day}`}
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItineraryDay(item.day)}
-                          className="p-1 rounded hover:bg-rose-50 text-stone-400 hover:text-rose-600 cursor-pointer"
-                          title={`Remove Day ${item.day}`}
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-xs text-stone-400 italic">No itinerary days added yet. Use the form below to append Day 1.</p>
-                )}
-              </div>
+                    {itineraryError && (
+                      <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-600 rounded-lg text-[11px] font-medium flex items-center gap-2">
+                        <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        {itineraryError}
+                      </div>
+                    )}
+                    <form onSubmit={handleAddItineraryDay} className="space-y-3">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="col-span-1">
+                          <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Day No.</label>
+                          <input
+                            type="number"
+                            required
+                            placeholder="e.g. 4"
+                            value={newDayNum}
+                            onChange={(e) => setNewDayNum(e.target.value)}
+                            className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Title Header</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. Free Time & Shopping"
+                            value={newDayTitle}
+                            onChange={(e) => setNewDayTitle(e.target.value)}
+                            className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                          />
+                        </div>
+                      </div>
 
-              {/* Form to Add / Edit Day */}
-              <div className="border-t border-stone-100 pt-4 space-y-3">
-                <div className="flex justify-between items-center">
-                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
-                    {editingDayNum !== null ? `Edit Day ${editingDayNum} Event` : 'Add Day Itinerary Event'}
-                  </h4>
-                  <span className="text-[10px] text-stone-500 font-bold bg-stone-100 px-1.5 py-0.5 rounded">
-                    Limit: {selectedPackage.itinerary.length}/{parseInt(selectedPackage.duration)}
-                  </span>
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider">Day Description (Markdown Supported)</label>
+                          {newDayDesc && (
+                            <button
+                              type="button"
+                              onClick={() => setNewDayDesc(formatTravelMarkdown(newDayDesc))}
+                              className="px-2 py-0.5 text-[9px] font-bold rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
+                              title="Auto-format inline bullets (•) and labels"
+                            >
+                              ✨ Clean Formatting
+                            </button>
+                          )}
+                        </div>
+                        <textarea
+                          required
+                          rows="4"
+                          placeholder="Details on hotels, restaurants, excursions... (Use • or - for bullets, or click Clean Formatting)"
+                          value={newDayDesc}
+                          onChange={(e) => setNewDayDesc(e.target.value)}
+                          className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none resize-y"
+                        ></textarea>
+                        {newDayDesc && (
+                          <div className="mt-1 p-2 bg-stone-50 border border-stone-200 rounded text-[11px] text-stone-600 leading-relaxed">
+                            <SmartMarkdown content={newDayDesc} />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          className="flex-1 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                          </svg>
+                          {editingDayNum !== null ? `Update Day ${editingDayNum}` : 'Append Itinerary Day'}
+                        </button>
+                        {editingDayNum !== null && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingDayNum(null)
+                              setNewDayNum((selectedPackage.itinerary.length + 1).toString())
+                              setNewDayTitle('')
+                              setNewDayDesc('')
+                            }}
+                            className="px-3 py-2 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-xl text-xs font-bold cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  </div>
                 </div>
-                {itineraryError && (
-                  <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-600 rounded-lg text-[11px] font-medium flex items-center gap-2">
-                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    {itineraryError}
-                  </div>
-                )}
-                <form onSubmit={handleAddItineraryDay} className="space-y-3">
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="col-span-1">
-                      <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Day No.</label>
-                      <input
-                        type="number"
-                        required
-                        placeholder="e.g. 4"
-                        value={newDayNum}
-                        onChange={(e) => setNewDayNum(e.target.value)}
-                        className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Title Header</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Free Time & Shopping"
-                        value={newDayTitle}
-                        onChange={(e) => setNewDayTitle(e.target.value)}
-                        className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
-                      />
+              )}
+
+              {/* Sub-Tab 2: Overview & Highlights */}
+              {sidebarTab === 'overview' && (
+                <div className="space-y-4">
+                  {/* Quick Inclusions Icons */}
+                  <div className="p-3 bg-stone-50 rounded-xl border border-stone-200/80">
+                    <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2">Selected Inclusions</h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { key: 'hotel', label: 'Hotel Stay', icon: '🏨' },
+                        { key: 'flight', label: 'Flights', icon: '✈️' },
+                        { key: 'cruise', label: 'Cruise / Boat', icon: '🚢' },
+                        { key: 'sightseeing', label: 'Sightseeing', icon: '🗺️' },
+                        { key: 'airportTransfer', label: 'Transfers', icon: '🚘' },
+                        { key: 'guide', label: 'Tour Guide', icon: '🤠' }
+                      ].map(inc => {
+                        const isIncluded = selectedPackage.inclusionsSelection?.[inc.key]
+                        return (
+                          <div
+                            key={inc.key}
+                            className={`p-2 rounded-lg text-center transition-all border ${
+                              isIncluded
+                                ? 'bg-white border-amber-300 text-stone-800 shadow-sm'
+                                : 'bg-stone-100/50 border-stone-200 text-stone-350 line-through opacity-50'
+                            }`}
+                          >
+                            <span className="text-base block mb-0.5">{inc.icon}</span>
+                            <span className="text-[10px] font-bold block">{inc.label}</span>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
 
-                  <div>
-                    <textarea
-                      required
-                      rows="4"
-                      placeholder="Details on hotels, restaurants, excursions, ground transport schedules... (Press Enter for paragraphs)"
-                      value={newDayDesc}
-                      onChange={(e) => setNewDayDesc(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none resize-y"
-                    ></textarea>
-                    {newDayDesc && (
-                      <div className="mt-1 p-2 bg-stone-50 border border-stone-200 rounded text-[11px] text-stone-600 leading-relaxed whitespace-pre-line">
-                        <Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{newDayDesc}</Markdown>
-                      </div>
+                  {/* Trip Overview Description */}
+                  {selectedPackage.description && (
+                    <div className="p-3 bg-white rounded-xl border border-stone-200/80">
+                      <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1.5">Trip Overview</h4>
+                      <SmartMarkdown content={selectedPackage.description} className="text-xs text-stone-600 leading-relaxed" />
+                    </div>
+                  )}
+
+                  {/* Highlights List */}
+                  {selectedPackage.highlights && selectedPackage.highlights.length > 0 && (
+                    <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200/60">
+                      <h4 className="text-[10px] font-bold text-amber-800 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <span className="text-amber-500">✨</span> Experience Highlights
+                      </h4>
+                      <ul className="space-y-1.5">
+                        {flattenBulletedItems(selectedPackage.highlights).map((hl, idx) => (
+                          <li key={idx} className="text-xs text-stone-700 flex items-start gap-2">
+                            <span className="text-amber-500 font-bold">•</span>
+                            <SmartMarkdownInline className="flex-1">{hl}</SmartMarkdownInline>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Package Metadata */}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Best Season</span>
+                      <span className="font-bold text-stone-800">{selectedPackage.bestMonth || 'All Year Round'}</span>
+                    </div>
+                    <div className="p-2.5 bg-stone-50 rounded-xl border border-stone-200">
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Promo Badge</span>
+                      <span className="font-bold text-amber-700">{selectedPackage.ctaBadge || 'None'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-Tab 3: Detailed Inclusions, Exclusions & Terms */}
+              {sidebarTab === 'terms' && (
+                <div className="space-y-4">
+                  {/* Detailed Inclusions */}
+                  <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200/60">
+                    <h4 className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <span>✅</span> Included Services
+                    </h4>
+                    {selectedPackage.inclusions && selectedPackage.inclusions.length > 0 ? (
+                      <ul className="space-y-1 text-xs text-stone-700">
+                        {flattenBulletedItems(selectedPackage.inclusions).map((inc, idx) => (
+                          <li key={idx} className="flex items-start gap-1.5">
+                            <span className="text-emerald-600 font-bold shrink-0">✓</span>
+                            <SmartMarkdownInline className="flex-1">{inc}</SmartMarkdownInline>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-stone-400 italic">No specific inclusions listed.</p>
                     )}
                   </div>
 
-                  <div className="flex gap-2">
-                    <button
-                      type="submit"
-                      className="flex-1 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                      </svg>
-                      {editingDayNum !== null ? `Update Day ${editingDayNum}` : 'Append Itinerary Day'}
-                    </button>
-                    {editingDayNum !== null && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingDayNum(null)
-                          setNewDayNum('')
-                          setNewDayTitle('')
-                          setNewDayDesc('')
-                        }}
-                        className="px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                      >
-                        Cancel
-                      </button>
+                  {/* Exclusions */}
+                  <div className="p-3 bg-rose-50/50 rounded-xl border border-rose-200/60">
+                    <h4 className="text-[10px] font-bold text-rose-800 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <span>❌</span> Package Exclusions
+                    </h4>
+                    {selectedPackage.exclusions && selectedPackage.exclusions.length > 0 ? (
+                      <ul className="space-y-1 text-xs text-stone-700">
+                        {flattenBulletedItems(selectedPackage.exclusions).map((exc, idx) => (
+                          <li key={idx} className="flex items-start gap-1.5">
+                            <span className="text-rose-500 font-bold shrink-0">✕</span>
+                            <SmartMarkdownInline className="flex-1">{exc}</SmartMarkdownInline>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-stone-400 italic">No specific exclusions listed.</p>
                     )}
                   </div>
-                </form>
-              </div>
+
+                  {/* Terms & Conditions */}
+                  <div className="p-3 bg-stone-50 rounded-xl border border-stone-200">
+                    <h4 className="text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <span>📜</span> Terms & Conditions
+                    </h4>
+                    {selectedPackage.termsAndConditions ? (
+                      <SmartMarkdown content={selectedPackage.termsAndConditions} className="text-xs text-stone-600 leading-relaxed" />
+                    ) : (
+                      <p className="text-xs text-stone-400 italic">Standard agency terms and conditions apply.</p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Delete Package Button */}
               {user && roleHas(user.role, 'delete:packages') && (
-              <div className="border-t border-stone-100 pt-4">
-                <button
-                  onClick={() => handleDeletePackage(selectedPackage.id)}
-                  className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-350 rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  Delete Vacation Package
-                </button>
-              </div>
+                <div className="border-t border-stone-100 pt-4">
+                  <button
+                    onClick={() => handleDeletePackage(selectedPackage.id)}
+                    className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-350 rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Vacation Package
+                  </button>
+                </div>
               )}
             </div>
           ) : (
@@ -1413,11 +1374,11 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       {/* Add Package Modal */}
       {showAddPackageForm && (
         <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-3 sm:p-6 pt-20 sm:pt-24 pb-8 overflow-y-auto" role="dialog" aria-modal="true">
-          <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[85vh] my-auto overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col h-[85vh] max-h-[85vh] my-auto overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center p-6 pb-4 border-b border-stone-100 shrink-0">
               <h3 className="text-base font-bold text-stone-900">{bespokeMode ? 'Add Bespoke Package' : 'Add Vacation Package'}</h3>
               <button
-                onClick={() => { setShowAddPackageForm(false); setBespokeMode(false) }}
+                onClick={() => { setShowAddPackageForm(false); setBespokeMode(false); setAddFormTab('basic'); }}
                 className="p-1 rounded-lg hover:bg-stone-100 text-stone-400 cursor-pointer"
               >
                 <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1425,468 +1386,736 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
                 </svg>
               </button>
             </div>
-            <form onSubmit={handleAddPackage} className="space-y-4 px-6 pb-6 overflow-y-auto">
-              {/* Package Image Upload */}
-              <div className="p-3 bg-stone-50/50 border border-stone-200 rounded-xl">
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Image (Cover & Hero)</label>
-                <div className="flex items-center gap-3">
-                  <div className="w-16 h-12 rounded-lg bg-stone-100 p-0.5 border border-stone-200 shrink-0 relative overflow-hidden">
-                    <img src={pkgCardImage || pkgHeroImage} alt="Preview" className="w-full h-full object-cover rounded" />
-                  </div>
-                  <div className="relative overflow-hidden flex-grow">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handlePackageImageUpload(e, false)}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 bg-white border border-stone-200 hover:bg-stone-50 rounded-lg text-xs font-semibold text-stone-600 transition-all cursor-pointer"
-                    >
-                      Choose Image
-                    </button>
-                    <p className="text-[9px] text-stone-400 mt-1">This image will be used for both card cover and detail page header.</p>
-                  </div>
-                </div>
+            
+            <form onSubmit={handleAddPackage} className="flex flex-col flex-1 min-h-0 overflow-hidden p-6 pt-4">
+              {/* Modal Step Navigation Bar */}
+              <div className="flex border border-stone-200 bg-stone-100/70 rounded-xl p-1 gap-1 mb-4 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setAddFormTab('basic')}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    addFormTab === 'basic'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
+                  }`}
+                >
+                  1. Basic & Pricing
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddFormTab('overview')}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    addFormTab === 'overview'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
+                  }`}
+                >
+                  2. Overview & Highlights
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddFormTab('itinerary')}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    addFormTab === 'itinerary'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
+                  }`}
+                >
+                  3. Itinerary ({pkgFormItinerary.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddFormTab('terms')}
+                  className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                    addFormTab === 'terms'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
+                  }`}
+                >
+                  4. Inclusions & Terms
+                </button>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Name <span className="text-rose-500">*</span></label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Tuscan Gastronomy Experience"
-                  value={pkgName}
-                  onChange={(e) => setPkgName(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Duration (Days) <span className="text-rose-500">*</span></label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    max="30"
-                    placeholder="e.g. 5"
-                    value={pkgDays}
-                    onChange={(e) => setPkgDays(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Base Price (INR) · Retail <span className="text-rose-500">*</span></label>
-                  <input
-                    type="number"
-                    required
-                    min="100"
-                    placeholder="e.g. 3500"
-                    value={pkgPrice}
-                    onChange={(e) => setPkgPrice(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Cost Price (INR) · Supplier</label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 2500"
-                    value={pkgCostPrice}
-                    onChange={(e) => setPkgCostPrice(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Live margin preview + apply default markup */}
-              {(() => {
-                const base = parseFloat((pkgPrice || '').replace(/,/g, '')) || 0
-                const cost = parseFloat((pkgCostPrice || '').replace(/,/g, '')) || 0
-                const marginINR = base - cost
-                const marginPct = cost > 0 ? (marginINR / cost) * 100 : 0
-                const defaultMarkupPct = parseFloat(settings?.rules?.markup ?? settings?.defaultMarkup ?? '15') || 0
-                const applyDefault = () => {
-                  if (cost <= 0) return
-                  const newBase = (cost * (1 + defaultMarkupPct / 100)).toFixed(2)
-                  setPkgPrice(newBase)
-                }
-                return (
-                  <div className="flex items-center justify-between p-2.5 bg-[#FAF9F5] border border-stone-200/60 rounded-lg">
-                    <span className="text-[11px] text-stone-600 font-semibold">
-                      Margin: <span className="text-amber-700 font-bold">₹{marginINR.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      {cost > 0 && <span className="text-stone-400 ml-1">({marginPct.toFixed(1)}% over cost)</span>}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={applyDefault}
-                      disabled={cost <= 0}
-                      title={cost <= 0 ? 'Enter Cost Price first' : `Apply agency default markup of ${defaultMarkupPct}%`}
-                      className="px-2.5 py-1 text-[10px] font-bold rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
-                    >
-                      Apply Default Markup ({defaultMarkupPct}%)
-                    </button>
-                  </div>
-                )
-              })()}
-
-              <div className={`grid ${bespokeMode ? 'grid-cols-2' : 'grid-cols-3'} gap-4`}>
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Destination Region</label>
-                  <select
-                    value={pkgRegion}
-                    onChange={(e) => setPkgRegion(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                  >
-                    <option value="Africa">Africa</option>
-                    <option value="Asia">Asia</option>
-                    <option value="Australia">Australia</option>
-                    <option value="Europe">Europe</option>
-                    <option value="Middle East">Middle East</option>
-                    <option value="North America">North America</option>
-                    <option value="South America">South America</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Category</label>
-                  <select
-                    value={pkgCategory}
-                    onChange={(e) => setPkgCategory(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                  >
-                    <option value="standard">Standard</option>
-                    <option value="luxury">Luxury</option>
-                    <option value="weekend">Weekend Getaway</option>
-                    <option value="event">Events & Festivals</option>
-                  </select>
-                </div>
-                {!bespokeMode && (
-                  <div>
-                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Total Allotment Slots <span className="text-rose-500">*</span></label>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      placeholder="e.g. 20"
-                      value={pkgSlots}
-                      onChange={(e) => setPkgSlots(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Scheduled Departure Toggle & Dates */}
-              <div className="p-3 bg-amber-50/50 border border-amber-200/80 rounded-xl space-y-3">
-                <label className="flex items-center gap-2 text-xs font-bold text-stone-800 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isScheduledDeparture}
-                    onChange={(e) => setIsScheduledDeparture(e.target.checked)}
-                    className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
-                  />
-                  Mark as Scheduled Departure (Group Tour)
-                </label>
-                {isScheduledDeparture && (
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1">Departure Date <span className="text-rose-500">*</span></label>
-                      <input
-                        type="date"
-                        required={isScheduledDeparture}
-                        value={pkgDepartureDate}
-                        onChange={(e) => setPkgDepartureDate(e.target.value)}
-                        className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1">Return Date <span className="text-rose-500">*</span></label>
-                      <input
-                        type="date"
-                        required={isScheduledDeparture}
-                        value={pkgReturnDate}
-                        onChange={(e) => setPkgReturnDate(e.target.value)}
-                        className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {specialityCategories.length > 0 && (
-                <div className="pt-2">
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2">Speciality Experience Tags</label>
-                  <div className="flex flex-wrap gap-2">
-                    {specialityCategories.map(cat => {
-                      const isChecked = pkgCategoryIds.includes(cat.id)
-                      return (
-                        <label
-                          key={cat.id}
-                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold cursor-pointer transition-all ${
-                            isChecked
-                              ? 'bg-amber-600 text-white border-amber-650 shadow-xs'
-                              : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
-                          }`}
-                        >
+              <div className="space-y-4 overflow-y-auto flex-1 min-h-0 pr-1 pb-2">
+                {/* Step 1: Basic & Pricing */}
+                {addFormTab === 'basic' && (
+                  <div className="space-y-4">
+                    {/* Package Image Upload */}
+                    <div className="p-3 bg-stone-50/50 border border-stone-200 rounded-xl">
+                      <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Image (Cover & Hero)</label>
+                      <div className="flex items-center gap-3">
+                        <div className="w-16 h-12 rounded-lg bg-stone-100 p-0.5 border border-stone-200 shrink-0 relative overflow-hidden">
+                          <img src={pkgCardImage || pkgHeroImage} alt="Preview" className="w-full h-full object-cover rounded" />
+                        </div>
+                        <div className="relative overflow-hidden flex-grow">
                           <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setPkgCategoryIds([...pkgCategoryIds, cat.id])
-                              } else {
-                                setPkgCategoryIds(pkgCategoryIds.filter(id => id !== cat.id))
-                              }
-                            }}
-                            className="sr-only"
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handlePackageImageUpload(e, false)}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                           />
-                          <span>{cat.name}</span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2">Package Inclusions Selection</label>
-                <div className="grid grid-cols-2 gap-2 bg-stone-50 p-3 rounded-xl border border-stone-200">
-                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pkgInclusions.hotel}
-                      onChange={(e) => setPkgInclusions(prev => ({ ...prev, hotel: e.target.checked }))}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Hotel</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pkgInclusions.sightseeing}
-                      onChange={(e) => setPkgInclusions(prev => ({ ...prev, sightseeing: e.target.checked }))}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Sightseeing</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pkgInclusions.guide}
-                      onChange={(e) => setPkgInclusions(prev => ({ ...prev, guide: e.target.checked }))}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Guide</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pkgInclusions.airportTransfer}
-                      onChange={(e) => setPkgInclusions(prev => ({ ...prev, airportTransfer: e.target.checked }))}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Airport Transfer</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pkgInclusions.flight}
-                      onChange={(e) => setPkgInclusions(prev => ({ ...prev, flight: e.target.checked }))}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Flight</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={pkgInclusions.cruise}
-                      onChange={(e) => setPkgInclusions(prev => ({ ...prev, cruise: e.target.checked }))}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Cruise</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Overview / Description <span className="text-rose-500">*</span></label>
-                <textarea
-                  rows="3"
-                  value={pkgDescription}
-                  onChange={(e) => setPkgDescription(e.target.value)}
-                  placeholder="Describe the travel package experience..."
-                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none resize-none"
-                />
-                {pkgDescription && (
-                  <details className="mt-1.5 group">
-                    <summary className="text-[9px] font-bold text-stone-400 uppercase tracking-wider cursor-pointer hover:text-amber-600 select-none">Preview</summary>
-                    <div className="mt-1.5 p-3 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-700 leading-relaxed">
-                      <Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{pkgDescription}</Markdown>
+                          <button
+                            type="button"
+                            className="px-3 py-1.5 bg-white border border-stone-200 hover:bg-stone-50 rounded-lg text-xs font-semibold text-stone-600 transition-all cursor-pointer"
+                          >
+                            Choose Image
+                          </button>
+                          <p className="text-[9px] text-stone-400 mt-1">This image will be used for both card cover and detail page header.</p>
+                        </div>
+                      </div>
                     </div>
-                  </details>
-                )}
-              </div>
 
-              {/* Terms & Conditions (Markdown Support) */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">Terms & Conditions (Markdown Supported)</label>
-                  <div className="flex gap-1 text-[10px] font-bold">
-                    <button
-                      type="button"
-                      onClick={() => setPkgTermsTab('write')}
-                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${pkgTermsTab === 'write' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
-                    >
-                      Write
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPkgTermsTab('preview')}
-                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${pkgTermsTab === 'preview' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
-                    >
-                      Preview
-                    </button>
-                  </div>
-                </div>
-                {pkgTermsTab === 'write' ? (
-                  <textarea
-                    rows="4"
-                    value={pkgTerms}
-                    onChange={(e) => setPkgTerms(e.target.value)}
-                    placeholder="Enter terms & conditions in markdown format (e.g. ## Cancellation Policy&#10;* 100% refund up to 15 days before travel)"
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none font-mono resize-y"
-                  />
-                ) : (
-                  <div className="p-3 bg-amber-50/50 border border-amber-200/60 rounded-lg text-xs text-stone-700 leading-relaxed min-h-[90px]">
-                    {pkgTerms.trim() ? (
-                      <Markdown>{pkgTerms}</Markdown>
-                    ) : (
-                      <span className="text-stone-400 italic">No terms entered yet.</span>
+                    <div>
+                      <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Name <span className="text-rose-500">*</span></label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Tuscan Gastronomy Experience"
+                        value={pkgName}
+                        onChange={(e) => setPkgName(e.target.value)}
+                        className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Duration (Days) <span className="text-rose-500">*</span></label>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          max="30"
+                          placeholder="e.g. 5"
+                          value={pkgDays}
+                          onChange={(e) => setPkgDays(e.target.value)}
+                          className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Base Price (INR) · Retail <span className="text-rose-500">*</span></label>
+                        <input
+                          type="number"
+                          required
+                          min="100"
+                          placeholder="e.g. 3500"
+                          value={pkgPrice}
+                          onChange={(e) => setPkgPrice(e.target.value)}
+                          className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Cost Price (INR) · Supplier</label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="e.g. 2500"
+                          value={pkgCostPrice}
+                          onChange={(e) => setPkgCostPrice(e.target.value)}
+                          className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Live margin preview */}
+                    {(() => {
+                      const base = parseFloat((pkgPrice || '').replace(/,/g, '')) || 0
+                      const cost = parseFloat((pkgCostPrice || '').replace(/,/g, '')) || 0
+                      const marginINR = base - cost
+                      const marginPct = cost > 0 ? (marginINR / cost) * 100 : 0
+                      const defaultMarkupPct = parseFloat(settings?.rules?.markup ?? settings?.defaultMarkup ?? '15') || 0
+                      const applyDefault = () => {
+                        if (cost <= 0) return
+                        const newBase = (cost * (1 + defaultMarkupPct / 100)).toFixed(2)
+                        setPkgPrice(newBase)
+                      }
+                      return (
+                        <div className="flex items-center justify-between p-2.5 bg-[#FAF9F5] border border-stone-200/60 rounded-lg">
+                          <span className="text-[11px] text-stone-600 font-semibold">
+                            Margin: <span className="text-amber-700 font-bold">₹{marginINR.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            {cost > 0 && <span className="text-stone-400 ml-1">({marginPct.toFixed(1)}% over cost)</span>}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={applyDefault}
+                            disabled={cost <= 0}
+                            title={cost <= 0 ? 'Enter Cost Price first' : `Apply agency default markup of ${defaultMarkupPct}%`}
+                            className="px-2.5 py-1 text-[10px] font-bold rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+                          >
+                            Apply Default Markup ({defaultMarkupPct}%)
+                          </button>
+                        </div>
+                      )
+                    })()}
+
+                    <div className={`grid ${bespokeMode ? 'grid-cols-2' : 'grid-cols-3'} gap-4`}>
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Destination Region</label>
+                        <select
+                          value={pkgRegion}
+                          onChange={(e) => setPkgRegion(e.target.value)}
+                          className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                        >
+                          <option value="Africa">Africa</option>
+                          <option value="Asia">Asia</option>
+                          <option value="Australia">Australia</option>
+                          <option value="Europe">Europe</option>
+                          <option value="Middle East">Middle East</option>
+                          <option value="North America">North America</option>
+                          <option value="South America">South America</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Category</label>
+                        <select
+                          value={pkgCategory}
+                          onChange={(e) => setPkgCategory(e.target.value)}
+                          className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                        >
+                          <option value="standard">Standard</option>
+                          <option value="luxury">Luxury</option>
+                          <option value="weekend">Weekend Getaway</option>
+                          <option value="event">Events & Festivals</option>
+                        </select>
+                      </div>
+                      {!bespokeMode && (
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Total Allotment Slots <span className="text-rose-500">*</span></label>
+                          <input
+                            type="number"
+                            required
+                            min="1"
+                            placeholder="e.g. 20"
+                            value={pkgSlots}
+                            onChange={(e) => setPkgSlots(e.target.value)}
+                            className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Scheduled Departure Toggle & Dates */}
+                    <div className="p-3 bg-amber-50/50 border border-amber-200/80 rounded-xl space-y-3">
+                      <label className="flex items-center gap-2 text-xs font-bold text-stone-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isScheduledDeparture}
+                          onChange={(e) => setIsScheduledDeparture(e.target.checked)}
+                          className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"
+                        />
+                        Mark as Scheduled Departure (Group Tour)
+                      </label>
+                      {isScheduledDeparture && (
+                        <div className="grid grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1">Departure Date <span className="text-rose-500">*</span></label>
+                            <input
+                              type="date"
+                              required={isScheduledDeparture}
+                              value={pkgDepartureDate}
+                              onChange={(e) => setPkgDepartureDate(e.target.value)}
+                              className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider mb-1">Return Date <span className="text-rose-500">*</span></label>
+                            <input
+                              type="date"
+                              required={isScheduledDeparture}
+                              value={pkgReturnDate}
+                              onChange={(e) => setPkgReturnDate(e.target.value)}
+                              className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {specialityCategories.length > 0 && (
+                      <div className="pt-2">
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2">Speciality Experience Tags</label>
+                        <div className="flex flex-wrap gap-2">
+                          {specialityCategories.map(cat => {
+                            const isChecked = pkgCategoryIds.includes(cat.id)
+                            return (
+                              <label
+                                key={cat.id}
+                                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold cursor-pointer transition-all ${
+                                  isChecked
+                                    ? 'bg-amber-600 text-white border-amber-650 shadow-xs'
+                                    : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setPkgCategoryIds([...pkgCategoryIds, cat.id])
+                                    } else {
+                                      setPkgCategoryIds(pkgCategoryIds.filter(id => id !== cat.id))
+                                    }
+                                  }}
+                                  className="sr-only"
+                                />
+                                <span>{cat.name}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
-              </div>
 
-              {/* Highlights */}
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Trip Highlights</label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={pkgHighlightInput}
-                    onChange={(e) => setPkgHighlightInput(e.target.value)}
-                    placeholder="e.g. Visit ancient temples"
-                    className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (pkgHighlightInput.trim()) {
-                        setPkgHighlights([...pkgHighlights, pkgHighlightInput.trim()])
-                        setPkgHighlightInput('')
-                      }
-                    }}
-                    className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
-                  >Add</button>
-                </div>
-                {pkgHighlights.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {pkgHighlights.map((item, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-stone-100 border border-stone-200 rounded text-[10px] text-stone-700 font-medium">
-                        {item}
-                        <button type="button" onClick={() => setPkgHighlights(pkgHighlights.filter((_, idx) => idx !== i))} className="text-stone-400 hover:text-rose-600 cursor-pointer">&times;</button>
+                {/* Step 2: Overview & Highlights */}
+                {addFormTab === 'overview' && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2">Package Inclusions Selection</label>
+                      <div className="grid grid-cols-2 gap-2 bg-stone-50 p-3 rounded-xl border border-stone-200">
+                        <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={pkgInclusions.hotel}
+                            onChange={(e) => setPkgInclusions(prev => ({ ...prev, hotel: e.target.checked }))}
+                            className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                          />
+                          <span>Hotel</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={pkgInclusions.sightseeing}
+                            onChange={(e) => setPkgInclusions(prev => ({ ...prev, sightseeing: e.target.checked }))}
+                            className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                          />
+                          <span>Sightseeing</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={pkgInclusions.guide}
+                            onChange={(e) => setPkgInclusions(prev => ({ ...prev, guide: e.target.checked }))}
+                            className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                          />
+                          <span>Guide</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={pkgInclusions.airportTransfer}
+                            onChange={(e) => setPkgInclusions(prev => ({ ...prev, airportTransfer: e.target.checked }))}
+                            className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                          />
+                          <span>Airport Transfer</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={pkgInclusions.flight}
+                            onChange={(e) => setPkgInclusions(prev => ({ ...prev, flight: e.target.checked }))}
+                            className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                          />
+                          <span>Flight</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={pkgInclusions.cruise}
+                            onChange={(e) => setPkgInclusions(prev => ({ ...prev, cruise: e.target.checked }))}
+                            className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                          />
+                          <span>Cruise</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Description */}
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">Overview / Description <span className="text-rose-500">*</span></label>
+                        {pkgDescription && (
+                          <button
+                            type="button"
+                            onClick={() => setPkgDescription(formatTravelMarkdown(pkgDescription))}
+                            className="px-2 py-0.5 text-[9px] font-bold rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
+                            title="Auto-format inline bullets (•) and labels"
+                          >
+                            ✨ Clean Formatting
+                          </button>
+                        )}
+                      </div>
+                      <textarea
+                        rows="4"
+                        value={pkgDescription}
+                        onChange={(e) => setPkgDescription(e.target.value)}
+                        placeholder="Describe the travel package experience..."
+                        className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none resize-y"
+                      />
+                      {pkgDescription && (
+                        <details className="mt-1.5 group">
+                          <summary className="text-[9px] font-bold text-stone-400 uppercase tracking-wider cursor-pointer hover:text-amber-600 select-none">Preview</summary>
+                          <div className="mt-1.5 p-3 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-700 leading-relaxed">
+                            <SmartMarkdown content={pkgDescription} />
+                          </div>
+                        </details>
+                      )}
+                    </div>
+
+                    {/* Highlights */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Trip Highlights (pasting multiple bullets splits automatically)</label>
+                      <div className="flex gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={pkgHighlightInput}
+                          onChange={(e) => setPkgHighlightInput(e.target.value)}
+                          placeholder="e.g. Visit ancient temples • Cable car ride"
+                          className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (pkgHighlightInput.trim()) {
+                              const items = splitBulletedItems(pkgHighlightInput)
+                              setPkgHighlights([...pkgHighlights, ...items])
+                              setPkgHighlightInput('')
+                            }
+                          }}
+                          className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
+                        >Add</button>
+                      </div>
+                      {pkgHighlights.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {pkgHighlights.map((item, i) => (
+                            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-stone-100 border border-stone-200 rounded text-[10px] text-stone-700 font-medium">
+                              <SmartMarkdownInline>{item}</SmartMarkdownInline>
+                              <button type="button" onClick={() => setPkgHighlights(pkgHighlights.filter((_, idx) => idx !== i))} className="text-stone-400 hover:text-rose-600 cursor-pointer">&times;</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 3: Itinerary Schedule */}
+                {addFormTab === 'itinerary' && (
+                  <div className="space-y-3 p-3.5 bg-stone-50 border border-stone-200/80 rounded-xl">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                          Day-by-Day Itinerary Schedule
+                        </h4>
+                        <p className="text-[10px] text-stone-500">
+                          Add day-by-day travel events directly to this package.
+                        </p>
+                      </div>
+                      <span className="text-[10px] text-amber-700 font-bold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                        {pkgFormItinerary.length} Days Added
                       </span>
-                    ))}
+                    </div>
+
+                    {/* Existing Days Timeline List */}
+                    {pkgFormItinerary.length > 0 && (
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {pkgFormItinerary.map((item, idx) => (
+                          <div key={item.day} className="p-2.5 bg-white border border-stone-200 rounded-lg relative group space-y-1">
+                            <div className="flex justify-between items-center pr-16">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 bg-amber-600 text-white font-bold text-[9px] uppercase tracking-wider rounded">
+                                  Day {item.day}
+                                </span>
+                                <h5 className="text-xs font-bold text-stone-800">{item.title}</h5>
+                              </div>
+                            </div>
+                            <SmartMarkdown content={item.desc} className="text-[11px] text-stone-600 leading-relaxed pl-1" />
+                            
+                            <div className="absolute right-2 top-2 flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingPkgFormDayIdx(idx)
+                                  setPkgFormDayNum(item.day.toString())
+                                  setPkgFormDayTitle(item.title)
+                                  setPkgFormDayDesc(item.desc)
+                                }}
+                                className="p-1 rounded hover:bg-amber-50 text-stone-400 hover:text-amber-600 cursor-pointer"
+                                title="Edit Day"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePkgFormItineraryDay(item.day)}
+                                className="p-1 rounded hover:bg-rose-50 text-stone-400 hover:text-rose-600 cursor-pointer"
+                                title="Remove Day"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Form to Add / Edit Day inside Modal */}
+                    <div className="pt-2 border-t border-stone-200/60 space-y-2">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="col-span-1">
+                          <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Day No.</label>
+                          <input
+                            type="number"
+                            placeholder="1"
+                            value={pkgFormDayNum}
+                            onChange={(e) => setPkgFormDayNum(e.target.value)}
+                            className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Day Title</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Arrival & Hotel Check-in"
+                            value={pkgFormDayTitle}
+                            onChange={(e) => setPkgFormDayTitle(e.target.value)}
+                            className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider">Day Description (Markdown Supported)</label>
+                          {pkgFormDayDesc && (
+                            <button
+                              type="button"
+                              onClick={() => setPkgFormDayDesc(formatTravelMarkdown(pkgFormDayDesc))}
+                              className="px-2 py-0.5 text-[9px] font-bold rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
+                              title="Auto-format inline bullets (•) and labels"
+                            >
+                              ✨ Clean Formatting
+                            </button>
+                          )}
+                        </div>
+                        <textarea
+                          rows="3"
+                          placeholder="Details on schedule, meals, transport... (Use • for bullets)"
+                          value={pkgFormDayDesc}
+                          onChange={(e) => setPkgFormDayDesc(e.target.value)}
+                          className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none resize-y"
+                        />
+                        {pkgFormDayDesc && (
+                          <div className="mt-1 p-2 bg-white border border-stone-200 rounded text-[11px] text-stone-600 leading-relaxed">
+                            <SmartMarkdown content={pkgFormDayDesc} />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={handleAddPkgFormItineraryDay}
+                          className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
+                        >
+                          <span>+</span>
+                          {editingPkgFormDayIdx !== null ? `Save Day ${pkgFormDayNum}` : `Add Day ${pkgFormDayNum} Event`}
+                        </button>
+                        {editingPkgFormDayIdx !== null && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingPkgFormDayIdx(null)
+                              setPkgFormDayNum((pkgFormItinerary.length + 1).toString())
+                              setPkgFormDayTitle('')
+                              setPkgFormDayDesc('')
+                            }}
+                            className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-lg text-xs font-bold cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 4: Inclusions & Terms */}
+                {addFormTab === 'terms' && (
+                  <div className="space-y-4">
+                    {/* Inclusions List */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Inclusions (detailed list, pasting bullets splits automatically)</label>
+                      <div className="flex gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={pkgInclusionInput}
+                          onChange={(e) => setPkgInclusionInput(e.target.value)}
+                          placeholder="e.g. 5-star hotel accommodation • Breakfast included"
+                          className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (pkgInclusionInput.trim()) {
+                              const items = splitBulletedItems(pkgInclusionInput)
+                              setPkgInclusionsList([...pkgInclusionsList, ...items])
+                              setPkgInclusionInput('')
+                            }
+                          }}
+                          className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
+                        >Add</button>
+                      </div>
+                      {pkgInclusionsList.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {pkgInclusionsList.map((item, i) => (
+                            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded text-[10px] text-emerald-700 font-medium">
+                              <SmartMarkdownInline>{item}</SmartMarkdownInline>
+                              <button type="button" onClick={() => setPkgInclusionsList(pkgInclusionsList.filter((_, idx) => idx !== i))} className="text-emerald-400 hover:text-rose-600 cursor-pointer">&times;</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Exclusions */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Exclusions (pasting bullets splits automatically)</label>
+                      <div className="flex gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={pkgExclusionInput}
+                          onChange={(e) => setPkgExclusionInput(e.target.value)}
+                          placeholder="e.g. International flights • Personal expenses"
+                          className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (pkgExclusionInput.trim()) {
+                              const items = splitBulletedItems(pkgExclusionInput)
+                              setPkgExclusions([...pkgExclusions, ...items])
+                              setPkgExclusionInput('')
+                            }
+                          }}
+                          className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
+                        >Add</button>
+                      </div>
+                      {pkgExclusions.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {pkgExclusions.map((item, i) => (
+                            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 border border-rose-200 rounded text-[10px] text-rose-700 font-medium">
+                              <SmartMarkdownInline>{item}</SmartMarkdownInline>
+                              <button type="button" onClick={() => setPkgExclusions(pkgExclusions.filter((_, idx) => idx !== i))} className="text-rose-400 hover:text-rose-600 cursor-pointer">&times;</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Terms & Conditions (Markdown Support) */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">Terms & Conditions (Markdown Supported)</label>
+                        <div className="flex items-center gap-1 text-[10px] font-bold">
+                          {pkgTerms && (
+                            <button
+                              type="button"
+                              onClick={() => setPkgTerms(formatTravelMarkdown(pkgTerms))}
+                              className="mr-1 px-2 py-0.5 text-[9px] font-bold rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
+                              title="Auto-format inline bullets (•) and headers"
+                            >
+                              ✨ Clean Formatting
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setPkgTermsTab('write')}
+                            className={`px-2 py-0.5 rounded transition-all cursor-pointer ${pkgTermsTab === 'write' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                          >
+                            Write
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPkgTermsTab('preview')}
+                            className={`px-2 py-0.5 rounded transition-all cursor-pointer ${pkgTermsTab === 'preview' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                          >
+                            Preview
+                          </button>
+                        </div>
+                      </div>
+                      {pkgTermsTab === 'write' ? (
+                        <textarea
+                          rows="4"
+                          value={pkgTerms}
+                          onChange={(e) => setPkgTerms(e.target.value)}
+                          placeholder="Enter terms & conditions in markdown format (e.g. CONTRACT: ... or use • for bullets)"
+                          className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none font-mono resize-y"
+                        />
+                      ) : (
+                        <div className="p-3 bg-amber-50/50 border border-amber-200/60 rounded-lg text-xs text-stone-700 leading-relaxed min-h-[90px]">
+                          {pkgTerms.trim() ? (
+                            <SmartMarkdown content={pkgTerms} />
+                          ) : (
+                            <span className="text-stone-400 italic">No terms entered yet.</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Inclusions List */}
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Inclusions (detailed list)</label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={pkgInclusionInput}
-                    onChange={(e) => setPkgInclusionInput(e.target.value)}
-                    placeholder="e.g. 5-star hotel accommodation"
-                    className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
-                  />
+              {/* Step Navigation Buttons Footer */}
+              <div className="pt-3 border-t border-stone-100 flex justify-between items-center shrink-0">
+                <div>
+                  {addFormTab !== 'basic' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (addFormTab === 'overview') setAddFormTab('basic')
+                        else if (addFormTab === 'itinerary') setAddFormTab('overview')
+                        else if (addFormTab === 'terms') setAddFormTab('itinerary')
+                      }}
+                      className="px-3.5 py-1.5 border border-stone-200 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-50 cursor-pointer"
+                    >
+                      ← Previous Step
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      if (pkgInclusionInput.trim()) {
-                        setPkgInclusionsList([...pkgInclusionsList, pkgInclusionInput.trim()])
-                        setPkgInclusionInput('')
-                      }
-                    }}
-                    className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
-                  >Add</button>
+                    onClick={() => { setShowAddPackageForm(false); setBespokeMode(false); setAddFormTab('basic'); }}
+                    className="px-4 py-1.5 border border-stone-200 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  {addFormTab !== 'terms' ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (addFormTab === 'basic') setAddFormTab('overview')
+                        else if (addFormTab === 'overview') setAddFormTab('itinerary')
+                        else if (addFormTab === 'itinerary') setAddFormTab('terms')
+                      }}
+                      className="px-4 py-1.5 bg-stone-800 hover:bg-stone-700 text-white rounded-lg text-xs font-bold cursor-pointer"
+                    >
+                      Next Step →
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      className="px-5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
+                    >
+                      Create Package
+                    </button>
+                  )}
                 </div>
-                {pkgInclusionsList.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {pkgInclusionsList.map((item, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded text-[10px] text-emerald-700 font-medium">
-                        {item}
-                        <button type="button" onClick={() => setPkgInclusionsList(pkgInclusionsList.filter((_, idx) => idx !== i))} className="text-emerald-400 hover:text-rose-600 cursor-pointer">&times;</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Exclusions */}
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Exclusions</label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={pkgExclusionInput}
-                    onChange={(e) => setPkgExclusionInput(e.target.value)}
-                    placeholder="e.g. International flights"
-                    className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (pkgExclusionInput.trim()) {
-                        setPkgExclusions([...pkgExclusions, pkgExclusionInput.trim()])
-                        setPkgExclusionInput('')
-                      }
-                    }}
-                    className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
-                  >Add</button>
-                </div>
-                {pkgExclusions.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {pkgExclusions.map((item, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 border border-rose-200 rounded text-[10px] text-rose-700 font-medium">
-                        {item}
-                        <button type="button" onClick={() => setPkgExclusions(pkgExclusions.filter((_, idx) => idx !== i))} className="text-rose-400 hover:text-rose-600 cursor-pointer">&times;</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-4 border-t border-stone-100 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setShowAddPackageForm(false); setBespokeMode(false) }}
-                  className="px-4 py-2 border border-stone-200 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-50 active:scale-95 transition-all cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition-all cursor-pointer"
-                >
-                  {bespokeMode ? 'Create Bespoke Package' : 'Create Package'}
-                </button>
               </div>
             </form>
           </div>
@@ -1896,11 +2125,11 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
       {/* Edit Package Modal */}
       {showEditPackageForm && (
         <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-3 sm:p-6 pt-20 sm:pt-24 pb-8 overflow-y-auto" role="dialog" aria-modal="true">
-          <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[85vh] my-auto overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col h-[85vh] max-h-[85vh] my-auto overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center p-6 pb-4 border-b border-stone-100 shrink-0">
               <h3 className="text-base font-bold text-stone-900">Edit Vacation Package</h3>
               <button
-                onClick={() => setShowEditPackageForm(false)}
+                onClick={() => { setShowEditPackageForm(false); setEditFormTab('basic'); }}
                 className="p-1 rounded-lg hover:bg-stone-100 text-stone-400 cursor-pointer"
               >
                 <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1909,526 +2138,771 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditPackage} className="space-y-4 px-6 pb-6 overflow-y-auto">
+            <form onSubmit={handleSaveEditPackage} className="flex flex-col flex-1 min-h-0 overflow-hidden p-6 pt-4">
               {!canWritePackage && <ReadOnlyBanner message="View-only mode — you can view but not edit this package" />}
-              <fieldset disabled={!canWritePackage}>
-              {/* Package Image Upload */}
-              <div className="p-3 bg-stone-50/50 border border-stone-200 rounded-xl">
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Image (Cover & Hero)</label>
-                <div className="flex items-center gap-3">
-                  <div className="w-16 h-12 rounded-lg bg-stone-100 p-0.5 border border-stone-200 shrink-0 relative overflow-hidden">
-                    <img src={imgUrl(editPkgCardImage || editPkgHeroImage)} alt="Preview" className="w-full h-full object-cover rounded" />
-                  </div>
-                  <div className="relative overflow-hidden flex-grow">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handlePackageImageUpload(e, true)}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 bg-white border border-stone-200 hover:bg-stone-50 rounded-lg text-xs font-semibold text-stone-600 transition-all cursor-pointer"
-                    >
-                      Choose Image
-                    </button>
-                    <p className="text-[9px] text-stone-400 mt-1">This image will be used for both card cover and detail page header.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Name <span className="text-rose-500">*</span></label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Tuscan Gastronomy Experience"
-                  value={editPkgName}
-                  onChange={(e) => setEditPkgName(e.target.value)}
-                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Duration (Days) <span className="text-rose-500">*</span></label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    max="30"
-                    placeholder="e.g. 5"
-                    value={editPkgDays}
-                    onChange={(e) => setEditPkgDays(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
-                    Base Price · Retail <span className="text-rose-500">*</span>
-                    <span className="ml-1 text-amber-600">{priceInUsd ? 'USD' : '₹'}</span>
-                  </label>
-                  <div className="flex gap-1.5 items-center">
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      step={priceInUsd ? '0.01' : '1'}
-                      placeholder={priceInUsd ? 'e.g. 409.36' : 'e.g. 35000'}
-                      value={(() => {
-                        const rate = parseFloat(settings.inrToUsdRate ?? 0)
-                        if (priceInUsd && rate > 0 && editPkgPrice) {
-                          return (parseFloat(editPkgPrice) / rate).toFixed(2)
-                        }
-                        return editPkgPrice
-                      })()}
-                      onChange={(e) => {
-                        const rate = parseFloat(settings.inrToUsdRate ?? 0)
-                        if (priceInUsd && rate > 0) {
-                          setEditPkgPrice((parseFloat(e.target.value) * rate).toString())
-                        } else {
-                          setEditPkgPrice(e.target.value)
-                        }
-                      }}
-                      className="w-full min-w-0 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setPriceInUsd(v => !v)}
-                      disabled={!parseFloat(settings.inrToUsdRate ?? 0)}
-                      title={!parseFloat(settings.inrToUsdRate ?? 0) ? 'Set exchange rate in Settings first' : 'Toggle INR / USD'}
-                      className={`shrink-0 px-2.5 py-[9px] text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${priceInUsd
-                        ? 'bg-amber-500 text-white border-amber-500 hover:bg-amber-600'
-                        : 'bg-stone-100 text-stone-500 border-stone-200 hover:bg-stone-200'
-                        } disabled:opacity-40 disabled:cursor-not-allowed`}
-                    >
-                      {priceInUsd ? 'USD' : '₹'}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
-                    Cost Price · Supplier
-                    <span className="ml-1 text-stone-400">{priceInUsd ? 'USD' : '₹'}</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step={priceInUsd ? '0.01' : '1'}
-                    placeholder={priceInUsd ? 'e.g. 292.40' : 'e.g. 25000'}
-                    value={(() => {
-                      const rate = parseFloat(settings.inrToUsdRate ?? 0)
-                      if (priceInUsd && rate > 0 && editPkgCostPrice) {
-                        return (parseFloat(editPkgCostPrice) / rate).toFixed(2)
-                      }
-                      return editPkgCostPrice
-                    })()}
-                    onChange={(e) => {
-                      const rate = parseFloat(settings.inrToUsdRate ?? 0)
-                      if (priceInUsd && rate > 0) {
-                        setEditPkgCostPrice((parseFloat(e.target.value) * rate).toString())
-                      } else {
-                        setEditPkgCostPrice(e.target.value)
-                      }
-                    }}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Live margin preview + apply default markup */}
-              {(() => {
-                const base = parseFloat((editPkgPrice || '').replace(/,/g, '')) || 0
-                const cost = parseFloat((editPkgCostPrice || '').replace(/,/g, '')) || 0
-                const marginINR = base - cost
-                const marginPct = cost > 0 ? (marginINR / cost) * 100 : 0
-                const defaultMarkupPct = parseFloat(settings?.rules?.markup ?? settings?.defaultMarkup ?? '15') || 0
-                const applyDefault = () => {
-                  if (cost <= 0) return
-                  const newBase = (cost * (1 + defaultMarkupPct / 100)).toFixed(2)
-                  setEditPkgPrice(newBase)
-                }
-                return (
-                  <div className="flex items-center justify-between p-2.5 bg-[#FAF9F5] border border-stone-200/60 rounded-lg">
-                    <span className="text-[11px] text-stone-600 font-semibold">
-                      Margin: <span className="text-amber-700 font-bold">₹{marginINR.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      {cost > 0 && <span className="text-stone-400 ml-1">({marginPct.toFixed(1)}% over cost)</span>}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={applyDefault}
-                      disabled={cost <= 0}
-                      title={cost <= 0 ? 'Enter Cost Price first' : `Apply agency default markup of ${defaultMarkupPct}%`}
-                      className="px-2.5 py-1 text-[10px] font-bold rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
-                    >
-                      Apply Default Markup ({defaultMarkupPct}%)
-                    </button>
-                  </div>
-                )
-              })()}
-
-              {user && !roleHas(user.role, 'write:packages.pricing') && (
-                <div className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-md mb-4">
-                  <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">
-                    Pricing (read-only — admin-managed)
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <span className="text-slate-400">Base Price:</span>{' '}
-                      <span className="font-medium text-slate-700">
-                        ₹{selectedPackage.basePrice?.toLocaleString() ?? '—'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400">Cost Price:</span>{' '}
-                      <span className="font-medium text-slate-700">
-                        ₹{selectedPackage.costPrice?.toLocaleString() ?? '—'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Destination Region</label>
-                  <select
-                    value={editPkgRegion}
-                    onChange={(e) => setEditPkgRegion(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+              <fieldset disabled={!canWritePackage} className="flex flex-col flex-1 min-h-0 overflow-hidden space-y-4">
+                {/* Modal Step Navigation Bar */}
+                <div className="flex border border-stone-200 bg-stone-100/70 rounded-xl p-1 gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setEditFormTab('basic')}
+                    className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                      editFormTab === 'basic'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
+                    }`}
                   >
-                    <option value="Africa">Africa</option>
-                    <option value="Asia">Asia</option>
-                    <option value="Australia">Australia</option>
-                    <option value="Europe">Europe</option>
-                    <option value="Middle East">Middle East</option>
-                    <option value="North America">North America</option>
-                    <option value="South America">South America</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Category</label>
-                  <select
-                    value={editPkgCategory}
-                    onChange={(e) => setEditPkgCategory(e.target.value)}
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                    1. Basic & Pricing
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditFormTab('overview')}
+                    className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                      editFormTab === 'overview'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
+                    }`}
                   >
-                    <option value="standard">Standard</option>
-                    <option value="luxury">Luxury</option>
-                    <option value="weekend">Weekend Getaway</option>
-                    <option value="event">Events & Festivals</option>
-                  </select>
+                    2. Overview & Highlights
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditFormTab('itinerary')}
+                    className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                      editFormTab === 'itinerary'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
+                    }`}
+                  >
+                    3. Itinerary ({editPkgFormItinerary.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditFormTab('terms')}
+                    className={`flex-1 py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
+                      editFormTab === 'terms'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/60'
+                    }`}
+                  >
+                    4. Inclusions & Terms
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Total Allotment Slots <span className="text-rose-500">*</span></label>
-                  {editPkgIsBespoke ? (
-                    <div className="h-[38px] flex items-center px-3 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-400 font-medium">Unlimited</div>
-                  ) : (
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      placeholder="e.g. 20"
-                      value={editPkgSlots}
-                      onChange={(e) => setEditPkgSlots(e.target.value)}
-                      className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
-                    />
-                  )}
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Type</label>
-                  <div className="flex bg-stone-50 border border-stone-200 rounded-lg overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() => setEditPkgIsBespoke(false)}
-                      className={`flex-1 text-xs font-bold py-2 transition-all ${!editPkgIsBespoke ? 'bg-amber-600 text-white shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
-                    >
-                      Standard
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditPkgIsBespoke(true)}
-                      className={`flex-1 text-xs font-bold py-2 transition-all ${editPkgIsBespoke ? 'bg-amber-600 text-white shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
-                    >
-                      Bespoke
-                    </button>
-                  </div>
-                </div>
-              </div>
 
-              {specialityCategories.length > 0 && (
-                <div className="pt-2">
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2">Speciality Experience Tags</label>
-                  <div className="flex flex-wrap gap-2">
-                    {specialityCategories.map(cat => {
-                      const isChecked = editPkgCategoryIds.includes(cat.id)
-                      return (
-                        <label
-                          key={cat.id}
-                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold cursor-pointer transition-all ${
-                            isChecked
-                              ? 'bg-amber-600 text-white border-amber-650 shadow-xs'
-                              : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
-                          }`}
-                        >
+                <div className="space-y-4 overflow-y-auto flex-1 min-h-0 pr-1 pb-2">
+                  {/* Step 1: Basic & Pricing */}
+                  {editFormTab === 'basic' && (
+                    <div className="space-y-4">
+                      {/* Package Image Upload */}
+                      <div className="p-3 bg-stone-50/50 border border-stone-200 rounded-xl">
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Image (Cover & Hero)</label>
+                        <div className="flex items-center gap-3">
+                          <div className="w-16 h-12 rounded-lg bg-stone-100 p-0.5 border border-stone-200 shrink-0 relative overflow-hidden">
+                            <img src={imgUrl(editPkgCardImage || editPkgHeroImage)} alt="Preview" className="w-full h-full object-cover rounded" />
+                          </div>
+                          <div className="relative overflow-hidden flex-grow">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handlePackageImageUpload(e, true)}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                            <button
+                              type="button"
+                              className="px-3 py-1.5 bg-white border border-stone-200 hover:bg-stone-50 rounded-lg text-xs font-semibold text-stone-600 transition-all cursor-pointer"
+                            >
+                              Choose Image
+                            </button>
+                            <p className="text-[9px] text-stone-400 mt-1">This image will be used for both card cover and detail page header.</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Name <span className="text-rose-500">*</span></label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Tuscan Gastronomy Experience"
+                          value={editPkgName}
+                          onChange={(e) => setEditPkgName(e.target.value)}
+                          className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Duration (Days) <span className="text-rose-500">*</span></label>
                           <input
-                            type="checkbox"
-                            checked={isChecked}
+                            type="number"
+                            required
+                            min="1"
+                            max="30"
+                            placeholder="e.g. 5"
+                            value={editPkgDays}
+                            onChange={(e) => setEditPkgDays(e.target.value)}
+                            className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
+                            Base Price · Retail <span className="text-rose-500">*</span>
+                            <span className="ml-1 text-amber-600">{priceInUsd ? 'USD' : '₹'}</span>
+                          </label>
+                          <div className="flex gap-1.5 items-center">
+                            <input
+                              type="number"
+                              required
+                              min="0"
+                              step={priceInUsd ? '0.01' : '1'}
+                              placeholder={priceInUsd ? 'e.g. 409.36' : 'e.g. 35000'}
+                              value={(() => {
+                                const rate = parseFloat(settings.inrToUsdRate ?? 0)
+                                if (priceInUsd && rate > 0 && editPkgPrice) {
+                                  return (parseFloat(editPkgPrice) / rate).toFixed(2)
+                                }
+                                return editPkgPrice
+                              })()}
+                              onChange={(e) => {
+                                const rate = parseFloat(settings.inrToUsdRate ?? 0)
+                                if (priceInUsd && rate > 0) {
+                                  setEditPkgPrice((parseFloat(e.target.value) * rate).toString())
+                                } else {
+                                  setEditPkgPrice(e.target.value)
+                                }
+                              }}
+                              className="w-full min-w-0 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setPriceInUsd(v => !v)}
+                              disabled={!parseFloat(settings.inrToUsdRate ?? 0)}
+                              title={!parseFloat(settings.inrToUsdRate ?? 0) ? 'Set exchange rate in Settings first' : 'Toggle INR / USD'}
+                              className={`shrink-0 px-2.5 py-[9px] text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${priceInUsd
+                                ? 'bg-amber-500 text-white border-amber-500 hover:bg-amber-600'
+                                : 'bg-stone-100 text-stone-500 border-stone-200 hover:bg-stone-200'
+                                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                            >
+                              {priceInUsd ? 'USD' : '₹'}
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
+                            Cost Price · Supplier
+                            <span className="ml-1 text-stone-400">{priceInUsd ? 'USD' : '₹'}</span>
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step={priceInUsd ? '0.01' : '1'}
+                            placeholder={priceInUsd ? 'e.g. 292.40' : 'e.g. 25000'}
+                            value={(() => {
+                              const rate = parseFloat(settings.inrToUsdRate ?? 0)
+                              if (priceInUsd && rate > 0 && editPkgCostPrice) {
+                                return (parseFloat(editPkgCostPrice) / rate).toFixed(2)
+                              }
+                              return editPkgCostPrice
+                            })()}
                             onChange={(e) => {
-                              if (e.target.checked) {
-                                setEditPkgCategoryIds([...editPkgCategoryIds, cat.id])
+                              const rate = parseFloat(settings.inrToUsdRate ?? 0)
+                              if (priceInUsd && rate > 0) {
+                                setEditPkgCostPrice((parseFloat(e.target.value) * rate).toString())
                               } else {
-                                setEditPkgCategoryIds(editPkgCategoryIds.filter(id => id !== cat.id))
+                                setEditPkgCostPrice(e.target.value)
                               }
                             }}
-                            className="sr-only"
+                            className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                           />
-                          <span>{cat.name}</span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
+                        </div>
+                      </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2">Package Inclusions Selection</label>
-                <div className="grid grid-cols-2 gap-2 bg-stone-50 p-3 rounded-xl border border-stone-200">
-                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editPkgInclusions.hotel}
-                      onChange={(e) => setEditPkgInclusions(prev => ({ ...prev, hotel: e.target.checked }))}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Hotel</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editPkgInclusions.sightseeing}
-                      onChange={(e) => setEditPkgInclusions(prev => ({ ...prev, sightseeing: e.target.checked }))}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Sightseeing</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editPkgInclusions.guide}
-                      onChange={(e) => setEditPkgInclusions(prev => ({ ...prev, guide: e.target.checked }))}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Guide</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editPkgInclusions.airportTransfer}
-                      onChange={(e) => setEditPkgInclusions(prev => ({ ...prev, airportTransfer: e.target.checked }))}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Airport Transfer</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editPkgInclusions.flight}
-                      onChange={(e) => setEditPkgInclusions(prev => ({ ...prev, flight: e.target.checked }))}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Flight</span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editPkgInclusions.cruise}
-                      onChange={(e) => setEditPkgInclusions(prev => ({ ...prev, cruise: e.target.checked }))}
-                      className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                    />
-                    <span>Cruise</span>
-                  </label>
-                </div>
-              </div>
+                      {/* Live margin preview */}
+                      {(() => {
+                        const base = parseFloat((editPkgPrice || '').replace(/,/g, '')) || 0
+                        const cost = parseFloat((editPkgCostPrice || '').replace(/,/g, '')) || 0
+                        const marginINR = base - cost
+                        const marginPct = cost > 0 ? (marginINR / cost) * 100 : 0
+                        const defaultMarkupPct = parseFloat(settings?.rules?.markup ?? settings?.defaultMarkup ?? '15') || 0
+                        const applyDefault = () => {
+                          if (cost <= 0) return
+                          const newBase = (cost * (1 + defaultMarkupPct / 100)).toFixed(2)
+                          setEditPkgPrice(newBase)
+                        }
+                        return (
+                          <div className="flex items-center justify-between p-2.5 bg-[#FAF9F5] border border-stone-200/60 rounded-lg">
+                            <span className="text-[11px] text-stone-600 font-semibold">
+                              Margin: <span className="text-amber-700 font-bold">₹{marginINR.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              {cost > 0 && <span className="text-stone-400 ml-1">({marginPct.toFixed(1)}% over cost)</span>}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={applyDefault}
+                              disabled={cost <= 0}
+                              title={cost <= 0 ? 'Enter Cost Price first' : `Apply agency default markup of ${defaultMarkupPct}%`}
+                              className="px-2.5 py-1 text-[10px] font-bold rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+                            >
+                              Apply Default Markup ({defaultMarkupPct}%)
+                            </button>
+                          </div>
+                        )
+                      })()}
 
-              {/* Description */}
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Overview / Description <span className="text-rose-500">*</span></label>
-                <textarea
-                  rows="3"
-                  value={editPkgDescription}
-                  onChange={(e) => setEditPkgDescription(e.target.value)}
-                  placeholder="Describe the travel package experience..."
-                  className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none resize-none"
-                />
-                {editPkgDescription && (
-                  <details className="mt-1.5 group">
-                    <summary className="text-[9px] font-bold text-stone-400 uppercase tracking-wider cursor-pointer hover:text-amber-600 select-none">Preview</summary>
-                    <div className="mt-1.5 p-3 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-700 leading-relaxed">
-                      <Markdown components={{strong: ({children}) => <strong className="font-extrabold">{children}</strong>}}>{editPkgDescription}</Markdown>
+                      <div className="grid grid-cols-4 gap-4">
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Destination Region</label>
+                          <select
+                            value={editPkgRegion}
+                            onChange={(e) => setEditPkgRegion(e.target.value)}
+                            className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                          >
+                            <option value="Africa">Africa</option>
+                            <option value="Asia">Asia</option>
+                            <option value="Australia">Australia</option>
+                            <option value="Europe">Europe</option>
+                            <option value="Middle East">Middle East</option>
+                            <option value="North America">North America</option>
+                            <option value="South America">South America</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Category</label>
+                          <select
+                            value={editPkgCategory}
+                            onChange={(e) => setEditPkgCategory(e.target.value)}
+                            className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                          >
+                            <option value="standard">Standard</option>
+                            <option value="luxury">Luxury</option>
+                            <option value="weekend">Weekend Getaway</option>
+                            <option value="event">Events & Festivals</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Total Allotment Slots <span className="text-rose-500">*</span></label>
+                          {editPkgIsBespoke ? (
+                            <div className="h-[38px] flex items-center px-3 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-400 font-medium">Unlimited</div>
+                          ) : (
+                            <input
+                              type="number"
+                              required
+                              min="1"
+                              placeholder="e.g. 20"
+                              value={editPkgSlots}
+                              onChange={(e) => setEditPkgSlots(e.target.value)}
+                              className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Package Type</label>
+                          <div className="flex bg-stone-50 border border-stone-200 rounded-lg overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => setEditPkgIsBespoke(false)}
+                              className={`flex-1 text-xs font-bold py-2 transition-all ${!editPkgIsBespoke ? 'bg-amber-600 text-white shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
+                            >
+                              Standard
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditPkgIsBespoke(true)}
+                              className={`flex-1 text-xs font-bold py-2 transition-all ${editPkgIsBespoke ? 'bg-amber-600 text-white shadow-sm' : 'text-stone-500 hover:text-stone-800'}`}
+                            >
+                              Bespoke
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {specialityCategories.length > 0 && (
+                        <div className="pt-2">
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2">Speciality Experience Tags</label>
+                          <div className="flex flex-wrap gap-2">
+                            {specialityCategories.map(cat => {
+                              const isChecked = editPkgCategoryIds.includes(cat.id)
+                              return (
+                                <label
+                                  key={cat.id}
+                                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold cursor-pointer transition-all ${
+                                    isChecked
+                                      ? 'bg-amber-600 text-white border-amber-650 shadow-xs'
+                                      : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setEditPkgCategoryIds([...editPkgCategoryIds, cat.id])
+                                      } else {
+                                        setEditPkgCategoryIds(editPkgCategoryIds.filter(id => id !== cat.id))
+                                      }
+                                    }}
+                                    className="sr-only"
+                                  />
+                                  <span>{cat.name}</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </details>
-                )}
-              </div>
+                  )}
 
-              {/* Terms & Conditions (Markdown Support) */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">Terms & Conditions (Markdown Supported)</label>
-                  <div className="flex gap-1 text-[10px] font-bold">
-                    <button
-                      type="button"
-                      onClick={() => setEditPkgTermsTab('write')}
-                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${editPkgTermsTab === 'write' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
-                    >
-                      Write
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditPkgTermsTab('preview')}
-                      className={`px-2 py-0.5 rounded transition-all cursor-pointer ${editPkgTermsTab === 'preview' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
-                    >
-                      Preview
-                    </button>
-                  </div>
+                  {/* Step 2: Overview & Highlights */}
+                  {editFormTab === 'overview' && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2">Package Inclusions Selection</label>
+                        <div className="grid grid-cols-2 gap-2 bg-stone-50 p-3 rounded-xl border border-stone-200">
+                          <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editPkgInclusions.hotel}
+                              onChange={(e) => setEditPkgInclusions(prev => ({ ...prev, hotel: e.target.checked }))}
+                              className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                            />
+                            <span>Hotel</span>
+                          </label>
+                          <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editPkgInclusions.sightseeing}
+                              onChange={(e) => setEditPkgInclusions(prev => ({ ...prev, sightseeing: e.target.checked }))}
+                              className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                            />
+                            <span>Sightseeing</span>
+                          </label>
+                          <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editPkgInclusions.guide}
+                              onChange={(e) => setEditPkgInclusions(prev => ({ ...prev, guide: e.target.checked }))}
+                              className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                            />
+                            <span>Guide</span>
+                          </label>
+                          <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editPkgInclusions.airportTransfer}
+                              onChange={(e) => setEditPkgInclusions(prev => ({ ...prev, airportTransfer: e.target.checked }))}
+                              className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                            />
+                            <span>Airport Transfer</span>
+                          </label>
+                          <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editPkgInclusions.flight}
+                              onChange={(e) => setEditPkgInclusions(prev => ({ ...prev, flight: e.target.checked }))}
+                              className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                            />
+                            <span>Flight</span>
+                          </label>
+                          <label className="flex items-center gap-2 text-xs font-medium text-stone-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editPkgInclusions.cruise}
+                              onChange={(e) => setEditPkgInclusions(prev => ({ ...prev, cruise: e.target.checked }))}
+                              className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                            />
+                            <span>Cruise</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">Overview / Description <span className="text-rose-500">*</span></label>
+                          {editPkgDescription && (
+                            <button
+                              type="button"
+                              onClick={() => setEditPkgDescription(formatTravelMarkdown(editPkgDescription))}
+                              className="px-2 py-0.5 text-[9px] font-bold rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
+                              title="Auto-format inline bullets (•) and labels"
+                            >
+                              ✨ Clean Formatting
+                            </button>
+                          )}
+                        </div>
+                        <textarea
+                          rows="4"
+                          value={editPkgDescription}
+                          onChange={(e) => setEditPkgDescription(e.target.value)}
+                          placeholder="Describe the travel package experience..."
+                          className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none resize-y"
+                        />
+                        {editPkgDescription && (
+                          <details className="mt-1.5 group">
+                            <summary className="text-[9px] font-bold text-stone-400 uppercase tracking-wider cursor-pointer hover:text-amber-600 select-none">Preview</summary>
+                            <div className="mt-1.5 p-3 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-700 leading-relaxed">
+                              <SmartMarkdown content={editPkgDescription} />
+                            </div>
+                          </details>
+                        )}
+                      </div>
+
+                      {/* Highlights */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Trip Highlights (pasting multiple bullets splits automatically)</label>
+                        <div className="flex gap-2 mb-2">
+                          <input
+                            type="text"
+                            value={editPkgHighlightInput}
+                            onChange={(e) => setEditPkgHighlightInput(e.target.value)}
+                            placeholder="e.g. Visit ancient temples • Cable car ride"
+                            className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (editPkgHighlightInput.trim()) {
+                                const items = splitBulletedItems(editPkgHighlightInput)
+                                setEditPkgHighlights([...editPkgHighlights, ...items])
+                                setEditPkgHighlightInput('')
+                              }
+                            }}
+                            className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
+                          >Add</button>
+                        </div>
+                        {editPkgHighlights.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {editPkgHighlights.map((item, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-stone-100 border border-stone-200 rounded text-[10px] text-stone-700 font-medium">
+                                <SmartMarkdownInline>{item}</SmartMarkdownInline>
+                                <button type="button" onClick={() => setEditPkgHighlights(editPkgHighlights.filter((_, idx) => idx !== i))} className="text-stone-400 hover:text-rose-600 cursor-pointer">&times;</button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 3: Itinerary Schedule */}
+                  {editFormTab === 'itinerary' && (
+                    <div className="space-y-3 p-3.5 bg-stone-50 border border-stone-200/80 rounded-xl">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                            Day-by-Day Itinerary Schedule
+                          </h4>
+                          <p className="text-[10px] text-stone-500">
+                            Manage day-by-day travel events for this package.
+                          </p>
+                        </div>
+                        <span className="text-[10px] text-amber-700 font-bold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                          {editPkgFormItinerary.length} Days Configured
+                        </span>
+                      </div>
+
+                      {/* Existing Days Timeline List */}
+                      {editPkgFormItinerary.length > 0 && (
+                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                          {editPkgFormItinerary.map((item, idx) => (
+                            <div key={item.day} className="p-2.5 bg-white border border-stone-200 rounded-lg relative group space-y-1">
+                              <div className="flex justify-between items-center pr-16">
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-0.5 bg-amber-600 text-white font-bold text-[9px] uppercase tracking-wider rounded">
+                                    Day {item.day}
+                                  </span>
+                                  <h5 className="text-xs font-bold text-stone-800">{item.title}</h5>
+                                </div>
+                              </div>
+                              <SmartMarkdown content={item.desc} className="text-[11px] text-stone-600 leading-relaxed pl-1" />
+                              
+                              <div className="absolute right-2 top-2 flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingEditPkgFormDayIdx(idx)
+                                    setEditPkgFormDayNum(item.day.toString())
+                                    setEditPkgFormDayTitle(item.title)
+                                    setEditPkgFormDayDesc(item.desc)
+                                  }}
+                                  className="p-1 rounded hover:bg-amber-50 text-stone-400 hover:text-amber-600 cursor-pointer"
+                                  title="Edit Day"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveEditPkgFormItineraryDay(item.day)}
+                                  className="p-1 rounded hover:bg-rose-50 text-stone-400 hover:text-rose-600 cursor-pointer"
+                                  title="Remove Day"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Form to Add / Edit Day inside Modal */}
+                      <div className="pt-2 border-t border-stone-200/60 space-y-2">
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="col-span-1">
+                            <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Day No.</label>
+                            <input
+                              type="number"
+                              placeholder="1"
+                              value={editPkgFormDayNum}
+                              onChange={(e) => setEditPkgFormDayNum(e.target.value)}
+                              className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Day Title</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Arrival & Hotel Check-in"
+                              value={editPkgFormDayTitle}
+                              onChange={(e) => setEditPkgFormDayTitle(e.target.value)}
+                              className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider">Day Description (Markdown Supported)</label>
+                            {editPkgFormDayDesc && (
+                              <button
+                                type="button"
+                                onClick={() => setEditPkgFormDayDesc(formatTravelMarkdown(editPkgFormDayDesc))}
+                                className="px-2 py-0.5 text-[9px] font-bold rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
+                                title="Auto-format inline bullets (•) and labels"
+                              >
+                                ✨ Clean Formatting
+                              </button>
+                            )}
+                          </div>
+                          <textarea
+                            rows="3"
+                            placeholder="Details on schedule, meals, transport... (Use • for bullets)"
+                            value={editPkgFormDayDesc}
+                            onChange={(e) => setEditPkgFormDayDesc(e.target.value)}
+                            className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none resize-y"
+                          />
+                          {editPkgFormDayDesc && (
+                            <div className="mt-1 p-2 bg-white border border-stone-200 rounded text-[11px] text-stone-600 leading-relaxed">
+                              <SmartMarkdown content={editPkgFormDayDesc} />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={handleAddEditPkgFormItineraryDay}
+                            className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
+                          >
+                            <span>+</span>
+                            {editingEditPkgFormDayIdx !== null ? `Save Day ${editPkgFormDayNum}` : `Add Day ${editPkgFormDayNum} Event`}
+                          </button>
+                          {editingEditPkgFormDayIdx !== null && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingEditPkgFormDayIdx(null)
+                                setEditPkgFormDayNum((editPkgFormItinerary.length + 1).toString())
+                                setEditPkgFormDayTitle('')
+                                setEditPkgFormDayDesc('')
+                              }}
+                              className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-lg text-xs font-bold cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 4: Inclusions & Terms */}
+                  {editFormTab === 'terms' && (
+                    <div className="space-y-4">
+                      {/* Inclusions List */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Inclusions (detailed list, pasting bullets splits automatically)</label>
+                        <div className="flex gap-2 mb-2">
+                          <input
+                            type="text"
+                            value={editPkgInclusionInput}
+                            onChange={(e) => setEditPkgInclusionInput(e.target.value)}
+                            placeholder="e.g. 5-star hotel accommodation • Breakfast included"
+                            className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (editPkgInclusionInput.trim()) {
+                                const items = splitBulletedItems(editPkgInclusionInput)
+                                setEditPkgInclusionsList([...editPkgInclusionsList, ...items])
+                                setEditPkgInclusionInput('')
+                              }
+                            }}
+                            className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
+                          >Add</button>
+                        </div>
+                        {editPkgInclusionsList.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {editPkgInclusionsList.map((item, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded text-[10px] text-emerald-700 font-medium">
+                                <SmartMarkdownInline>{item}</SmartMarkdownInline>
+                                <button type="button" onClick={() => setEditPkgInclusionsList(editPkgInclusionsList.filter((_, idx) => idx !== i))} className="text-emerald-400 hover:text-rose-600 cursor-pointer">&times;</button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Exclusions */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Exclusions (pasting bullets splits automatically)</label>
+                        <div className="flex gap-2 mb-2">
+                          <input
+                            type="text"
+                            value={editPkgExclusionInput}
+                            onChange={(e) => setEditPkgExclusionInput(e.target.value)}
+                            placeholder="e.g. International flights • Personal expenses"
+                            className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (editPkgExclusionInput.trim()) {
+                                const items = splitBulletedItems(editPkgExclusionInput)
+                                setEditPkgExclusions([...editPkgExclusions, ...items])
+                                setEditPkgExclusionInput('')
+                              }
+                            }}
+                            className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
+                          >Add</button>
+                        </div>
+                        {editPkgExclusions.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {editPkgExclusions.map((item, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 border border-rose-200 rounded text-[10px] text-rose-700 font-medium">
+                                <SmartMarkdownInline>{item}</SmartMarkdownInline>
+                                <button type="button" onClick={() => setEditPkgExclusions(editPkgExclusions.filter((_, idx) => idx !== i))} className="text-rose-400 hover:text-rose-600 cursor-pointer">&times;</button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Terms & Conditions (Markdown Support) */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">Terms & Conditions (Markdown Supported)</label>
+                          <div className="flex items-center gap-1 text-[10px] font-bold">
+                            {editPkgTerms && (
+                              <button
+                                type="button"
+                                onClick={() => setEditPkgTerms(formatTravelMarkdown(editPkgTerms))}
+                                className="mr-1 px-2 py-0.5 text-[9px] font-bold rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
+                                title="Auto-format inline bullets (•) and headers"
+                              >
+                                ✨ Clean Formatting
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setEditPkgTermsTab('write')}
+                              className={`px-2 py-0.5 rounded transition-all cursor-pointer ${editPkgTermsTab === 'write' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                            >
+                              Write
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditPkgTermsTab('preview')}
+                              className={`px-2 py-0.5 rounded transition-all cursor-pointer ${editPkgTermsTab === 'preview' ? 'bg-amber-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
+                            >
+                              Preview
+                            </button>
+                          </div>
+                        </div>
+                        {editPkgTermsTab === 'write' ? (
+                          <textarea
+                            rows="4"
+                            value={editPkgTerms}
+                            onChange={(e) => setEditPkgTerms(e.target.value)}
+                            placeholder="Enter terms & conditions in markdown format..."
+                            className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none font-mono resize-y"
+                          />
+                        ) : (
+                          <div className="p-3 bg-amber-50/50 border border-amber-200/60 rounded-lg text-xs text-stone-700 leading-relaxed min-h-[90px]">
+                            {editPkgTerms.trim() ? (
+                              <SmartMarkdown content={editPkgTerms} />
+                            ) : (
+                              <span className="text-stone-400 italic">No terms entered yet.</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {editPkgTermsTab === 'write' ? (
-                  <textarea
-                    rows="4"
-                    value={editPkgTerms}
-                    onChange={(e) => setEditPkgTerms(e.target.value)}
-                    placeholder="Enter terms & conditions in markdown format..."
-                    className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none font-mono resize-y"
-                  />
-                ) : (
-                  <div className="p-3 bg-amber-50/50 border border-amber-200/60 rounded-lg text-xs text-stone-700 leading-relaxed min-h-[90px]">
-                    {editPkgTerms.trim() ? (
-                      <Markdown>{editPkgTerms}</Markdown>
-                    ) : (
-                      <span className="text-stone-400 italic">No terms entered yet.</span>
+
+                {/* Step Navigation Buttons Footer */}
+                <div className="pt-3 border-t border-stone-100 flex justify-between items-center shrink-0">
+                  <div>
+                    {editFormTab !== 'basic' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editFormTab === 'overview') setEditFormTab('basic')
+                          else if (editFormTab === 'itinerary') setEditFormTab('overview')
+                          else if (editFormTab === 'terms') setEditFormTab('itinerary')
+                        }}
+                        className="px-3.5 py-1.5 border border-stone-200 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-50 cursor-pointer"
+                      >
+                        ← Previous Step
+                      </button>
                     )}
                   </div>
-                )}
-              </div>
-
-              {/* Highlights */}
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Trip Highlights</label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={editPkgHighlightInput}
-                    onChange={(e) => setEditPkgHighlightInput(e.target.value)}
-                    placeholder="e.g. Visit ancient temples"
-                    className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (editPkgHighlightInput.trim()) {
-                        setEditPkgHighlights([...editPkgHighlights, editPkgHighlightInput.trim()])
-                        setEditPkgHighlightInput('')
-                      }
-                    }}
-                    className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
-                  >Add</button>
-                </div>
-                {editPkgHighlights.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {editPkgHighlights.map((item, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-stone-100 border border-stone-200 rounded text-[10px] text-stone-700 font-medium">
-                        {item}
-                        <button type="button" onClick={() => setEditPkgHighlights(editPkgHighlights.filter((_, idx) => idx !== i))} className="text-stone-400 hover:text-rose-600 cursor-pointer">&times;</button>
-                      </span>
-                    ))}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setShowEditPackageForm(false); setEditFormTab('basic'); }}
+                      className="px-4 py-1.5 border border-stone-200 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-50 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    {editFormTab !== 'terms' ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editFormTab === 'basic') setEditFormTab('overview')
+                          else if (editFormTab === 'overview') setEditFormTab('itinerary')
+                          else if (editFormTab === 'itinerary') setEditFormTab('terms')
+                        }}
+                        className="px-4 py-1.5 bg-stone-800 hover:bg-stone-700 text-white rounded-lg text-xs font-bold cursor-pointer"
+                      >
+                        Next Step →
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        className="px-5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
+                      >
+                        Save Changes
+                      </button>
+                    )}
                   </div>
-                )}
-              </div>
-
-              {/* Inclusions List */}
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Inclusions (detailed list)</label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={editPkgInclusionInput}
-                    onChange={(e) => setEditPkgInclusionInput(e.target.value)}
-                    placeholder="e.g. 5-star hotel accommodation"
-                    className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (editPkgInclusionInput.trim()) {
-                        setEditPkgInclusionsList([...editPkgInclusionsList, editPkgInclusionInput.trim()])
-                        setEditPkgInclusionInput('')
-                      }
-                    }}
-                    className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
-                  >Add</button>
                 </div>
-                {editPkgInclusionsList.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {editPkgInclusionsList.map((item, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded text-[10px] text-emerald-700 font-medium">
-                        {item}
-                        <button type="button" onClick={() => setEditPkgInclusionsList(editPkgInclusionsList.filter((_, idx) => idx !== i))} className="text-emerald-400 hover:text-rose-600 cursor-pointer">&times;</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Exclusions */}
-              <div>
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">Exclusions</label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={editPkgExclusionInput}
-                    onChange={(e) => setEditPkgExclusionInput(e.target.value)}
-                    placeholder="e.g. International flights"
-                    className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (editPkgExclusionInput.trim()) {
-                        setEditPkgExclusions([...editPkgExclusions, editPkgExclusionInput.trim()])
-                        setEditPkgExclusionInput('')
-                      }
-                    }}
-                    className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer"
-                  >Add</button>
-                </div>
-                {editPkgExclusions.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {editPkgExclusions.map((item, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 border border-rose-200 rounded text-[10px] text-rose-700 font-medium">
-                        {item}
-                        <button type="button" onClick={() => setEditPkgExclusions(editPkgExclusions.filter((_, idx) => idx !== i))} className="text-rose-400 hover:text-rose-600 cursor-pointer">&times;</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
               </fieldset>
-
-              <div className="pt-4 border-t border-stone-100 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowEditPackageForm(false)}
-                  className="px-4 py-2 border border-stone-200 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-50 active:scale-95 transition-all cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition-all cursor-pointer"
-                >
-                  Save Changes
-                </button>
-              </div>
             </form>
           </div>
         </div>

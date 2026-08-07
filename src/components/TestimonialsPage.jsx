@@ -11,8 +11,10 @@ const imgUrl = (url) => {
   return `${API_URL}${url}`
 }
 
-const MAX_TEXT_LENGTH = 500
-const defaultForm = { name: '', location: '', avatar: '', rating: 5, text: '', package: '', images: [] }
+const MAX_TEXT_LENGTH = 2000
+const defaultForm = { name: '', location: '', avatar: '', rating: 5, text: '', package: '', images: [], role: 'Customer', status: 'approved' }
+
+const ROLE_OPTIONS = ['Customer', 'Tour Leader', 'Travel Specialist', 'Local Guide']
 
 export default function TestimonialsPage({ testimonials, setTestimonials, addNotification, packages, user }) {
   const standardPackages = (packages || []).filter(p => !p.isBespoke)
@@ -21,6 +23,8 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(defaultForm)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [filterRole, setFilterRole] = useState('All')
+  const [filterStatus, setFilterStatus] = useState('All')
   const canWriteTestimonial = roleHas(user?.role, 'write:testimonials')
   const [previewSlides, setPreviewSlides] = useState(null)
   const [previewIndex, setPreviewIndex] = useState(0)
@@ -124,10 +128,19 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
       rating: t.rating || 5,
       text: t.text || '',
       package: t.package || '',
-      images: t.images || []
+      images: t.images || [],
+      role: t.role || 'Customer',
+      status: t.status || 'approved'
     })
     setEditing(t)
     setShowForm(true)
+  }
+
+  const toggleStatus = (t) => {
+    if (!canWriteTestimonial) return
+    const newStatus = t.status === 'approved' ? 'pending' : 'approved'
+    setTestimonials(testimonials.map(item => item.id === t.id ? { ...item, status: newStatus } : item))
+    if (addNotification) addNotification(`Status for story from "${t.name}" updated to ${newStatus}`, 'info')
   }
 
   const handleAvatarUpload = async (e) => {
@@ -141,7 +154,8 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
       if (addNotification) addNotification('Uploading avatar...', 'info')
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
       const token = localStorage.getItem('kraft_token')
-      const response = await fetch(`${API_URL}/api/upload`, { headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      const response = await fetch(`${API_URL}/api/upload`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         method: 'POST',
         body: formData
       })
@@ -233,21 +247,27 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
     setDeleteTarget(null)
   }
 
+  const filteredList = testimonials.filter(t => {
+    if (filterRole !== 'All' && (t.role || 'Customer') !== filterRole) return false
+    if (filterStatus !== 'All' && (t.status || 'approved') !== filterStatus) return false
+    return true
+  })
+
   const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-xl font-bold text-stone-900 tracking-tight">Customer Testimonials</h2>
-          <p className="text-xs text-stone-400">Manage traveler reviews shown on the customer site.</p>
+          <h2 className="text-xl font-bold text-stone-900 tracking-tight">Trip Stories, Reviews & Gallery</h2>
+          <p className="text-xs text-stone-400">Manage traveler and team field reviews displayed on Kraft Your Trip site.</p>
         </div>
         {canWriteTestimonial && (
           <button onClick={openAdd} className="py-2.5 px-4 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center gap-2 cursor-pointer">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
-            Add Testimonial
+            Add Story / Review
           </button>
         )}
       </div>
@@ -262,7 +282,7 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
               </svg>
               Hero Section Statistics
             </h3>
-            <p className="text-[11px] text-stone-400">Configure the key stats displayed in the hero banner of the customer site.</p>
+            <p className="text-[11px] text-stone-400">Configure key stats displayed in the hero banner of the customer site.</p>
           </div>
           {canWriteTestimonial && !editingStats && (
             <button
@@ -343,75 +363,141 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
         )}
       </div>
 
+      {/* Admin Filter Chips */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-stone-200/80 shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Role Filter:</span>
+          {['All', ...ROLE_OPTIONS].map(role => (
+            <button
+              key={role}
+              onClick={() => setFilterRole(role)}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                filterRole === role
+                  ? 'bg-stone-900 text-white'
+                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+              }`}
+            >
+              {role}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Status:</span>
+          {['All', 'approved', 'pending'].map(st => (
+            <button
+              key={st}
+              onClick={() => setFilterStatus(st)}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg capitalize transition-colors ${
+                filterStatus === st
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+              }`}
+            >
+              {st}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Testimonials Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {testimonials.length === 0 && (
+        {filteredList.length === 0 && (
           <div className="md:col-span-2 xl:col-span-3 py-16 text-center text-stone-400 text-sm">
-            No testimonials yet. Add your first customer review.
+            No testimonials found for selected filters.
           </div>
         )}
-        {testimonials.map(t => (
-          <div key={t.id} className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-sm space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full overflow-hidden bg-stone-100 shrink-0 border border-stone-200">
-                <img
-                  src={imgUrl(t.avatar)}
-                  alt={t.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h4 className="text-sm font-bold text-stone-900 truncate">{t.name}</h4>
-                {t.location && <span className="text-[10px] text-stone-400">{t.location}</span>}
-              </div>
-            </div>
-            <div className="text-amber-500 text-xs tracking-wider">{stars(Math.min(Math.max(t.rating || 5, 1), 5))}</div>
-            {t.text && <p className="text-xs text-stone-600 leading-relaxed line-clamp-3">{t.text}</p>}
-            {t.images && t.images.length > 0 && (
-              <div className="flex gap-1">
-                {t.images.slice(0, 3).map((url, idx) => (
+        {filteredList.map(t => {
+          const imageList = Array.isArray(t.images)
+            ? t.images
+            : (typeof t.images === 'string' ? JSON.parse(t.images || '[]') : [])
+          const roleLabel = t.role || 'Customer'
+          const isApproved = (t.status || 'approved') === 'approved'
+
+          return (
+            <div key={t.id} className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-sm space-y-3 relative group">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-stone-100 shrink-0 border border-stone-200">
+                    <img
+                      src={imgUrl(t.avatar)}
+                      alt={t.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-sm font-bold text-stone-900 truncate">{t.name}</h4>
+                    {t.location && <span className="text-[10px] text-stone-400">{t.location}</span>}
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-end gap-1">
+                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-stone-100 text-stone-700 border border-stone-200">
+                    {roleLabel}
+                  </span>
                   <button
-                    key={idx}
-                    type="button"
-                    onClick={() => { setPreviewSlides(t.images); setPreviewIndex(idx) }}
-                    className="w-12 h-12 rounded-lg overflow-hidden bg-stone-100 border border-stone-200 shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => toggleStatus(t)}
+                    className={`px-2 py-0.5 text-[9px] font-bold rounded-md cursor-pointer transition-colors ${
+                      isApproved
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        : 'bg-amber-100 text-amber-800 border border-amber-200'
+                    }`}
                   >
-                    <img src={url} alt="" className="w-full h-full object-cover" />
+                    {isApproved ? 'Approved' : 'Pending'}
                   </button>
-                ))}
-                {t.images.length > 3 && (
-                  <button
-                    type="button"
-                    onClick={() => { setPreviewSlides(t.images); setPreviewIndex(0) }}
-                    className="w-12 h-12 rounded-lg bg-stone-100 border border-stone-200 flex items-center justify-center text-[10px] font-bold text-stone-500 cursor-pointer hover:bg-stone-200 transition-colors shrink-0"
-                  >
-                    +{t.images.length - 3}
-                  </button>
+                </div>
+              </div>
+
+              <div className="text-amber-500 text-xs tracking-wider">{stars(Math.min(Math.max(t.rating || 5, 1), 5))}</div>
+              {t.text && <p className="text-xs text-stone-600 leading-relaxed line-clamp-3">{t.text}</p>}
+
+              {imageList.length > 0 && (
+                <div className="flex gap-1 pt-1">
+                  {imageList.slice(0, 3).map((url, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => { setPreviewSlides(imageList); setPreviewIndex(idx) }}
+                      className="w-12 h-12 rounded-lg overflow-hidden bg-stone-100 border border-stone-200 shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                    >
+                      <img src={url} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                  {imageList.length > 3 && (
+                    <button
+                      type="button"
+                      onClick={() => { setPreviewSlides(imageList); setPreviewIndex(0) }}
+                      className="w-12 h-12 rounded-lg bg-stone-100 border border-stone-200 flex items-center justify-center text-[10px] font-bold text-stone-500 cursor-pointer hover:bg-stone-200 transition-colors shrink-0"
+                    >
+                      +{imageList.length - 3}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {t.package && <span className="inline-block px-2 py-0.5 bg-stone-100 rounded text-[9px] text-stone-500 font-semibold">{t.package}</span>}
+              <div className="flex gap-2 pt-2 border-t border-stone-100">
+                {canWriteTestimonial && (
+                  <button onClick={() => openEdit(t)} className="flex-1 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-[10px] font-bold text-stone-700 cursor-pointer transition-all">Edit</button>
+                )}
+                {canWriteTestimonial && (
+                  <button onClick={() => setDeleteTarget(t)} className="flex-1 py-1.5 bg-rose-50 hover:bg-rose-100 rounded-lg text-[10px] font-bold text-rose-600 cursor-pointer transition-all">Delete</button>
                 )}
               </div>
-            )}
-            {t.package && <span className="inline-block px-2 py-0.5 bg-stone-100 rounded text-[9px] text-stone-500 font-semibold">{t.package}</span>}
-            <div className="flex gap-2 pt-2 border-t border-stone-100">
-              {canWriteTestimonial && (
-                <button onClick={() => openEdit(t)} className="flex-1 py-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-[10px] font-bold text-stone-700 cursor-pointer transition-all">Edit</button>
-              )}
-              {canWriteTestimonial && (
-                <button onClick={() => setDeleteTarget(t)} className="flex-1 py-1.5 bg-rose-50 hover:bg-rose-100 rounded-lg text-[10px] font-bold text-rose-600 cursor-pointer transition-all">Delete</button>
-              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Add / Edit Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-3 sm:p-6 pt-20 sm:pt-24 pb-8 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="testimonial-modal-title">
           <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col my-auto overflow-hidden animate-in zoom-in-95 duration-200">
-            {/* Header (Sticky / Fixed) */}
+            {/* Header */}
             <div className="px-6 py-4 border-b border-stone-100 flex justify-between items-center bg-stone-50/50 shrink-0">
               <div>
-                <h3 id="testimonial-modal-title" className="text-base sm:text-lg font-bold text-stone-900">{editing ? 'Edit Testimonial' : 'Add Testimonial'}</h3>
-                <p className="text-xs text-stone-500 font-light mt-0.5">Manage customer reviews and traveler stories</p>
+                <h3 id="testimonial-modal-title" className="text-base sm:text-lg font-bold text-stone-900">{editing ? 'Edit Story / Review' : 'Add Story / Review'}</h3>
+                <p className="text-xs text-stone-500 font-light mt-0.5">Manage customer reviews and team field stories</p>
               </div>
               <button 
                 type="button" 
@@ -430,6 +516,34 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
                 {!canWriteTestimonial && <ReadOnlyBanner message="View-only mode — you can view but not edit testimonials" />}
                 <fieldset disabled={!canWriteTestimonial} className="space-y-5">
                   
+                  {/* Role & Status selectors */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">Submitter Role</label>
+                      <select
+                        value={form.role}
+                        onChange={(e) => setForm({ ...form, role: e.target.value })}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-sm text-stone-850 outline-none"
+                      >
+                        {ROLE_OPTIONS.map(r => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">Publish Status</label>
+                      <select
+                        value={form.status}
+                        onChange={(e) => setForm({ ...form, status: e.target.value })}
+                        className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-2.5 text-sm text-stone-850 outline-none"
+                      >
+                        <option value="approved">Approved / Live</option>
+                        <option value="pending">Pending Review</option>
+                      </select>
+                    </div>
+                  </div>
+
                   {/* Avatar Upload */}
                   <div className="flex items-center gap-4 p-4 bg-stone-50/70 border border-stone-200 rounded-xl">
                     <div className="w-14 h-14 rounded-xl bg-stone-100 p-0.5 shadow-inner shrink-0 relative group overflow-hidden border border-stone-200">
@@ -469,9 +583,9 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
                     </div>
                   </div>
 
-                  {/* Slideshow Images */}
+                  {/* Slideshow / Gallery Images */}
                   <div className="p-4 bg-stone-50/70 border border-stone-200 rounded-xl space-y-3">
-                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">Slideshow Images</label>
+                    <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider">Gallery Photos</label>
                     {form.images.length > 0 ? (
                       <div className="flex flex-wrap gap-2.5">
                         {form.images.map((url, idx) => (
@@ -502,7 +616,7 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
                         type="button"
                         className="px-3.5 py-2 bg-white border border-stone-300 hover:bg-stone-50 rounded-lg text-xs font-semibold text-stone-700 shadow-xs transition-all cursor-pointer"
                       >
-                        Add Image
+                        Add Gallery Image
                       </button>
                       <span className="text-xs text-stone-400">Max 5MB each</span>
                     </div>
@@ -563,15 +677,15 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
 
                   <div>
                     <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                      Review Text
+                      Review / Story Text
                       <span className="font-normal text-stone-400 ml-1">({form.text.length}/{MAX_TEXT_LENGTH})</span>
                     </label>
                     <textarea
-                      rows="3"
+                      rows="4"
                       maxLength={MAX_TEXT_LENGTH}
                       value={form.text}
                       onChange={(e) => setForm({ ...form, text: e.target.value })}
-                      placeholder="Share the traveler's experience..."
+                      placeholder="Share the story or review details..."
                       className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-850 outline-none resize-none transition-all"
                     />
                   </div>
@@ -592,7 +706,7 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
                   type="submit" 
                   className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow active:scale-95 transition-all cursor-pointer"
                 >
-                  {editing ? 'Save Changes' : 'Add Testimonial'}
+                  {editing ? 'Save Changes' : 'Add Story'}
                 </button>
               </div>
             </form>
@@ -651,8 +765,8 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
       {deleteTarget && (
         <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
           <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-sm p-6 animate-in zoom-in duration-200 space-y-4">
-            <h3 className="text-base font-bold text-stone-900">Delete Testimonial?</h3>
-            <p className="text-xs text-stone-500 leading-relaxed">Are you sure you want to delete the testimonial from <strong className="text-stone-800">{deleteTarget.name}</strong>? This cannot be undone.</p>
+            <h3 className="text-base font-bold text-stone-900">Delete Story / Review?</h3>
+            <p className="text-xs text-stone-500 leading-relaxed">Are you sure you want to delete the story from <strong className="text-stone-800">{deleteTarget.name}</strong>? This cannot be undone.</p>
             <div className="flex justify-end gap-2">
               <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 border border-stone-200 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-50 active:scale-95 transition-all cursor-pointer">Cancel</button>
               <button onClick={confirmDelete} className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition-all cursor-pointer">Delete</button>
