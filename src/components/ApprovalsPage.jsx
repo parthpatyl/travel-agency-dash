@@ -38,7 +38,7 @@ export default function ApprovalsPage({ user, addNotification, token, initialApp
     } finally {
       setLoading(false)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, filter, isAdmin])
 
   useEffect(() => { fetchApprovals() }, [fetchApprovals])
@@ -140,11 +140,10 @@ export default function ApprovalsPage({ user, addNotification, token, initialApp
               <button
                 key={s}
                 onClick={() => setFilter(s)}
-                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-colors capitalize ${
-                  filter === s
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-colors capitalize ${filter === s
                     ? 'bg-stone-900 text-white border-stone-900'
                     : 'bg-white text-stone-500 border-stone-200 hover:bg-stone-50'
-                }`}
+                  }`}
               >
                 {s}
               </button>
