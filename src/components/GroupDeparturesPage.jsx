@@ -207,6 +207,7 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
     })
     setFormTab('details')
     setEditing(dep)
+    setPkgMode('existing')
     setEditingItineraryDayIdx(null)
     setItineraryDayNum(((currentItinerary.length || 0) + 1).toString())
     setItineraryDayTitle('')
@@ -270,13 +271,15 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
         booked: parseInt(form.slotsBooked) || 0,
         total: parseInt(form.slotsTotal) || 20
       },
+      slotsTotal: parseInt(form.slotsTotal) || 20,
+      slotsBooked: parseInt(form.slotsBooked) || 0,
       priceModifier: parseFloat(form.priceModifier) || 0,
       costPrice: parseFloat(form.costPrice) || 0,
       ctaBadge: form.ctaBadge || 'Guaranteed Departure',
       inclusions: parseList(form.inclusions),
       exclusions: parseList(form.exclusions),
       itinerary: form.itinerary || [],
-      status: form.status,
+      status: form.status || 'scheduled',
       notes: form.notes,
       termsAndConditions: form.termsAndConditions
     }
@@ -288,10 +291,16 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
       payload.packageDuration = pkg.duration
       payload.packageCardImage = pkg.cardImage
       payload.packageBasePrice = pkg.basePrice
+    } else if (editing) {
+      payload.packageName = editing.packageName
+      payload.packageRegion = editing.packageRegion
+      payload.packageDuration = editing.packageDuration
+      payload.packageCardImage = editing.packageCardImage
+      payload.packageBasePrice = editing.packageBasePrice
     }
 
     if (editing) {
-      setGroupDepartures(groupDepartures.map(g => g.id === editing.id ? { ...g, ...payload } : g))
+      setGroupDepartures(groupDepartures.map(g => String(g.id) === String(editing.id) ? { ...g, ...payload, id: editing.id } : g))
       if (addNotification) addNotification(`Group departure "${form.title}" updated`, 'success')
     } else {
       const newDep = {
@@ -310,7 +319,7 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
 
   const confirmDelete = () => {
     if (!deleteTarget) return
-    setGroupDepartures(groupDepartures.filter(g => g.id !== deleteTarget.id))
+    setGroupDepartures(groupDepartures.filter(g => String(g.id) !== String(deleteTarget.id)))
     if (addNotification) addNotification(`Group departure "${deleteTarget.title}" deleted`, 'info')
     setDeleteTarget(null)
   }
@@ -703,7 +712,7 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       <div>
                         <label htmlFor="form-price-modifier" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
                           Price Modifier (₹)
@@ -745,6 +754,22 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
                           <option value="Limited Seats">Limited Seats</option>
                           <option value="Early Bird Special">Early Bird Special</option>
                           <option value="Seasonal Special">Seasonal Special</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label htmlFor="form-status" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                          Departure Status
+                        </label>
+                        <select
+                          id="form-status"
+                          value={form.status}
+                          onChange={(e) => setForm({ ...form, status: e.target.value })}
+                          className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 rounded-lg p-3 text-sm text-stone-855 outline-none"
+                        >
+                          <option value="scheduled">Scheduled</option>
+                          <option value="confirmed">Confirmed</option>
+                          <option value="departed">Departed</option>
+                          <option value="cancelled">Cancelled</option>
                         </select>
                       </div>
                     </div>

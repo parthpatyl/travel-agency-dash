@@ -704,7 +704,7 @@ function App() {
     try {
       let working = resolved
       if (resolved.length > current.length) {
-        const added = resolved.filter(item => !current.some(g => g.id === item.id))
+        const added = resolved.filter(item => !current.some(g => String(g.id) === String(item.id)))
         for (const item of added) {
           const payload = {
             packageId: item.packageId,
@@ -725,20 +725,20 @@ function App() {
             termsAndConditions: item.termsAndConditions || ''
           }
           const serverItem = await syncRequest(`${API_BASE_URL}/group-departures`, 'POST', payload, `Created group departure for "${item.title}"`)
-          if (serverItem && serverItem.id !== item.id) {
-            working = working.map(g => g.id === item.id ? { ...g, id: serverItem.id } : g)
+          if (serverItem) {
+            working = working.map(g => String(g.id) === String(item.id) ? { ...g, ...serverItem } : g)
             rawSetGroupDepartures(working)
             localStorage.setItem('kraft_cached_group_departures', JSON.stringify(working))
           }
         }
       } else if (resolved.length < current.length) {
-        const deleted = current.filter(item => !resolved.some(r => r.id === item.id))
+        const deleted = current.filter(item => !resolved.some(r => String(r.id) === String(item.id)))
         for (const item of deleted) {
           await syncRequest(`${API_BASE_URL}/group-departures/${item.id}`, 'DELETE', null, `Deleted group departure "${item.title}"`)
         }
       } else {
         for (const item of resolved) {
-          const original = current.find(g => g.id === item.id)
+          const original = current.find(g => String(g.id) === String(item.id))
           if (original && JSON.stringify(original) !== JSON.stringify(item)) {
             const payload = {
               packageId: item.packageId,
@@ -759,8 +759,8 @@ function App() {
               termsAndConditions: item.termsAndConditions || ''
             }
             const serverItem = await syncRequest(`${API_BASE_URL}/group-departures/${item.id}`, 'PUT', payload, `Updated group departure "${item.title}"`)
-            if (serverItem && serverItem.id !== item.id) {
-              working = working.map(g => g.id === item.id ? { ...g, id: serverItem.id } : g)
+            if (serverItem) {
+              working = working.map(g => String(g.id) === String(item.id) ? { ...g, ...serverItem } : g)
               rawSetGroupDepartures(working)
               localStorage.setItem('kraft_cached_group_departures', JSON.stringify(working))
             }
