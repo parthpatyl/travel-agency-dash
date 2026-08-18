@@ -244,16 +244,6 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
       }
 
       if (setPackages) setPackages([createdPkgObj, ...packages])
-
-      // Persist package to backend
-      fetch(`${API_URL_DEFAULT}/api/packages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(createdPkgObj)
-      }).catch(err => console.error('Failed to create package:', err))
     }
 
     if (!activePackageId) {
@@ -303,32 +293,12 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
     if (editing) {
       setGroupDepartures(groupDepartures.map(g => g.id === editing.id ? { ...g, ...payload } : g))
       if (addNotification) addNotification(`Group departure "${form.title}" updated`, 'success')
-
-      fetch(`${API_URL_DEFAULT}/api/group-departures/${editing.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      }).catch(err => console.error('Failed to update group departure:', err))
     } else {
       const newDep = {
         id: `temp-group-${Date.now()}`,
         ...payload
       }
       setGroupDepartures([...groupDepartures, newDep])
-
-      // Persist Group Departure to backend
-      fetch(`${API_URL_DEFAULT}/api/group-departures`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      }).catch(err => console.error('Failed to create group departure:', err))
-
       if (addNotification) addNotification(`Group departure "${form.title}" created`, 'success')
     }
     setShowForm(false)
@@ -363,7 +333,7 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
   }
 
   const filtered = groupDepartures.filter(dep => {
-    if (filterStatus === 'All') return true
+    if (filterStatus === 'All' || filterStatus === 'all') return true
     return dep.status === filterStatus
   })
 
@@ -385,18 +355,24 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-2 border-b border-stone-200 pb-4">
-        {['scheduled'].map(status => (
+      <div className="flex flex-wrap gap-2 border-b border-stone-200 pb-4">
+        {[
+          { key: 'All', label: 'All Departures' },
+          { key: 'scheduled', label: 'Scheduled' },
+          { key: 'confirmed', label: 'Confirmed' },
+          { key: 'departed', label: 'Departed' },
+          { key: 'cancelled', label: 'Cancelled' }
+        ].map(tab => (
           <button
-            key={status}
-            onClick={() => setFilterStatus(status)}
+            key={tab.key}
+            onClick={() => setFilterStatus(tab.key)}
             className={`px-4.5 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${
-              filterStatus === status
+              filterStatus === tab.key
                 ? 'bg-amber-600 text-white shadow-sm'
                 : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
             }`}
           >
-            Scheduled
+            {tab.label}
           </button>
         ))}
       </div>

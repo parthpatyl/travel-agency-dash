@@ -21,7 +21,7 @@ const imgUrl = (url) => url?.startsWith('http') ? url : `${API_URL}${url || ''}`
 
 const formatUSD = (price) => price != null ? `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
 
-export default function PackagesPage({ packages, setPackages, clients, bookings, setBookings, settings, addNotification, onBookForPackage, user, token, initialSelectedPackageId, onSelectPackage }) {
+export default function PackagesPage({ packages, setPackages, groupDepartures = [], setGroupDepartures, clients, bookings, setBookings, settings, addNotification, onBookForPackage, user, token, initialSelectedPackageId, onSelectPackage }) {
   const [selectedPackage, setSelectedPackage] = useState(null)
   const [filterRegion, setFilterRegion] = useState('All')
   const [filterCategory, setFilterCategory] = useState('All')
@@ -502,22 +502,34 @@ export default function PackagesPage({ packages, setPackages, clients, bookings,
 
     // Create Group Departure if marked as scheduled departure
     if (isScheduledDeparture && pkgDepartureDate && pkgReturnDate) {
-      fetch(`${API_URL}/api/group-departures`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          packageId: newPkgObj.id,
-          title: `${newPkgObj.name} Scheduled Departure`,
-          departureDate: pkgDepartureDate,
-          returnDate: pkgReturnDate,
-          slots: newPkgObj.slots,
-          status: 'scheduled',
-          priceModifier: 0
-        })
-      }).catch(err => console.error('Failed to persist group departure:', err))
+      const newDepObj = {
+        id: `temp-group-${Date.now()}`,
+        packageId: newPkgObj.id,
+        packageName: newPkgObj.name,
+        packageRegion: newPkgObj.region,
+        packageDuration: newPkgObj.duration,
+        packageCardImage: newPkgObj.cardImage,
+        packageBasePrice: newPkgObj.basePrice,
+        title: `${newPkgObj.name} Scheduled Departure`,
+        departureDate: pkgDepartureDate,
+        returnDate: pkgReturnDate,
+        slots: newPkgObj.slots || { booked: 0, total: parseInt(pkgSlots) || 15 },
+        slotsTotal: newPkgObj.slots?.total || parseInt(pkgSlots) || 15,
+        slotsBooked: 0,
+        costPrice: parseFloat(pkgCostPrice) || 0,
+        ctaBadge: 'Guaranteed Departure',
+        inclusions: pkgInclusionsList,
+        exclusions: pkgExclusions,
+        highlights: pkgHighlights,
+        itinerary: pkgFormItinerary || [],
+        termsAndConditions: pkgTerms,
+        status: 'scheduled',
+        priceModifier: 0,
+        notes: newPkgObj.description
+      }
+      if (setGroupDepartures) {
+        setGroupDepartures(prev => [...(prev || groupDepartures || []), newDepObj])
+      }
     }
 
     if (addNotification) {

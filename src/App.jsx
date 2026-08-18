@@ -711,10 +711,18 @@ function App() {
             title: item.title,
             departureDate: item.departureDate,
             returnDate: item.returnDate,
-            slotsTotal: item.slots?.total,
-            priceModifier: item.priceModifier,
-            status: item.status,
-            notes: item.notes
+            slotsTotal: item.slotsTotal !== undefined ? item.slotsTotal : item.slots?.total,
+            slotsBooked: item.slotsBooked !== undefined ? item.slotsBooked : item.slots?.booked,
+            priceModifier: item.priceModifier ?? 0,
+            costPrice: item.costPrice ?? 0,
+            ctaBadge: item.ctaBadge || null,
+            inclusions: item.inclusions || [],
+            exclusions: item.exclusions || [],
+            highlights: item.highlights || [],
+            itinerary: item.itinerary || [],
+            status: item.status || 'scheduled',
+            notes: item.notes || '',
+            termsAndConditions: item.termsAndConditions || ''
           }
           const serverItem = await syncRequest(`${API_BASE_URL}/group-departures`, 'POST', payload, `Created group departure for "${item.title}"`)
           if (serverItem && serverItem.id !== item.id) {
@@ -737,11 +745,18 @@ function App() {
               title: item.title,
               departureDate: item.departureDate,
               returnDate: item.returnDate,
-              slotsTotal: item.slots?.total,
-              slotsBooked: item.slots?.booked,
-              priceModifier: item.priceModifier,
-              status: item.status,
-              notes: item.notes
+              slotsTotal: item.slotsTotal !== undefined ? item.slotsTotal : item.slots?.total,
+              slotsBooked: item.slotsBooked !== undefined ? item.slotsBooked : item.slots?.booked,
+              priceModifier: item.priceModifier ?? 0,
+              costPrice: item.costPrice ?? 0,
+              ctaBadge: item.ctaBadge || null,
+              inclusions: item.inclusions || [],
+              exclusions: item.exclusions || [],
+              highlights: item.highlights || [],
+              itinerary: item.itinerary || [],
+              status: item.status || 'scheduled',
+              notes: item.notes || '',
+              termsAndConditions: item.termsAndConditions || ''
             }
             const serverItem = await syncRequest(`${API_BASE_URL}/group-departures/${item.id}`, 'PUT', payload, `Updated group departure "${item.title}"`)
             if (serverItem && serverItem.id !== item.id) {
@@ -827,12 +842,27 @@ function App() {
     .filter(b => (b.status || 'Pending') !== 'Paid')
     .reduce((s, b) => s + parseAmt(b), 0)
 
+  const upcomingGroupDepartures = groupDepartures
+    .filter(g => {
+      if (!g.departureDate) return false
+      const d = new Date(g.departureDate)
+      return !isNaN(d.getTime()) && (g.status === 'scheduled' || g.status === 'confirmed')
+    })
+    .sort((a, b) => new Date(a.departureDate) - new Date(b.departureDate))
+
+  const upcomingGroupDepartures14d = upcomingGroupDepartures.filter(g => {
+    const d = new Date(g.departureDate)
+    return d >= now && d <= fourteenDaysOut
+  })
+
   const upcomingDepartures = bookings
     .filter(b => {
       const d = parseDate(b)
       return d && d >= now && d <= fourteenDaysOut
     })
     .sort((a, b) => parseDate(a) - parseDate(b))
+
+  const totalDepartures14dCount = upcomingDepartures.length + upcomingGroupDepartures14d.length
 
   const avgBookingValue = bookings.length > 0
     ? bookings.reduce((s, b) => s + parseAmt(b), 0) / bookings.length
@@ -1496,12 +1526,14 @@ function App() {
                   },
                   {
                     label: 'Departures (14d)',
-                    value: upcomingDepartures.length.toString(),
-                    sub: upcomingDepartures.length > 0 ? `${upcomingDepartures.length} trips this window` : 'No upcoming trips',
-                    subTone: upcomingDepartures.length > 0 ? 'good' : 'neutral',
+                    value: (totalDepartures14dCount > 0 ? totalDepartures14dCount : upcomingGroupDepartures.length).toString(),
+                    sub: totalDepartures14dCount > 0 
+                      ? `${totalDepartures14dCount} trips this window` 
+                      : (upcomingGroupDepartures.length > 0 ? `${upcomingGroupDepartures.length} upcoming group tours` : 'No upcoming trips'),
+                    subTone: (totalDepartures14dCount > 0 || upcomingGroupDepartures.length > 0) ? 'good' : 'neutral',
                     icon: 'M12 19V5m0 0l-7 7m7-7l7 7',
                     bg: 'bg-emerald-100', iconColor: 'text-emerald-700',
-                    tab: 'bookings'
+                    tab: 'groupDepartures'
                   },
                   {
                     label: 'Avg Booking Value',
@@ -1625,6 +1657,103 @@ function App() {
                             <tr>
                               <td colSpan="6" className="py-8 text-center text-stone-400">
                                 No bookings match the search criteria.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  {/* Upcoming Scheduled Departures */}
+                  <section className="bg-white border border-stone-200/80 rounded-2xl shadow-sm overflow-hidden">
+                    <div className="p-6 border-b border-stone-200/50 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-base font-bold text-stone-900 tracking-tight">
+                          Upcoming Scheduled Departures
+                        </h3>
+                        <p className="text-xs text-stone-400">
+                          Fixed-date group departures, seat capacity, and itinerary schedule.
+                        </p>
+                      </div>
+                      <button 
+                        onClick={() => setActiveTab('groupDepartures')}
+                        className="text-xs text-amber-700 hover:text-amber-600 font-bold cursor-pointer"
+                      >
+                        View All ({groupDepartures.length})
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-stone-50/50 border-b border-stone-200/50 text-[10px] font-bold text-stone-500 uppercase tracking-wider">
+                            <th className="py-3 px-6">Departure & Package</th>
+                            <th className="py-3 px-6">Date Range</th>
+                            <th className="py-3 px-6">Slots Booked</th>
+                            <th className="py-3 px-6">Price</th>
+                            <th className="py-3 px-6 text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-stone-100">
+                          {groupDepartures.length > 0 ? (
+                            groupDepartures.slice(0, 5).map((dep) => {
+                              const slots = dep.slots || { booked: dep.slotsBooked || 0, total: dep.slotsTotal || 20 }
+                              const pct = Math.min(100, Math.round(((slots.booked || 0) / (slots.total || 1)) * 100)) || 0
+                              const depDate = dep.departureDate ? new Date(dep.departureDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : '—'
+                              const retDate = dep.returnDate ? new Date(dep.returnDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
+                              const basePrice = dep.packageBasePrice || 0
+                              const finalPrice = basePrice + (dep.priceModifier || 0)
+
+                              return (
+                                <tr
+                                  key={dep.id}
+                                  onClick={() => setActiveTab('groupDepartures')}
+                                  className="hover:bg-amber-50/30 transition-colors duration-200 text-xs cursor-pointer"
+                                >
+                                  <td className="py-3.5 px-6">
+                                    <span className="font-semibold text-stone-900 block">{dep.title}</span>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-[11px] text-stone-500">{dep.packageName || 'Group Tour'}</span>
+                                      {dep.itinerary && dep.itinerary.length > 0 && (
+                                        <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200/50">
+                                          {dep.itinerary.length}D
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-3.5 px-6 font-medium text-stone-600">
+                                    {depDate} — {retDate}
+                                  </td>
+                                  <td className="py-3.5 px-6">
+                                    <div className="flex items-center gap-2 max-w-[120px]">
+                                      <div className="flex-1 bg-stone-100 rounded-full h-1.5 overflow-hidden">
+                                        <div className="bg-amber-600 h-full rounded-full" style={{ width: `${pct}%` }}></div>
+                                      </div>
+                                      <span className="text-[11px] font-semibold text-stone-600 shrink-0">
+                                        {slots.booked}/{slots.total}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3.5 px-6 font-bold text-stone-800">
+                                    {finalPrice > 0 ? `₹${finalPrice.toLocaleString('en-IN')}` : '—'}
+                                  </td>
+                                  <td className="py-3.5 px-6 text-right">
+                                    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                      dep.status === 'scheduled' || dep.status === 'confirmed'
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200/40'
+                                        : 'bg-stone-100 text-stone-600 border-stone-200/40'
+                                    }`}>
+                                      {dep.status || 'scheduled'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              )
+                            })
+                          ) : (
+                            <tr>
+                              <td colSpan="5" className="py-8 text-center text-stone-400">
+                                No scheduled group departures found.
                               </td>
                             </tr>
                           )}
@@ -1779,6 +1908,15 @@ function App() {
                         New Client Booking
                       </button>
                       <button 
+                        onClick={() => setActiveTab('groupDepartures')}
+                        className="w-full py-2.5 px-4 bg-white hover:bg-stone-50 border border-stone-200/70 text-stone-700 rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <svg className="w-4.5 h-4.5 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        New Group Departure
+                      </button>
+                      <button 
                         onClick={() => setActiveTab('reports')}
                         className="w-full py-2.5 px-4 bg-white hover:bg-stone-50 border border-stone-200/70 text-stone-700 rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
                       >
@@ -1851,6 +1989,8 @@ function App() {
             <PackagesPage 
               packages={packages}
               setPackages={setPackages}
+              groupDepartures={groupDepartures}
+              setGroupDepartures={setGroupDepartures}
               clients={clients}
               bookings={bookings}
               setBookings={setBookings}
