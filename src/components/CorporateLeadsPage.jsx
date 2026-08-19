@@ -106,7 +106,7 @@ export default function CorporateLeadsPage({ addNotification, token, user, onCon
     } catch (_) { console.error('Failed to fetch corporate packages', _) }
   }
 
-  useEffect(() => { fetchLeads(); fetchCorpPkgs() }, [])
+  useEffect(() => { fetchLeads(); fetchCorpPkgs() }, []) // eslint-disable-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
 
   const updateStatus = async (id, status) => {
     try {

@@ -77,9 +77,10 @@ export default function TeamPage({ addNotification, token, user: currentUser }) 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
-  useEffect(() => { fetchUsers() }, [fetchUsers])
+  useEffect(() => { fetchUsers() }, [fetchUsers]) // eslint-disable-line react-hooks/set-state-in-effect
 
   // Live ticker — re-renders every 30s so status labels re-evaluate against now()
+  // eslint-disable-next-line react-hooks/purity
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
     const i = setInterval(() => setNow(Date.now()), 30_000)

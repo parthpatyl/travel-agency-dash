@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatTravelMarkdown, splitBulletedItems, flattenBulletedItems } from '../utils/markdownUtils'
+import { formatTravelMarkdown, splitBulletedItems, flattenBulletedItems } from '../utils/markdownHelpers'
 
 describe('markdownUtils', () => {
   it('converts inline bullet points to markdown lists', () => {

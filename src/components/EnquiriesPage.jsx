@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 const STATUS_ORDER = ['logged', 'reviewing', 'proposing', 'finalized']
 
@@ -16,7 +16,7 @@ const STATUS_COLORS = {
   finalized: 'bg-emerald-100 text-emerald-700 border-emerald-200',
 }
 
-export default function EnquiriesPage({ token, API_URL, authHeaders, addNotification, onSelectEnquiry, clients = [], setClients, packages = [] }) {
+export default function EnquiriesPage({ API_URL, authHeaders, addNotification, onSelectEnquiry, clients = [], setClients }) {
   const [enquiries, setEnquiries] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -47,11 +47,7 @@ export default function EnquiriesPage({ token, API_URL, authHeaders, addNotifica
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [showAddForm])
 
-  useEffect(() => {
-    fetchEnquiries()
-  }, [])
-
-  const fetchEnquiries = async () => {
+  const fetchEnquiries = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch(`${API_URL}/api/enquiries`, { headers: authHeaders() })
@@ -61,13 +57,18 @@ export default function EnquiriesPage({ token, API_URL, authHeaders, addNotifica
       } else {
         if (addNotification) addNotification(json.message || 'Failed to load enquiries', 'error')
       }
-    } catch (err) {
-      console.error('Error loading enquiries:', err)
+    } catch (fetchErr) {
+      console.error('Error loading enquiries:', fetchErr)
       if (addNotification) addNotification('Network error loading enquiries', 'error')
     } finally {
       setLoading(false)
     }
-  }
+  }, [API_URL, authHeaders, addNotification])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchEnquiries()
+  }, [fetchEnquiries])
 
   const updateStatus = async (id, newStatus) => {
     setUpdatingId(id)
@@ -86,7 +87,7 @@ export default function EnquiriesPage({ token, API_URL, authHeaders, addNotifica
       } else {
         if (addNotification) addNotification(json.message || 'Failed to update status', 'error')
       }
-    } catch (err) {
+    } catch { /* swallow — notification already shown if addNotification exists */
       if (addNotification) addNotification('Network error updating status', 'error')
     } finally {
       setUpdatingId(null)
@@ -107,9 +108,9 @@ export default function EnquiriesPage({ token, API_URL, authHeaders, addNotifica
 
   const handleCreateEnquiry = async (e) => {
     e.preventDefault()
-    let clientName = ''
-    let clientEmail = ''
-    let clientPhone = ''
+    let clientName
+    let clientEmail
+    let clientPhone
 
     if (clientMode === 'existing') {
       const c = clients.find(cl => cl.name === selectedClient)
@@ -154,11 +155,6 @@ export default function EnquiriesPage({ token, API_URL, authHeaders, addNotifica
       }
 
       if (setClients) setClients([newClientObj, ...clients])
-      fetch(`${API_URL}/api/clients`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify(newClientObj)
-      }).catch(err => console.error('Error creating client:', err))
     }
 
     if (!destination || !travelDate) {
@@ -201,8 +197,8 @@ export default function EnquiriesPage({ token, API_URL, authHeaders, addNotifica
       } else {
         if (addNotification) addNotification(json.message || 'Failed to create enquiry', 'error')
       }
-    } catch (err) {
-      console.error('Error creating enquiry:', err)
+    } catch (createErr) {
+      console.error('Error creating enquiry:', createErr)
       if (addNotification) addNotification('Network error creating enquiry', 'error')
     }
   }
@@ -211,10 +207,10 @@ export default function EnquiriesPage({ token, API_URL, authHeaders, addNotifica
     if (!search) return true
     const q = search.toLowerCase()
     return (
-      e.id.toLowerCase().includes(q) ||
-      e.name.toLowerCase().includes(q) ||
-      e.destination.toLowerCase().includes(q) ||
-      e.email.toLowerCase().includes(q)
+      (e.id || '').toLowerCase().includes(q) ||
+      (e.name || '').toLowerCase().includes(q) ||
+      (e.destination || '').toLowerCase().includes(q) ||
+      (e.email || '').toLowerCase().includes(q)
     )
   })
 

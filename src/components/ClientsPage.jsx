@@ -31,12 +31,13 @@ const validatePhone = (phone) => {
   return digits.length >= 7 && digits.length <= 15
 }
 
+// eslint-disable-next-line no-unused-vars
 const formatPhoneDisplay = (phone) => {
   if (!phone) return ''
   return phone
 }
 
-export default function ClientsPage({ clients = [], setClients, bookings = [], initialSelectedClientId = null, onSelectClient = null, user = { role: 'admin' }, addNotification }) {
+export default function ClientsPage({ clients = [], setClients, bookings = [], initialSelectedClientId = null, onSelectClient = null, onBookForClient = null, user = { role: 'admin' }, addNotification }) {
   const [search, setSearch] = useState('')
   const searchInputRef = useRef(null)
   const [selectedClient, setSelectedClient] = useState(() => {
@@ -61,10 +62,11 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
     if (initialSelectedClientId) {
       const found = clients.find(c => c.id === initialSelectedClientId)
       if (found && (!selectedClient || selectedClient.id !== initialSelectedClientId)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedClient(found)
       }
     }
-  }, [initialSelectedClientId, clients])
+  }, [initialSelectedClientId, clients]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (onSelectClient) {
@@ -103,9 +105,9 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
       }
 
       const filtered = clients.filter(c => 
-        c.name.toLowerCase().includes(search.toLowerCase()) || 
-        c.id.toLowerCase().includes(search.toLowerCase()) || 
-        (c.email && c.email.toLowerCase().includes(search.toLowerCase()))
+        (c.name || '').toLowerCase().includes(search.toLowerCase()) || 
+        (c.id || '').toLowerCase().includes(search.toLowerCase()) || 
+        ((c.email || '').toLowerCase().includes(search.toLowerCase()))
       )
 
       if (['ArrowDown', 'j'].includes(e.key)) {
@@ -149,7 +151,7 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
   }
 
   const getClientStats = (clientName) => {
-    const clientBookings = bookings.filter(b => b.client.toLowerCase() === clientName.toLowerCase())
+    const clientBookings = bookings.filter(b => (b.client || '').toLowerCase() === (clientName || '').toLowerCase())
     const currentCount = clientBookings.length
     const currentVolume = clientBookings.reduce((sum, b) => sum + (Number(b.amount) || 0), 0)
     
@@ -524,9 +526,9 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
 
 
   const filtered = clientsWithStats.filter(c => 
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.email.toLowerCase().includes(search.toLowerCase()) ||
-    c.id.toLowerCase().includes(search.toLowerCase())
+    (c.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (c.email || '').toLowerCase().includes(search.toLowerCase()) ||
+    (c.id || '').toLowerCase().includes(search.toLowerCase())
   )
 
   const getTierColor = (tier) => {

@@ -1,6 +1,6 @@
 const formatUSD = (price) => price != null ? `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
 
-export default function ReportsPage({ bookings = [], packages = [], clients = [], settings = {} }) {
+export default function ReportsPage({ bookings = [], packages = [], settings = {} }) {
   const markupPercent = parseFloat(settings?.rules?.markup ?? settings?.defaultMarkup?.toString() ?? '15')
   const splitPercent = parseFloat(settings?.rules?.agentSplit ?? settings?.defaultAgentSplit?.toString() ?? '40')
   const inrToUsdRate = parseFloat(settings?.inrToUsdRate ?? 0)
@@ -37,7 +37,7 @@ export default function ReportsPage({ bookings = [], packages = [], clients = []
     .map((ag, rankIdx) => ({ rank: rankIdx + 1, ...ag }))
 
   const destinationMetrics = packages.map(pkg => {
-    const pkgBookings = bookings.filter(b => b.package.toLowerCase() === pkg.name.toLowerCase())
+    const pkgBookings = bookings.filter(b => (b.package || '').toLowerCase() === (pkg.name || '').toLowerCase())
     const totalBookings = pkgBookings.length
     const volume = pkgBookings.reduce((sum, b) => sum + (Number(b.amount) || 0), 0)
     const costPrice = pkg.costPrice || 0

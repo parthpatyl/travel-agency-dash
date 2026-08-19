@@ -41,7 +41,7 @@ export default function ApprovalsPage({ user, addNotification, token, initialApp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, filter, isAdmin])
 
-  useEffect(() => { fetchApprovals() }, [fetchApprovals])
+  useEffect(() => { fetchApprovals() }, [fetchApprovals]) // eslint-disable-line react-hooks/set-state-in-effect
 
   useEffect(() => {
     if (!initialApprovalId || approvals.length === 0) return

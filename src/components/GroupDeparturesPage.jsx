@@ -6,7 +6,7 @@ import ReadOnlyBanner from './ReadOnlyBanner'
 
 const API_URL_DEFAULT = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
-export default function GroupDeparturesPage({ groupDepartures, setGroupDepartures, packages = [], setPackages, addNotification, user, token }) {
+export default function GroupDeparturesPage({ groupDepartures, setGroupDepartures, packages = [], setPackages, addNotification, user }) {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [formTab, setFormTab] = useState('details')
@@ -49,7 +49,7 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
   const [newPkgDuration, setNewPkgDuration] = useState('5')
   const [newPkgPrice, setNewPkgPrice] = useState('3000')
   const [newPkgRegion, setNewPkgRegion] = useState('Asia')
-  const [newPkgCategory, setNewPkgCategory] = useState('standard')
+  const [newPkgCategory, setNewPkgCategory] = useState('standard') // eslint-disable-line no-unused-vars
   const [newPkgDescription, setNewPkgDescription] = useState('')
 
   const activePackages = (packages || []).filter(p => !p.isBespoke)
@@ -215,7 +215,7 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
     setShowForm(true)
   }
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault()
 
     let activePackageId = form.packageId
@@ -244,7 +244,7 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
         termsAndConditions: form.termsAndConditions
       }
 
-      if (setPackages) setPackages([createdPkgObj, ...packages])
+      if (setPackages) await setPackages([createdPkgObj, ...packages])
     }
 
     if (!activePackageId) {
@@ -300,14 +300,14 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
     }
 
     if (editing) {
-      setGroupDepartures(groupDepartures.map(g => String(g.id) === String(editing.id) ? { ...g, ...payload, id: editing.id } : g))
+      if (setGroupDepartures) await setGroupDepartures(groupDepartures.map(g => String(g.id) === String(editing.id) ? { ...g, ...payload, id: editing.id } : g))
       if (addNotification) addNotification(`Group departure "${form.title}" updated`, 'success')
     } else {
       const newDep = {
         id: `temp-group-${Date.now()}`,
         ...payload
       }
-      setGroupDepartures([...groupDepartures, newDep])
+      if (setGroupDepartures) await setGroupDepartures([...groupDepartures, newDep])
       if (addNotification) addNotification(`Group departure "${form.title}" created`, 'success')
     }
     setShowForm(false)

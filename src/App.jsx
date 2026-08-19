@@ -18,11 +18,26 @@ import { roleHas } from './utils/permissions'
 import { 
   getQueue, 
   enqueueRequest, 
-  removeFromQueue, 
   clearQueue, 
   processSyncQueue, 
   checkServerHealth 
 } from './utils/syncManager'
+
+if (typeof globalThis.localStorage === 'undefined' || !globalThis.localStorage?.clear) {
+  const store = new Map()
+  const mockStorage = {
+    getItem: (key) => store.get(key) || null,
+    setItem: (key, val) => store.set(key, String(val)),
+    removeItem: (key) => store.delete(key),
+    clear: () => store.clear(),
+    get length() { return store.size },
+    key: (i) => Array.from(store.keys())[i] || null,
+  }
+  globalThis.localStorage = mockStorage
+  if (typeof window !== 'undefined') {
+    window.localStorage = mockStorage
+  }
+}
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const API_BASE_URL = `${API_URL}/api`;
@@ -379,7 +394,8 @@ function App() {
 
   // Load from cache instantly, then check health and sync
   useEffect(() => {
-    // 1. Initial Cache Fallback Loading
+    // 1. Initial Cache Fallback Loading — intentional synchronous setState for instant hydration
+    /* eslint-disable react-hooks/set-state-in-effect */
     const cachedClients = localStorage.getItem('kraft_cached_clients')
     if (cachedClients) rawSetClients(JSON.parse(cachedClients))
     
@@ -400,6 +416,7 @@ function App() {
 
     const cachedDepartures = localStorage.getItem('kraft_cached_group_departures')
     if (cachedDepartures) rawSetGroupDepartures(JSON.parse(cachedDepartures))
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     // 2. Perform initial health check and sync queue
     performHealthAndSync()
@@ -410,7 +427,7 @@ function App() {
     }, 15000)
 
     return () => clearInterval(intervalId)
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   
   // Poll pending approvals count for admin
   useEffect(() => {
@@ -424,7 +441,7 @@ function App() {
           const data = await res.json()
           setPendingApprovalsCount(data.length)
         }
-      } catch {}
+      } catch { /* swallow poll errors silently */ }
     }
     poll()
     const interval = setInterval(poll, 30000)
@@ -733,13 +750,20 @@ function App() {
         }
       } else if (resolved.length < current.length) {
         const deleted = current.filter(item => !resolved.some(r => String(r.id) === String(item.id)))
-        for (const item of deleted) {
+        const itemsToDelete = deleted.filter(item => !String(item.id).startsWith('temp-'))
+        for (const item of itemsToDelete) {
           await syncRequest(`${API_BASE_URL}/group-departures/${item.id}`, 'DELETE', null, `Deleted group departure "${item.title}"`)
         }
       } else {
+        const EDITABLE_DEP_FIELDS = ['departureDate', 'returnDate', 'slots', 'priceModifier', 'costPrice', 'ctaBadge', 'inclusions', 'exclusions', 'highlights', 'itinerary', 'status', 'notes', 'termsAndConditions', 'title'];
+        const hasDepChanges = (orig, curr) => EDITABLE_DEP_FIELDS.some(field => {
+          const a = typeof orig[field] === 'object' ? JSON.stringify(orig[field]) : orig[field];
+          const b = typeof curr[field] === 'object' ? JSON.stringify(curr[field]) : curr[field];
+          return a !== b;
+        });
         for (const item of resolved) {
           const original = current.find(g => String(g.id) === String(item.id))
-          if (original && JSON.stringify(original) !== JSON.stringify(item)) {
+          if (original && hasDepChanges(original, item)) {
             const payload = {
               packageId: item.packageId,
               title: item.title,
@@ -804,15 +828,67 @@ function App() {
   // Dynamic Dashboard Stats Calculations — Indian Tier-2 travel agency
   const parseAmt = (b) => Number(b.amount) || 0
   const parseDate = (b) => {
-    // b.date is now the formatted "25 Jun 2026" string from mapBookingToFrontend
-    if (!b.date) return null
-    const parsed = Date.parse(b.date)
+    if (!b) return null
+    const rawDate = b.date || b.startDate || b.travelDate
+    if (!rawDate) return null
+    if (rawDate instanceof Date) {
+      return isNaN(rawDate.getTime()) ? null : rawDate
+    }
+    if (typeof rawDate !== 'string') return null
+    const trimmed = rawDate.trim()
+    if (!trimmed) return null
+
+    // 1. Check DD/MM/YYYY or DD-MM-YYYY (e.g. 25/06/2026, 25-06-2026, 5/6/2026)
+    const dmyMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
+    if (dmyMatch) {
+      const day = parseInt(dmyMatch[1], 10)
+      const month = parseInt(dmyMatch[2], 10) - 1
+      const year = parseInt(dmyMatch[3], 10)
+      const d = new Date(year, month, day)
+      if (!isNaN(d.getTime()) && d.getFullYear() === year && d.getMonth() === month && d.getDate() === day) {
+        return d
+      }
+    }
+
+    // 2. Try standard Date.parse (e.g. "2026-06-25", ISO strings)
+    const parsed = Date.parse(trimmed)
     if (!isNaN(parsed)) return new Date(parsed)
-    // Fallback for "25 Jun 2026" — V8 rejects this, parse manually
-    const months = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 }
-    const parts = b.date.split(/\s+/)
-    if (parts.length === 3 && months[parts[1].toLowerCase()] !== undefined) {
-      return new Date(Date.UTC(parseInt(parts[2]), months[parts[1].toLowerCase()], parseInt(parts[0])))
+
+    // 3. Fallback for "25 Jun 2026" / "25 June 2026" / "Jun 25, 2026"
+    const months = {
+      jan:0, janary:0, january:0,
+      feb:1, february:1,
+      mar:2, march:2,
+      apr:3, april:3,
+      may:4,
+      jun:5, june:5,
+      jul:6, july:6,
+      aug:7, august:7,
+      sep:8, sept:8, september:8,
+      oct:9, october:9,
+      nov:10, november:10,
+      dec:11, december:11
+    }
+    const parts = trimmed.split(/[\s,-]+/).filter(Boolean)
+    if (parts.length === 3) {
+      // Day Month Year (e.g. 25 Jun 2026)
+      const m1 = months[parts[1].toLowerCase()]
+      if (m1 !== undefined) {
+        const day = parseInt(parts[0], 10)
+        const year = parseInt(parts[2], 10)
+        if (!isNaN(day) && !isNaN(year)) {
+          return new Date(Date.UTC(year, m1, day))
+        }
+      }
+      // Month Day Year (e.g. Jun 25 2026)
+      const m0 = months[parts[0].toLowerCase()]
+      if (m0 !== undefined) {
+        const day = parseInt(parts[1], 10)
+        const year = parseInt(parts[2], 10)
+        if (!isNaN(day) && !isNaN(year)) {
+          return new Date(Date.UTC(year, m0, day))
+        }
+      }
     }
     return null
   }
@@ -1013,9 +1089,9 @@ function App() {
 
   const filteredBookings = bookings.filter(
     (b) =>
-      b.client.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.package.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.id.toLowerCase().includes(searchQuery.toLowerCase())
+      (b.client || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (b.package || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (b.id || '').toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   if (authLoading) {
@@ -2024,7 +2100,6 @@ function App() {
               setPackages={setPackages}
               addNotification={addNotification}
               user={user}
-              token={token}
             />
           )}
 

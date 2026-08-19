@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
 import PackageBrochureModal from './PackageBrochureModal'
-import { SmartMarkdown, SmartMarkdownInline, formatTravelMarkdown, splitBulletedItems, flattenBulletedItems } from '../utils/markdownUtils'
+import { SmartMarkdown, SmartMarkdownInline } from '../utils/markdownUtils'
+import { formatTravelMarkdown, splitBulletedItems, flattenBulletedItems } from '../utils/markdownHelpers'
 
 const PrinterIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -21,7 +22,7 @@ const imgUrl = (url) => url?.startsWith('http') ? url : `${API_URL}${url || ''}`
 
 const formatUSD = (price) => price != null ? `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
 
-export default function PackagesPage({ packages, setPackages, groupDepartures = [], setGroupDepartures, clients, bookings, setBookings, settings, addNotification, onBookForPackage, user, token, initialSelectedPackageId, onSelectPackage }) {
+export default function PackagesPage({ packages, setPackages, groupDepartures = [], setGroupDepartures, settings, addNotification, onBookForPackage, user, token, initialSelectedPackageId, onSelectPackage }) {
   const [selectedPackage, setSelectedPackage] = useState(null)
   const [filterRegion, setFilterRegion] = useState('All')
   const [filterCategory, setFilterCategory] = useState('All')
@@ -34,6 +35,7 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
     if (!initialSelectedPackageId || packages.length === 0) return
     const pkg = packages.find(p => p.id === initialSelectedPackageId)
     if (pkg) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedPackage(pkg)
       if (onSelectPackage) onSelectPackage(null)
     }

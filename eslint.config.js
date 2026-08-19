@@ -7,7 +7,20 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores(['dist']),
   {
+    // Test files get Node globals to allow global.x = ... patterns
+    files: ['**/__tests__/**/*.{js,jsx}', '**/test/**/*.{js,jsx}', '**/*.test.{js,jsx}'],
+    extends: [
+      js.configs.recommended,
+      reactHooks.configs.flat.recommended,
+    ],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+  },
+  {
     files: ['**/*.{js,jsx}'],
+    ignores: ['dist', '**/__tests__/**', '**/test/**', '**/*.test.{js,jsx}'],
     extends: [
       js.configs.recommended,
       reactHooks.configs.flat.recommended,

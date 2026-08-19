@@ -74,21 +74,6 @@ export default function CorporatePackagesPage({ corporatePackages, setCorporateP
   const [itineraryDayDesc, setItineraryDayDesc] = useState('')
   const [editingItineraryDayIdx, setEditingItineraryDayIdx] = useState(null)
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        if (showForm) {
-          setShowForm(false)
-          setEditing(null)
-        } else if (deleteTarget) {
-          setDeleteTarget(null)
-        }
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showForm, deleteTarget])
-
   const canWrite = roleHas(user?.role, 'write:packages') || roleHas(user?.role, 'create:packages')
 
   const handleAddItineraryDay = (e) => {

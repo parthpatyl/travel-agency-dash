@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { SmartMarkdown, SmartMarkdownInline, flattenBulletedItems } from '../utils/markdownUtils'
+import { SmartMarkdown, SmartMarkdownInline } from '../utils/markdownUtils'
+import { flattenBulletedItems } from '../utils/markdownHelpers'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const DEFAULT_IMAGE = `${API_URL}/assets/unsplash-pkg-card.jpg`

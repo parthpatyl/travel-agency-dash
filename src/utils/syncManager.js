@@ -18,7 +18,7 @@ export function saveQueue(queue) {
   }
 }
 
-export function enqueueRequest({ url, method, headers, body, description }) {
+export function enqueueRequest({ url, method, headers, body, description, retries = 0, maxRetries = 3 }) {
   const queue = getQueue();
   const newItem = {
     id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15),
@@ -27,6 +27,8 @@ export function enqueueRequest({ url, method, headers, body, description }) {
     headers: headers || {},
     body: body || null,
     description,
+    retries,
+    maxRetries,
     timestamp: Date.now()
   };
   queue.push(newItem);
@@ -53,6 +55,7 @@ export function clearQueue() {
  * Sequentially process the queue.
  * Stops on the first network error to maintain order.
  * Removes successful items or items with unresolvable client errors (4xx).
+ * Retries server errors (5xx/408/429) up to maxRetries before discarding to prevent deadlocks.
  */
 export async function processSyncQueue(addNotification, onProgress) {
   const queue = getQueue();
@@ -90,11 +93,32 @@ export async function processSyncQueue(addNotification, onProgress) {
         }
       } else {
         if (res.status >= 500 || res.status === 408 || res.status === 429) {
-          // Server error / Rate limit: Pause processing to maintain request order
-          console.warn(`Sync queue paused. Server returned status ${res.status} for ${item.url}`);
-          return { success: false, processedCount, error: `Server returned ${res.status}` };
+          const currentRetries = (item.retries || 0) + 1;
+          const maxRetries = item.maxRetries || 3;
+
+          if (currentRetries >= maxRetries) {
+            // Reached retry limit: discard from queue (dead-letter) to avoid deadlocking the queue
+            console.error(`Sync queue item exceeded max retries (${currentRetries}/${maxRetries}), discarding:`, item);
+            const index = remainingQueue.findIndex(q => q.id === item.id);
+            if (index !== -1) remainingQueue.splice(index, 1);
+            saveQueue(remainingQueue);
+
+            if (addNotification) {
+              addNotification(`Sync failed after ${currentRetries} attempts (discarded): ${item.description} (Error ${res.status})`, 'error');
+            }
+            continue;
+          } else {
+            // Increment retries on the item in remainingQueue and pause
+            const index = remainingQueue.findIndex(q => q.id === item.id);
+            if (index !== -1) {
+              remainingQueue[index] = { ...remainingQueue[index], retries: currentRetries };
+            }
+            saveQueue(remainingQueue);
+            console.warn(`Sync queue paused (attempt ${currentRetries}/${maxRetries}). Server returned status ${res.status} for ${item.url}`);
+            return { success: false, processedCount, error: `Server returned ${res.status}` };
+          }
         } else {
-          // Client-side validation or logic error (400, 404, etc.): 
+          // Client-side validation or logic error (400, 404, 409, etc.): 
           // Log, notify user, and skip to avoid blocking the queue forever
           console.error(`Skipping invalid queue item (Status ${res.status}):`, item);
           const index = remainingQueue.findIndex(q => q.id === item.id);
@@ -134,7 +158,7 @@ export async function checkServerHealth(apiUrl) {
       return { online: true, latency, timestamp: data.timestamp || new Date().toISOString() };
     }
     return { online: false, latency: null, timestamp: null };
-  } catch (err) {
+  } catch {
     return { online: false, latency: null, timestamp: null };
   }
 }

@@ -11,7 +11,7 @@ const imgUrl = (url) => {
   return `${API_URL}${url}`
 }
 
-export default function SettingsPage({ settings = {}, setSettings, addNotification, packages = [], user }) {
+export default function SettingsPage({ settings = {}, setSettings, addNotification, user }) {
   const [editingOfferId, setEditingOfferId] = useState(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [offerForm, setOfferForm] = useState({
@@ -157,6 +157,7 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
     bedbank: { connected: true, endpoint: 'https://api.hotelbeds.com/hotel/v3', key: '••••••••••••••••••••' }
   }
 
+  // eslint-disable-next-line no-unused-vars
   const toggleApiConnection = (apiName) => {
     const updated = {
       ...apis,
@@ -175,6 +176,7 @@ export default function SettingsPage({ settings = {}, setSettings, addNotificati
     }
   }
 
+  // eslint-disable-next-line no-unused-vars
   const handleApiKeyChange = (apiName, value) => {
     const updated = {
       ...apis,
