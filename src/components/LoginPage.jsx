@@ -54,10 +54,11 @@ export default function LoginPage({ onLogin }) {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">
+              <label htmlFor="admin-email" className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">
                 Email
               </label>
               <input
+                id="admin-email"
                 type="email"
                 value={email}
                 onChange={(e) => {
@@ -65,6 +66,7 @@ export default function LoginPage({ onLogin }) {
                   if (error) setError('')
                 }}
                 placeholder="admin@kraftyourtrip.com"
+                aria-label="Admin Email"
                 className={`w-full bg-stone-50 border ${
                   error ? 'border-rose-400 focus:border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : 'border-stone-200 focus:border-amber-500'
                 } rounded-xl py-2.5 px-3.5 text-xs text-stone-800 placeholder-stone-400 outline-none focus:ring-1 focus:ring-amber-500 transition-all duration-300`}
@@ -74,18 +76,20 @@ export default function LoginPage({ onLogin }) {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">
+                <label htmlFor="admin-password" className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">
                   Password
                 </label>
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="text-[10px] text-stone-400 hover:text-stone-700 font-semibold"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="text-[11px] text-stone-400 hover:text-stone-700 font-semibold px-2 py-1 min-h-[32px] inline-flex items-center"
                 >
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
               </div>
               <input
+                id="admin-password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => {
@@ -93,6 +97,7 @@ export default function LoginPage({ onLogin }) {
                   if (error) setError('')
                 }}
                 placeholder="Enter your password"
+                aria-label="Admin Password"
                 className={`w-full bg-stone-50 border ${
                   error ? 'border-rose-400 focus:border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : 'border-stone-200 focus:border-amber-500'
                 } rounded-xl py-2.5 px-3.5 text-xs text-stone-800 placeholder-stone-400 outline-none focus:ring-1 focus:ring-amber-500 transition-all duration-300`}
