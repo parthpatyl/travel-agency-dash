@@ -13,6 +13,7 @@ import CorporateLeadsPage from './components/CorporateLeadsPage'
 import GroupDeparturesPage from './components/GroupDeparturesPage'
 import EnquiriesPage from './components/EnquiriesPage'
 import EnquiryDetailModal from './components/EnquiryDetailModal'
+import AccountSettingsModal from './components/AccountSettingsModal'
 import logo from './assets/logo.png'
 import { roleHas } from './utils/permissions'
 import { 
@@ -148,6 +149,7 @@ function App() {
   // Interactive Feature States
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
+  const [showAccountSettingsModal, setShowAccountSettingsModal] = useState(false)
   const [notificationsList, setNotificationsList] = useState([])
   const [toasts, setToasts] = useState([])
   const [selectedClientIdForCRM, setSelectedClientIdForCRM] = useState(null)
@@ -1144,8 +1146,7 @@ function App() {
               { id: 'corporatePackages', label: 'Corporate Tours', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', visible: roleHas(user?.role, 'read:packages') },
               { id: 'groupDepartures', label: 'Group Departures', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', visible: roleHas(user?.role, 'read:packages') },
               { id: 'reports', label: 'Reports', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z', visible: roleHas(user?.role, 'read:reports') },
-              { id: 'testimonials', label: 'Testimonials', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', visible: roleHas(user?.role, 'read:testimonials') },
-              { id: 'settings', label: 'Settings', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z', visible: roleHas(user?.role, 'read:settings') },
+              { id: 'settings', label: 'Website', icon: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9', visible: roleHas(user?.role, 'read:settings') },
               ...(roleHas(user?.role, 'manage:users') ? [{ id: 'team', label: 'Team', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' }] : []),
               ...(roleHas(user?.role, 'review:approvals') || roleHas(user?.role, 'submit:approvals') ? [{ id: 'approvals', label: 'Approvals', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' }] : []),
             ].filter(t => t.visible !== false).map((link) => (
@@ -1537,24 +1538,24 @@ function App() {
 
                   {/* Actions Links */}
                   <div className="pt-3 space-y-1">
-                    {[
-                      { label: 'Account Settings', icon: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4' },
-                      { label: 'Commission Wallet', icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' },
-                      { label: 'Sign Out', icon: 'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1', textClass: 'text-rose-600 hover:bg-rose-50', action: 'logout' },
-                    ].map((act, idx) => (
-                      <button
-                        key={idx}
-                        onClick={act.action === 'logout' ? handleLogout : undefined}
-                        className={`w-full py-2 px-3 rounded-lg text-[11px] font-semibold text-left transition-colors duration-200 flex items-center gap-2.5 ${
-                          act.textClass ? act.textClass : 'text-stone-600 hover:bg-stone-100/50'
-                        }`}
-                      >
-                        <svg className="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d={act.icon} />
-                        </svg>
-                        {act.label}
-                      </button>
-                    ))}
+                    <button
+                      onClick={() => { setShowAccountSettingsModal(true); setShowProfile(false); }}
+                      className="w-full py-2 px-3 rounded-lg text-[11px] font-semibold text-left transition-colors duration-200 flex items-center gap-2.5 text-stone-700 hover:bg-stone-100/70 cursor-pointer"
+                    >
+                      <svg className="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                      </svg>
+                      Account Settings
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full py-2 px-3 rounded-lg text-[11px] font-semibold text-left transition-colors duration-200 flex items-center gap-2.5 text-rose-600 hover:bg-rose-50 cursor-pointer"
+                    >
+                      <svg className="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Sign Out
+                    </button>
                   </div>
                 </div>
               )}
@@ -2143,6 +2144,8 @@ function App() {
             <SettingsPage 
               settings={settings}
               setSettings={setSettings}
+              testimonials={testimonials}
+              setTestimonials={setTestimonials}
               addNotification={addNotification}
               packages={packages}
               user={user}
@@ -2209,6 +2212,14 @@ function App() {
         setBookingDraft={setBookingDraft}
         setActiveTab={setActiveTab}
       />
+
+      {showAccountSettingsModal && (
+        <AccountSettingsModal
+          user={user}
+          onClose={() => setShowAccountSettingsModal(false)}
+          addNotification={addNotification}
+        />
+      )}
     </div>
   )
 }
