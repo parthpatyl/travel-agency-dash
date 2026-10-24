@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
 import SpecialityCategoriesAdmin from './SpecialityCategoriesAdmin'
+import SaveConfirmationModal from './SaveConfirmationModal'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
@@ -23,6 +24,15 @@ export default function SettingsPage({
   const [activeSubTab, setActiveSubTab] = useState('homepage')
   const [saving, setSaving] = useState(null)
   const [weatherRefreshing, setWeatherRefreshing] = useState(false)
+  const [baselineSettings, setBaselineSettings] = useState(null)
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, sectionName: '', changes: [] })
+
+  // Synchronize baseline snapshot once initial settings are loaded
+  useEffect(() => {
+    if (settings && Object.keys(settings).length > 0 && !baselineSettings) {
+      setBaselineSettings(JSON.parse(JSON.stringify(settings)))
+    }
+  }, [settings, baselineSettings])
 
   const canWriteSettings = roleHas(user?.role, 'write:settings')
   const canWriteTestimonials = roleHas(user?.role, 'write:testimonials')
@@ -434,21 +444,223 @@ export default function SettingsPage({
     if (addNotification) addNotification(`Updated permissions for ${role}`, 'info')
   }
 
+  // ─────────────────────────────────────────────
+  // DIRTY CHECKING & DIFF COMPUTATION
+  // ─────────────────────────────────────────────
+  const getHeroDiff = useCallback((curr, base) => {
+    if (!base) return []
+    const diffs = []
+    const c = curr?.heroSection || {}
+    const b = base?.heroSection || {}
+    if ((c.titleMain || '') !== (b.titleMain || '')) {
+      diffs.push({ label: 'Hero Main Title', oldVal: b.titleMain, newVal: c.titleMain })
+    }
+    if ((c.titleItalic || '') !== (b.titleItalic || '')) {
+      diffs.push({ label: 'Hero Italic Title', oldVal: b.titleItalic, newVal: c.titleItalic })
+    }
+    if ((c.description || '') !== (b.description || '')) {
+      diffs.push({ label: 'Hero Description', oldVal: b.description, newVal: c.description })
+    }
+    if ((c.btnPrimaryText || '') !== (b.btnPrimaryText || '')) {
+      diffs.push({ label: 'Primary Button Label', oldVal: b.btnPrimaryText, newVal: c.btnPrimaryText })
+    }
+    if ((c.btnSecondaryText || '') !== (b.btnSecondaryText || '')) {
+      diffs.push({ label: 'Secondary Button Label', oldVal: b.btnSecondaryText, newVal: c.btnSecondaryText })
+    }
+    if ((c.bgImage || '') !== (b.bgImage || '')) {
+      diffs.push({ label: 'Hero Background Image', oldVal: b.bgImage, newVal: c.bgImage })
+    }
+    const cStats = c.stats || []
+    const bStats = b.stats || []
+    cStats.forEach((st, idx) => {
+      const bSt = bStats[idx] || {}
+      if ((st.value || '') !== (bSt.value || '') || (st.label || '') !== (bSt.label || '')) {
+        diffs.push({ label: `Hero Stat #${idx + 1} (${st.label || bSt.label || 'Metric'})`, oldVal: bSt.value, newVal: st.value })
+      }
+    })
+    return diffs
+  }, [])
+
+  const getCtaDiff = useCallback((curr, base) => {
+    if (!base) return []
+    const diffs = []
+    const c = curr?.ctaSection || {}
+    const b = base?.ctaSection || {}
+    if ((c.badgeText || '') !== (b.badgeText || '')) {
+      diffs.push({ label: 'CTA Tagline Badge', oldVal: b.badgeText, newVal: c.badgeText })
+    }
+    if ((c.heading || '') !== (b.heading || '')) {
+      diffs.push({ label: 'CTA Heading', oldVal: b.heading, newVal: c.heading })
+    }
+    if ((c.description || '') !== (b.description || '')) {
+      diffs.push({ label: 'CTA Description', oldVal: b.description, newVal: c.description })
+    }
+    if ((c.buttonText || '') !== (b.buttonText || '')) {
+      diffs.push({ label: 'CTA Button Text', oldVal: b.buttonText, newVal: c.buttonText })
+    }
+    if ((c.bgImage || '') !== (b.bgImage || '')) {
+      diffs.push({ label: 'CTA Background Image', oldVal: b.bgImage, newVal: c.bgImage })
+    }
+    return diffs
+  }, [])
+
+  const getAboutBannerDiff = useCallback((curr, base) => {
+    if (!base) return []
+    const diffs = []
+    const c = curr?.aboutSection?.banner || {}
+    const b = base?.aboutSection?.banner || {}
+    if ((c.badge || '') !== (b.badge || '')) {
+      diffs.push({ label: 'Story Tagline Badge', oldVal: b.badge, newVal: c.badge })
+    }
+    if ((c.title || '') !== (b.title || '')) {
+      diffs.push({ label: 'Story Headline', oldVal: b.title, newVal: c.title })
+    }
+    if ((c.description || '') !== (b.description || '')) {
+      diffs.push({ label: 'Story Paragraph', oldVal: b.description, newVal: c.description })
+    }
+    if ((c.bgImage || '') !== (b.bgImage || '')) {
+      diffs.push({ label: 'Story Banner Background', oldVal: b.bgImage, newVal: c.bgImage })
+    }
+    return diffs
+  }, [])
+
+  const getPhilosophyDiff = useCallback((curr, base) => {
+    if (!base) return []
+    const diffs = []
+    const c = curr?.aboutSection?.philosophy || {}
+    const b = base?.aboutSection?.philosophy || {}
+    if ((c.badge || '') !== (b.badge || '')) {
+      diffs.push({ label: 'Philosophy Badge', oldVal: b.badge, newVal: c.badge })
+    }
+    if ((c.heading || '') !== (b.heading || '')) {
+      diffs.push({ label: 'Philosophy Heading', oldVal: b.heading, newVal: c.heading })
+    }
+    if ((c.p1 || '') !== (b.p1 || '')) {
+      diffs.push({ label: 'Philosophy Paragraph 1', oldVal: b.p1, newVal: c.p1 })
+    }
+    if ((c.p2 || '') !== (b.p2 || '')) {
+      diffs.push({ label: 'Philosophy Paragraph 2', oldVal: b.p2, newVal: c.p2 })
+    }
+    if ((c.image || '') !== (b.image || '')) {
+      diffs.push({ label: 'Philosophy Feature Photo', oldVal: b.image, newVal: c.image })
+    }
+    return diffs
+  }, [])
+
+  const getValuesDiff = useCallback((curr, base) => {
+    if (!base) return []
+    const diffs = []
+    const c = curr?.aboutSection?.values || []
+    const b = base?.aboutSection?.values || []
+    c.forEach((v, idx) => {
+      const bV = b[idx] || {}
+      if ((v.title || '') !== (bV.title || '')) {
+        diffs.push({ label: `Value #${idx + 1} Title`, oldVal: bV.title, newVal: v.title })
+      }
+      if ((v.desc || '') !== (bV.desc || '')) {
+        diffs.push({ label: `Value #${idx + 1} Description`, oldVal: bV.desc, newVal: v.desc })
+      }
+    })
+    return diffs
+  }, [])
+
+  const getContactDiff = useCallback((curr, base) => {
+    if (!base) return []
+    const diffs = []
+    const fields = [
+      { key: 'agencyName', label: 'Brand Corporate Name' },
+      { key: 'agencyAddress', label: 'Office Address' },
+      { key: 'agencyPhone', label: 'Contact Phone Number' },
+      { key: 'agencyEmail', label: 'Contact Email Address' },
+      { key: 'agencyTagline', label: 'Footer Tagline' },
+      { key: 'workingHours', label: 'Business Operating Hours' }
+    ]
+    fields.forEach(({ key, label }) => {
+      if ((curr[key] ?? '') !== (base[key] ?? '')) {
+        diffs.push({ label, oldVal: base[key] ?? '', newVal: curr[key] ?? '' })
+      }
+    })
+    const cSoc = curr.socialLinks || {}
+    const bSoc = base.socialLinks || {}
+    const platforms = ['whatsapp', 'instagram', 'facebook', 'twitter', 'linkedin', 'youtube']
+    platforms.forEach(p => {
+      if ((cSoc[p] || '') !== (bSoc[p] || '')) {
+        diffs.push({ label: `${p.charAt(0).toUpperCase() + p.slice(1)} URL`, oldVal: bSoc[p] || '', newVal: cSoc[p] || '' })
+      }
+    })
+    return diffs
+  }, [])
+
+  const getFinancialDiff = useCallback((curr, base) => {
+    if (!base) return []
+    const diffs = []
+    const cMarkup = String(curr.rules?.markup ?? curr.defaultMarkup ?? '15')
+    const bMarkup = String(base.rules?.markup ?? base.defaultMarkup ?? '15')
+    if (cMarkup !== bMarkup) {
+      diffs.push({ label: 'Default Agency Markup (%)', oldVal: `${bMarkup}%`, newVal: `${cMarkup}%` })
+    }
+    const cSplit = String(curr.rules?.agentSplit ?? curr.defaultAgentSplit ?? '40')
+    const bSplit = String(base.rules?.agentSplit ?? base.defaultAgentSplit ?? '40')
+    if (cSplit !== bSplit) {
+      diffs.push({ label: 'Agent Commission Split (%)', oldVal: `${bSplit}%`, newVal: `${cSplit}%` })
+    }
+    const cRate = Number(curr.inrToUsdRate ?? 0)
+    const bRate = Number(base.inrToUsdRate ?? 0)
+    if (cRate !== bRate) {
+      diffs.push({ label: 'INR to USD Exchange Rate', oldVal: bRate, newVal: cRate })
+    }
+    return diffs
+  }, [])
+
+  const getSectionDiff = useCallback((sectionName, curr, base) => {
+    switch (sectionName) {
+      case 'Homepage Hero': return getHeroDiff(curr, base)
+      case 'Homepage CTA': return getCtaDiff(curr, base)
+      case 'About Us Banner': return getAboutBannerDiff(curr, base)
+      case 'Philosophy Section': return getPhilosophyDiff(curr, base)
+      case 'Core Values': return getValuesDiff(curr, base)
+      case 'Footer & Contact': return getContactDiff(curr, base)
+      case 'Financial Rules': return getFinancialDiff(curr, base)
+      default: return []
+    }
+  }, [getHeroDiff, getCtaDiff, getAboutBannerDiff, getPhilosophyDiff, getValuesDiff, getContactDiff, getFinancialDiff])
+
+  const heroDiff = useMemo(() => getHeroDiff(settings, baselineSettings), [settings, baselineSettings, getHeroDiff])
+  const ctaDiff = useMemo(() => getCtaDiff(settings, baselineSettings), [settings, baselineSettings, getCtaDiff])
+  const aboutBannerDiff = useMemo(() => getAboutBannerDiff(settings, baselineSettings), [settings, baselineSettings, getAboutBannerDiff])
+  const philosophyDiff = useMemo(() => getPhilosophyDiff(settings, baselineSettings), [settings, baselineSettings, getPhilosophyDiff])
+  const valuesDiff = useMemo(() => getValuesDiff(settings, baselineSettings), [settings, baselineSettings, getValuesDiff])
+  const contactDiff = useMemo(() => getContactDiff(settings, baselineSettings), [settings, baselineSettings, getContactDiff])
+  const financialDiff = useMemo(() => getFinancialDiff(settings, baselineSettings), [settings, baselineSettings, getFinancialDiff])
+
   const handleSaveSection = useCallback(async (sectionName) => {
     if (!canWriteSettings) {
       if (addNotification) addNotification('You do not have permission to modify settings', 'error')
       return
     }
+
+    const changes = getSectionDiff(sectionName, settings, baselineSettings)
+    if (changes.length === 0) {
+      if (addNotification) addNotification('No changes detected in this section', 'info')
+      return
+    }
+
     setSaving(sectionName)
     try {
       await setSettings(s => ({ ...s }))
+      setBaselineSettings(JSON.parse(JSON.stringify(settings)))
+      setConfirmModal({
+        isOpen: true,
+        sectionName,
+        changes
+      })
       if (addNotification) addNotification(`${sectionName} saved successfully!`, 'success')
     } catch {
       if (addNotification) addNotification('Failed to save settings', 'error')
     } finally {
       setSaving(null)
     }
-  }, [setSettings, addNotification, canWriteSettings])
+  }, [settings, baselineSettings, getSectionDiff, setSettings, addNotification, canWriteSettings])
 
   const handleRefreshWeather = async () => {
     setWeatherRefreshing(true)
@@ -581,10 +793,14 @@ export default function SettingsPage({
               <button
                 type="button"
                 onClick={() => handleSaveSection('Homepage Hero')}
-                disabled={saving === 'Homepage Hero'}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                disabled={saving === 'Homepage Hero' || heroDiff.length === 0}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold shadow-xs transition-all ${
+                  heroDiff.length > 0
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
+                    : 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed'
+                }`}
               >
-                {saving === 'Homepage Hero' ? 'Saving...' : 'Save Hero Changes'}
+                {saving === 'Homepage Hero' ? 'Saving...' : heroDiff.length > 0 ? `Save Hero Changes (${heroDiff.length})` : 'Saved (No changes)'}
               </button>
             </div>
 
@@ -707,10 +923,14 @@ export default function SettingsPage({
               <button
                 type="button"
                 onClick={() => handleSaveSection('Homepage CTA')}
-                disabled={saving === 'Homepage CTA'}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                disabled={saving === 'Homepage CTA' || ctaDiff.length === 0}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold shadow-xs transition-all ${
+                  ctaDiff.length > 0
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
+                    : 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed'
+                }`}
               >
-                {saving === 'Homepage CTA' ? 'Saving...' : 'Save CTA Changes'}
+                {saving === 'Homepage CTA' ? 'Saving...' : ctaDiff.length > 0 ? `Save CTA Changes (${ctaDiff.length})` : 'Saved (No changes)'}
               </button>
             </div>
 
@@ -884,10 +1104,14 @@ export default function SettingsPage({
               <button
                 type="button"
                 onClick={() => handleSaveSection('About Us Banner')}
-                disabled={saving === 'About Us Banner'}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                disabled={saving === 'About Us Banner' || aboutBannerDiff.length === 0}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold shadow-xs transition-all ${
+                  aboutBannerDiff.length > 0
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
+                    : 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed'
+                }`}
               >
-                {saving === 'About Us Banner' ? 'Saving...' : 'Save Banner'}
+                {saving === 'About Us Banner' ? 'Saving...' : aboutBannerDiff.length > 0 ? `Save Banner (${aboutBannerDiff.length})` : 'Saved (No changes)'}
               </button>
             </div>
 
@@ -956,10 +1180,14 @@ export default function SettingsPage({
               <button
                 type="button"
                 onClick={() => handleSaveSection('Philosophy Section')}
-                disabled={saving === 'Philosophy Section'}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                disabled={saving === 'Philosophy Section' || philosophyDiff.length === 0}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold shadow-xs transition-all ${
+                  philosophyDiff.length > 0
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
+                    : 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed'
+                }`}
               >
-                {saving === 'Philosophy Section' ? 'Saving...' : 'Save Philosophy'}
+                {saving === 'Philosophy Section' ? 'Saving...' : philosophyDiff.length > 0 ? `Save Philosophy (${philosophyDiff.length})` : 'Saved (No changes)'}
               </button>
             </div>
 
@@ -1037,10 +1265,14 @@ export default function SettingsPage({
               <button
                 type="button"
                 onClick={() => handleSaveSection('Core Values')}
-                disabled={saving === 'Core Values'}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                disabled={saving === 'Core Values' || valuesDiff.length === 0}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold shadow-xs transition-all ${
+                  valuesDiff.length > 0
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
+                    : 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed'
+                }`}
               >
-                {saving === 'Core Values' ? 'Saving...' : 'Save Values'}
+                {saving === 'Core Values' ? 'Saving...' : valuesDiff.length > 0 ? `Save Values (${valuesDiff.length})` : 'Saved (No changes)'}
               </button>
             </div>
 
@@ -1344,10 +1576,14 @@ export default function SettingsPage({
               <button
                 type="button"
                 onClick={() => handleSaveSection('Footer & Contact')}
-                disabled={saving === 'Footer & Contact'}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                disabled={saving === 'Footer & Contact' || contactDiff.length === 0}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold shadow-xs transition-all ${
+                  contactDiff.length > 0
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
+                    : 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed'
+                }`}
               >
-                {saving === 'Footer & Contact' ? 'Saving...' : 'Save Contact Details'}
+                {saving === 'Footer & Contact' ? 'Saving...' : contactDiff.length > 0 ? `Save Contact Details (${contactDiff.length})` : 'Saved (No changes)'}
               </button>
             </div>
 
@@ -1492,10 +1728,14 @@ export default function SettingsPage({
               <button
                 type="button"
                 onClick={() => handleSaveSection('Financial Rules')}
-                disabled={saving === 'Financial Rules'}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                disabled={saving === 'Financial Rules' || financialDiff.length === 0}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold shadow-xs transition-all ${
+                  financialDiff.length > 0
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
+                    : 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed'
+                }`}
               >
-                {saving === 'Financial Rules' ? 'Saving...' : 'Save Rules'}
+                {saving === 'Financial Rules' ? 'Saving...' : financialDiff.length > 0 ? `Save Rules (${financialDiff.length})` : 'Saved (No changes)'}
               </button>
             </div>
 
@@ -1628,6 +1868,13 @@ export default function SettingsPage({
           </section>
         </div>
       )}
+      {/* HTML Save Confirmation Modal */}
+      <SaveConfirmationModal
+        isOpen={confirmModal.isOpen}
+        sectionName={confirmModal.sectionName}
+        changes={confirmModal.changes}
+        onClose={() => setConfirmModal({ isOpen: false, sectionName: '', changes: [] })}
+      />
     </div>
   )
 }
