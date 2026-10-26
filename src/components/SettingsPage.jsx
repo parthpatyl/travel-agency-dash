@@ -848,38 +848,29 @@ export default function SettingsPage({
             </div>
 
             <div className="space-y-4">
-              {/* Background Image Upload & Direct Link */}
+              {/* Background Image Upload */}
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-2">Hero Background Image</label>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
                   <div className="w-full sm:w-48 h-24 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
                     <img
                       src={imgUrl(heroSection.bgImage)}
                       alt="Hero Preview"
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80'
+                        e.target.style.display = 'none'
                       }}
                     />
                   </div>
-                  <div className="flex-1 w-full space-y-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={heroSection.bgImage || ''}
-                        onChange={(e) => updateHeroField('bgImage', e.target.value)}
-                        placeholder="Direct URL (https://...) or /assets/..."
-                        className="flex-1 px-3 py-1.5 text-xs font-mono border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 bg-white"
-                      />
-                      <label className="inline-flex items-center px-3.5 py-1.5 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors shrink-0">
-                        <svg className="w-3.5 h-3.5 mr-1.5 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                        </svg>
-                        Upload
-                        <input type="file" accept="image/*" onChange={handleHeroBgUpload} className="hidden" />
-                      </label>
-                    </div>
-                    <p className="text-[11px] text-stone-400">Paste an external image URL or upload an image file (JPG, PNG, WebP up to 5MB).</p>
+                  <div className="space-y-1">
+                    <label className="inline-flex items-center px-3.5 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors">
+                      <svg className="w-4 h-4 mr-2 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Upload New Hero Image
+                      <input type="file" accept="image/*" onChange={handleHeroBgUpload} className="hidden" />
+                    </label>
+                    <p className="text-[11px] text-stone-400">Stored directly in database. High-resolution landscape (JPG, PNG, WebP up to 5MB).</p>
                   </div>
                 </div>
               </div>
@@ -1038,35 +1029,26 @@ export default function SettingsPage({
               {/* CTA Background Image */}
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-2">CTA Background Image</label>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
                   <div className="w-full sm:w-48 h-24 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
                     <img
                       src={imgUrl(ctaSection.bgImage)}
                       alt="CTA Preview"
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80'
+                        e.target.style.display = 'none'
                       }}
                     />
                   </div>
-                  <div className="flex-1 w-full space-y-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={ctaSection.bgImage || ''}
-                        onChange={(e) => updateCtaField('bgImage', e.target.value)}
-                        placeholder="Direct URL (https://...) or /assets/..."
-                        className="flex-1 px-3 py-1.5 text-xs font-mono border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 bg-white"
-                      />
-                      <label className="inline-flex items-center px-3.5 py-1.5 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors shrink-0">
-                        <svg className="w-3.5 h-3.5 mr-1.5 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                        </svg>
-                        Upload
-                        <input type="file" accept="image/*" onChange={handleCtaBgUpload} className="hidden" />
-                      </label>
-                    </div>
-                    <p className="text-[11px] text-stone-400">High-resolution banner photo for the bottom conversion card.</p>
+                  <div className="space-y-1">
+                    <label className="inline-flex items-center px-3.5 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors">
+                      <svg className="w-4 h-4 mr-2 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Upload New CTA Image
+                      <input type="file" accept="image/*" onChange={handleCtaBgUpload} className="hidden" />
+                    </label>
+                    <p className="text-[11px] text-stone-400">Stored directly in database. High-resolution banner photo for the bottom conversion card.</p>
                   </div>
                 </div>
               </div>
@@ -1161,21 +1143,30 @@ export default function SettingsPage({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                   <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-bold text-stone-600 mb-1">Banner Image URL or Path</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={offerForm.imageUrl}
-                        onChange={(e) => setOfferForm({ ...offerForm, imageUrl: e.target.value })}
-                        placeholder="/assets/... or https://images.unsplash.com/..."
-                        className="flex-1 px-3 py-1.5 text-xs bg-white border border-stone-200 rounded-lg font-mono"
-                      />
-                      <label className="inline-flex items-center px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-semibold cursor-pointer shrink-0 border border-stone-200">
-                        Upload
+                    <label className="block text-[11px] font-bold text-stone-600 mb-1">Banner Image</label>
+                    <div className="flex items-center gap-3">
+                      {offerForm.imageUrl ? (
+                        <div className="w-16 h-10 rounded border border-stone-200 overflow-hidden shrink-0 bg-stone-100">
+                          <img
+                            src={imgUrl(offerForm.imageUrl)}
+                            alt="Preview"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.style.display = 'none'
+                            }}
+                          />
+                        </div>
+                      ) : null}
+                      <label className="inline-flex items-center px-3.5 py-1.5 bg-white hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg border border-stone-300 shadow-2xs cursor-pointer transition-colors shrink-0">
+                        <svg className="w-3.5 h-3.5 mr-1.5 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        {offerForm.imageUrl ? 'Change Offer Banner' : 'Upload Offer Banner'}
                         <input type="file" accept="image/*" onChange={handleOfferImgUpload} className="hidden" />
                       </label>
+                      <span className="text-[11px] text-stone-400">Stored directly in database</span>
                     </div>
                   </div>
                   <div>
@@ -1189,22 +1180,6 @@ export default function SettingsPage({
                     />
                   </div>
                 </div>
-
-                {offerForm.imageUrl && (
-                  <div className="p-2 bg-stone-100 rounded-lg flex items-center gap-3">
-                    <img
-                      src={imgUrl(offerForm.imageUrl)}
-                      alt="Preview"
-                      className="w-16 h-10 object-cover rounded border border-stone-200"
-                      onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80'
-                      }}
-                    />
-                    <span className="text-[11px] text-stone-600 truncate">
-                      Preview: {offerForm.imageUrl}
-                    </span>
-                  </div>
-                )}
 
                 <div className="flex justify-end gap-2 pt-2">
                   <button
@@ -1342,35 +1317,26 @@ export default function SettingsPage({
 
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-2">Banner Background Image</label>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
                   <div className="w-full sm:w-48 h-24 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
                     <img
                       src={imgUrl(aboutSection.banner?.bgImage)}
                       alt="About Hero Preview"
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=80'
+                        e.target.style.display = 'none'
                       }}
                     />
                   </div>
-                  <div className="flex-1 w-full space-y-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={aboutSection.banner?.bgImage || ''}
-                        onChange={(e) => updateAboutBanner('bgImage', e.target.value)}
-                        placeholder="Direct URL (https://...) or /assets/..."
-                        className="flex-1 px-3 py-1.5 text-xs font-mono border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 bg-white"
-                      />
-                      <label className="inline-flex items-center px-3.5 py-1.5 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors shrink-0">
-                        <svg className="w-3.5 h-3.5 mr-1.5 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                        </svg>
-                        Upload
-                        <input type="file" accept="image/*" onChange={handleAboutBannerBgUpload} className="hidden" />
-                      </label>
-                    </div>
-                    <p className="text-[11px] text-stone-400">High-resolution banner photograph for the top of the About Us page.</p>
+                  <div className="space-y-1">
+                    <label className="inline-flex items-center px-3.5 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors">
+                      <svg className="w-4 h-4 mr-2 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Upload Banner Image
+                      <input type="file" accept="image/*" onChange={handleAboutBannerBgUpload} className="hidden" />
+                    </label>
+                    <p className="text-[11px] text-stone-400">Stored directly in database. High-resolution banner photo for About Us.</p>
                   </div>
                 </div>
               </div>
@@ -1444,35 +1410,26 @@ export default function SettingsPage({
 
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-2">Section Feature Photograph</label>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-center gap-4">
                   <div className="w-full sm:w-48 h-32 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
                     <img
                       src={imgUrl(aboutSection.philosophy?.image)}
                       alt="Philosophy Preview"
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80'
+                        e.target.style.display = 'none'
                       }}
                     />
                   </div>
-                  <div className="flex-1 w-full space-y-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={aboutSection.philosophy?.image || ''}
-                        onChange={(e) => updateAboutPhilosophy('image', e.target.value)}
-                        placeholder="Direct URL (https://...) or /assets/..."
-                        className="flex-1 px-3 py-1.5 text-xs font-mono border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 bg-white"
-                      />
-                      <label className="inline-flex items-center px-3.5 py-1.5 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors shrink-0">
-                        <svg className="w-3.5 h-3.5 mr-1.5 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                        </svg>
-                        Upload
-                        <input type="file" accept="image/*" onChange={handleAboutPhilosophyImgUpload} className="hidden" />
-                      </label>
-                    </div>
-                    <p className="text-[11px] text-stone-400">Portrait or landscape editorial photo showcasing the brand philosophy.</p>
+                  <div className="space-y-1">
+                    <label className="inline-flex items-center px-3.5 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors">
+                      <svg className="w-4 h-4 mr-2 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Upload Section Image
+                      <input type="file" accept="image/*" onChange={handleAboutPhilosophyImgUpload} className="hidden" />
+                    </label>
+                    <p className="text-[11px] text-stone-400">Stored directly in database. Portrait or landscape editorial photo for Brand Philosophy.</p>
                   </div>
                 </div>
               </div>
