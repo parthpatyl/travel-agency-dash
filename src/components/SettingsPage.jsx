@@ -46,8 +46,8 @@ export default function SettingsPage({
     title: '',
     subtitle: '',
     imageUrl: '',
-    buttonText: 'Explore Packages',
-    targetPage: 'destinations'
+    linkUrl: '',
+    buttonText: 'Explore Offer'
   })
 
   const heroSection = settings.heroSection ?? {
@@ -165,6 +165,35 @@ export default function SettingsPage({
     }
   }
 
+  const handleOfferImgUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      if (addNotification) addNotification('File size exceeds the 5MB limit!', 'warning')
+      return
+    }
+    const formData = new FormData()
+    formData.append('image', file)
+    try {
+      if (addNotification) addNotification('Uploading offer image...', 'info')
+      const token = localStorage.getItem('kraft_token')
+      const response = await fetch(`${API_URL}/api/upload`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        method: 'POST',
+        body: formData
+      })
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || 'Failed to upload image')
+      }
+      const data = await response.json()
+      setOfferForm(prev => ({ ...prev, imageUrl: data.imageUrl }))
+      if (addNotification) addNotification('Offer image uploaded successfully!', 'success')
+    } catch (err) {
+      if (addNotification) addNotification(err.message || 'Offer image upload failed', 'error')
+    }
+  }
+
   const handleSaveOffer = (e) => {
     e.preventDefault()
     if (!canWriteSettings) {
@@ -172,21 +201,35 @@ export default function SettingsPage({
       return
     }
     if (!offerForm.title || !offerForm.subtitle || !offerForm.imageUrl) {
-      if (addNotification) addNotification('Please fill in title, subtitle, and image', 'warning')
+      if (addNotification) addNotification('Please fill in title, subtitle, and image link', 'warning')
       return
     }
     const currentOffers = settings.specialOffers ?? []
+    const payload = {
+      ...offerForm,
+      linkUrl: offerForm.linkUrl || offerForm.targetPage || 'destinations',
+      buttonText: offerForm.buttonText || 'Explore Offer'
+    }
     let updatedOffers
     if (editingOfferId) {
-      updatedOffers = currentOffers.map(o => o.id === editingOfferId ? { ...o, ...offerForm } : o)
+      updatedOffers = currentOffers.map(o => o.id === editingOfferId ? { ...o, ...payload } : o)
       if (addNotification) addNotification('Special offer updated', 'success')
     } else {
-      const newOffer = { ...offerForm, id: Date.now().toString() }
+      const newOffer = { ...payload, id: Date.now().toString() }
       updatedOffers = [...currentOffers, newOffer]
       if (addNotification) addNotification('Special offer added', 'success')
     }
     setSettings({ ...settings, specialOffers: updatedOffers })
-    setOfferForm({ title: '', subtitle: '', imageUrl: '', buttonText: 'Explore Packages', targetPage: 'destinations' })
+    setConfirmModal({
+      isOpen: true,
+      sectionName: 'Special Promotional Offers',
+      changes: [
+        { label: 'Offer Title', newVal: offerForm.title },
+        { label: 'Offer Redirect Link', newVal: payload.linkUrl },
+        { label: 'Banner Image', newVal: offerForm.imageUrl }
+      ]
+    })
+    setOfferForm({ title: '', subtitle: '', imageUrl: '', linkUrl: '', buttonText: 'Explore Offer' })
     setEditingOfferId(null)
     setIsOfferFormOpen(false)
   }
@@ -805,22 +848,38 @@ export default function SettingsPage({
             </div>
 
             <div className="space-y-4">
-              {/* Background Image Upload */}
+              {/* Background Image Upload & Direct Link */}
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-2">Hero Background Image</label>
-                <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                   <div className="w-full sm:w-48 h-24 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
-                    <img src={imgUrl(heroSection.bgImage)} alt="Hero Preview" className="w-full h-full object-cover" />
+                    <img
+                      src={imgUrl(heroSection.bgImage)}
+                      alt="Hero Preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80'
+                      }}
+                    />
                   </div>
-                  <div>
-                    <label className="inline-flex items-center px-3.5 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors">
-                      <svg className="w-4 h-4 mr-2 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                      </svg>
-                      Upload New Hero Image
-                      <input type="file" accept="image/*" onChange={handleHeroBgUpload} className="hidden" />
-                    </label>
-                    <p className="text-[11px] text-stone-400 mt-1">High-resolution landscape (JPG, PNG, WebP up to 5MB).</p>
+                  <div className="flex-1 w-full space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={heroSection.bgImage || ''}
+                        onChange={(e) => updateHeroField('bgImage', e.target.value)}
+                        placeholder="Direct URL (https://...) or /assets/..."
+                        className="flex-1 px-3 py-1.5 text-xs font-mono border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 bg-white"
+                      />
+                      <label className="inline-flex items-center px-3.5 py-1.5 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors shrink-0">
+                        <svg className="w-3.5 h-3.5 mr-1.5 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        Upload
+                        <input type="file" accept="image/*" onChange={handleHeroBgUpload} className="hidden" />
+                      </label>
+                    </div>
+                    <p className="text-[11px] text-stone-400">Paste an external image URL or upload an image file (JPG, PNG, WebP up to 5MB).</p>
                   </div>
                 </div>
               </div>
@@ -975,6 +1034,42 @@ export default function SettingsPage({
                   />
                 </div>
               </div>
+
+              {/* CTA Background Image */}
+              <div>
+                <label className="block text-xs font-bold text-stone-700 mb-2">CTA Background Image</label>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="w-full sm:w-48 h-24 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
+                    <img
+                      src={imgUrl(ctaSection.bgImage)}
+                      alt="CTA Preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=800&q=80'
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1 w-full space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={ctaSection.bgImage || ''}
+                        onChange={(e) => updateCtaField('bgImage', e.target.value)}
+                        placeholder="Direct URL (https://...) or /assets/..."
+                        className="flex-1 px-3 py-1.5 text-xs font-mono border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 bg-white"
+                      />
+                      <label className="inline-flex items-center px-3.5 py-1.5 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors shrink-0">
+                        <svg className="w-3.5 h-3.5 mr-1.5 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        Upload
+                        <input type="file" accept="image/*" onChange={handleCtaBgUpload} className="hidden" />
+                      </label>
+                    </div>
+                    <p className="text-[11px] text-stone-400">High-resolution banner photo for the bottom conversion card.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -983,13 +1078,13 @@ export default function SettingsPage({
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <div>
                 <h3 className="text-sm font-bold text-stone-900 tracking-tight">Special Promotional Offers</h3>
-                <p className="text-xs text-stone-500">Banner cards highlighting active discounts or featured destinations.</p>
+                <p className="text-xs text-stone-500">Banner cards highlighting active discounts or featured destinations with redirect links.</p>
               </div>
               <button
                 type="button"
                 onClick={() => {
                   setEditingOfferId(null)
-                  setOfferForm({ title: '', subtitle: '', imageUrl: '', buttonText: 'Explore Packages', targetPage: 'destinations' })
+                  setOfferForm({ title: '', subtitle: '', imageUrl: '', buttonText: 'Explore Offer', linkUrl: '' })
                   setIsOfferFormOpen(true)
                 }}
                 className="px-3.5 py-1.5 bg-stone-900 hover:bg-stone-800 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
@@ -1013,26 +1108,104 @@ export default function SettingsPage({
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-stone-600 mb-1">Image URL or Path</label>
+                    <label className="block text-[11px] font-bold text-stone-600 mb-1">Offer Subtitle / Description</label>
                     <input
                       type="text"
-                      value={offerForm.imageUrl}
-                      onChange={(e) => setOfferForm({ ...offerForm, imageUrl: e.target.value })}
-                      placeholder="/assets/unsplash-maldives.jpg"
+                      value={offerForm.subtitle}
+                      onChange={(e) => setOfferForm({ ...offerForm, subtitle: e.target.value })}
+                      placeholder="Book 5-day overwater villa and receive..."
                       className="w-full px-3 py-1.5 text-xs bg-white border border-stone-200 rounded-lg"
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-600 mb-1">Subtitle</label>
-                  <input
-                    type="text"
-                    value={offerForm.subtitle}
-                    onChange={(e) => setOfferForm({ ...offerForm, subtitle: e.target.value })}
-                    placeholder="Book 5-day overwater villa and receive..."
-                    className="w-full px-3 py-1.5 text-xs bg-white border border-stone-200 rounded-lg"
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-600 mb-1">
+                      Target Link / Redirect Destination
+                    </label>
+                    <input
+                      type="text"
+                      value={offerForm.linkUrl || ''}
+                      onChange={(e) => setOfferForm({ ...offerForm, linkUrl: e.target.value })}
+                      placeholder="e.g. https://... or package:pkg_123 or destinations"
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-stone-200 rounded-lg font-mono"
+                    />
+                    <p className="text-[10px] text-stone-400 mt-1">
+                      Direct link: external URL (<code>https://...</code>), page (<code>booking</code>, <code>about</code>, <code>enquiry</code>), or package ID.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-600 mb-1">
+                      Link to Existing Package (Quick Fill)
+                    </label>
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setOfferForm({ ...offerForm, linkUrl: e.target.value })
+                        }
+                      }}
+                      defaultValue=""
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-stone-200 rounded-lg text-stone-700"
+                    >
+                      <option value="">-- Or choose a Package to link --</option>
+                      {packages.map(p => (
+                        <option key={p.id} value={`package:${p.id}`}>
+                          {p.name} ({p.region || 'Tour'})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-stone-400 mt-1">
+                      Automatically fills redirect link to take travelers directly to this package.
+                    </p>
+                  </div>
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold text-stone-600 mb-1">Banner Image URL or Path</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={offerForm.imageUrl}
+                        onChange={(e) => setOfferForm({ ...offerForm, imageUrl: e.target.value })}
+                        placeholder="/assets/... or https://images.unsplash.com/..."
+                        className="flex-1 px-3 py-1.5 text-xs bg-white border border-stone-200 rounded-lg font-mono"
+                      />
+                      <label className="inline-flex items-center px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-semibold cursor-pointer shrink-0 border border-stone-200">
+                        Upload
+                        <input type="file" accept="image/*" onChange={handleOfferImgUpload} className="hidden" />
+                      </label>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-600 mb-1">CTA Button Label</label>
+                    <input
+                      type="text"
+                      value={offerForm.buttonText || ''}
+                      onChange={(e) => setOfferForm({ ...offerForm, buttonText: e.target.value })}
+                      placeholder="Explore Offer"
+                      className="w-full px-3 py-1.5 text-xs bg-white border border-stone-200 rounded-lg"
+                    />
+                  </div>
+                </div>
+
+                {offerForm.imageUrl && (
+                  <div className="p-2 bg-stone-100 rounded-lg flex items-center gap-3">
+                    <img
+                      src={imgUrl(offerForm.imageUrl)}
+                      alt="Preview"
+                      className="w-16 h-10 object-cover rounded border border-stone-200"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80'
+                      }}
+                    />
+                    <span className="text-[11px] text-stone-600 truncate">
+                      Preview: {offerForm.imageUrl}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-2 pt-2">
                   <button
                     type="button"
@@ -1055,9 +1228,26 @@ export default function SettingsPage({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {(settings.specialOffers || []).map((offer) => (
                 <div key={offer.id} className="p-4 bg-stone-50 border border-stone-200/80 rounded-xl flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <h4 className="text-xs font-bold text-stone-900 truncate">{offer.title}</h4>
-                    <p className="text-[11px] text-stone-500 truncate mt-0.5">{offer.subtitle}</p>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {offer.imageUrl && (
+                      <img
+                        src={imgUrl(offer.imageUrl)}
+                        alt={offer.title}
+                        className="w-12 h-12 object-cover rounded-lg border border-stone-200 shrink-0"
+                        onError={(e) => {
+                          e.target.src = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=400&q=80'
+                        }}
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-bold text-stone-900 truncate">{offer.title}</h4>
+                      <p className="text-[11px] text-stone-500 truncate mt-0.5">{offer.subtitle}</p>
+                      {offer.linkUrl && (
+                        <span className="inline-block mt-1 text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60 font-mono truncate max-w-full">
+                          Target: {offer.linkUrl}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
@@ -1152,18 +1342,35 @@ export default function SettingsPage({
 
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-2">Banner Background Image</label>
-                <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                   <div className="w-full sm:w-48 h-24 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
-                    <img src={imgUrl(aboutSection.banner?.bgImage)} alt="About Hero Preview" className="w-full h-full object-cover" />
+                    <img
+                      src={imgUrl(aboutSection.banner?.bgImage)}
+                      alt="About Hero Preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=800&q=80'
+                      }}
+                    />
                   </div>
-                  <div>
-                    <label className="inline-flex items-center px-3.5 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors">
-                      <svg className="w-4 h-4 mr-2 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                      </svg>
-                      Upload Banner Image
-                      <input type="file" accept="image/*" onChange={handleAboutBannerBgUpload} className="hidden" />
-                    </label>
+                  <div className="flex-1 w-full space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={aboutSection.banner?.bgImage || ''}
+                        onChange={(e) => updateAboutBanner('bgImage', e.target.value)}
+                        placeholder="Direct URL (https://...) or /assets/..."
+                        className="flex-1 px-3 py-1.5 text-xs font-mono border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 bg-white"
+                      />
+                      <label className="inline-flex items-center px-3.5 py-1.5 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors shrink-0">
+                        <svg className="w-3.5 h-3.5 mr-1.5 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        Upload
+                        <input type="file" accept="image/*" onChange={handleAboutBannerBgUpload} className="hidden" />
+                      </label>
+                    </div>
+                    <p className="text-[11px] text-stone-400">High-resolution banner photograph for the top of the About Us page.</p>
                   </div>
                 </div>
               </div>
@@ -1237,18 +1444,35 @@ export default function SettingsPage({
 
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-2">Section Feature Photograph</label>
-                <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                   <div className="w-full sm:w-48 h-32 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
-                    <img src={imgUrl(aboutSection.philosophy?.image)} alt="Philosophy Preview" className="w-full h-full object-cover" />
+                    <img
+                      src={imgUrl(aboutSection.philosophy?.image)}
+                      alt="Philosophy Preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=800&q=80'
+                      }}
+                    />
                   </div>
-                  <div>
-                    <label className="inline-flex items-center px-3.5 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors">
-                      <svg className="w-4 h-4 mr-2 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                      </svg>
-                      Upload Section Image
-                      <input type="file" accept="image/*" onChange={handleAboutPhilosophyImgUpload} className="hidden" />
-                    </label>
+                  <div className="flex-1 w-full space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={aboutSection.philosophy?.image || ''}
+                        onChange={(e) => updateAboutPhilosophy('image', e.target.value)}
+                        placeholder="Direct URL (https://...) or /assets/..."
+                        className="flex-1 px-3 py-1.5 text-xs font-mono border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 bg-white"
+                      />
+                      <label className="inline-flex items-center px-3.5 py-1.5 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors shrink-0">
+                        <svg className="w-3.5 h-3.5 mr-1.5 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        Upload
+                        <input type="file" accept="image/*" onChange={handleAboutPhilosophyImgUpload} className="hidden" />
+                      </label>
+                    </div>
+                    <p className="text-[11px] text-stone-400">Portrait or landscape editorial photo showcasing the brand philosophy.</p>
                   </div>
                 </div>
               </div>
