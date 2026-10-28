@@ -1,19 +1,23 @@
 import { useState, useEffect, useCallback } from 'react'
 
-const STATUS_ORDER = ['logged', 'reviewing', 'proposing', 'finalized']
+const STATUS_ORDER = ['logged', 'reviewing', 'proposing', 'finalized', 'converted']
+
+const STATUS_OPTIONS = ['logged', 'reviewing', 'proposing', 'finalized', 'converted']
 
 const STATUS_LABELS = {
   logged: 'Logged',
   reviewing: 'Reviewing',
   proposing: 'Proposing',
   finalized: 'Finalized',
+  converted: 'Converted to Booking',
 }
 
 const STATUS_COLORS = {
-  logged: 'bg-blue-100 text-blue-700 border-blue-200',
-  reviewing: 'bg-amber-100 text-amber-700 border-amber-200',
-  proposing: 'bg-purple-100 text-purple-700 border-purple-200',
-  finalized: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  logged: 'bg-blue-50 text-blue-700 border-blue-200',
+  reviewing: 'bg-amber-50 text-amber-700 border-amber-200',
+  proposing: 'bg-purple-50 text-purple-700 border-purple-200',
+  finalized: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  converted: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 }
 
 export default function EnquiriesPage({ API_URL, authHeaders, addNotification, onSelectEnquiry, clients = [], setClients }) {
@@ -21,6 +25,7 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [updatingId, setUpdatingId] = useState(null)
+  const [statusFilter, setStatusFilter] = useState('all') // 'all' | 'active' | 'converted'
 
   // Modal states for Create Enquiry
   const [showAddForm, setShowAddForm] = useState(false)
@@ -89,6 +94,32 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
       }
     } catch { /* swallow — notification already shown if addNotification exists */
       if (addNotification) addNotification('Network error updating status', 'error')
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const convertToBooking = async (id) => {
+    setUpdatingId(id)
+    try {
+      const res = await fetch(`${API_URL}/api/enquiries/${id}/convert-to-booking`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders(),
+        },
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setEnquiries((prev) =>
+          prev.map((e) => (e.id === id ? { ...e, status: 'converted' } : e))
+        )
+        if (addNotification) addNotification(`Enquiry ${id} pushed to Bookings as Booking #${json.booking?.id || ''}!`, 'success')
+      } else {
+        if (addNotification) addNotification(json.message || 'Failed to convert enquiry to booking', 'error')
+      }
+    } catch {
+      if (addNotification) addNotification('Network error converting enquiry to booking', 'error')
     } finally {
       setUpdatingId(null)
     }
@@ -204,6 +235,8 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
   }
 
   const filtered = enquiries.filter((e) => {
+    if (statusFilter === 'active' && e.status === 'converted') return false
+    if (statusFilter === 'converted' && e.status !== 'converted') return false
     if (!search) return true
     const q = search.toLowerCase()
     return (
@@ -242,7 +275,29 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
             {search ? ' matched' : ' total'}
           </p>
         </div>
-        <div className="flex gap-3 items-center">
+        <div className="flex flex-wrap gap-3 items-center">
+          {/* Status Filter Tabs */}
+          <div className="inline-flex rounded-xl bg-stone-100 p-1 border border-stone-200 text-xs font-semibold">
+            {[
+              { id: 'all', label: `All (${enquiries.length})` },
+              { id: 'active', label: `Active (${enquiries.filter(e => e.status !== 'converted').length})` },
+              { id: 'converted', label: `Converted (${enquiries.filter(e => e.status === 'converted').length})` }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setStatusFilter(tab.id)}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  statusFilter === tab.id
+                    ? 'bg-white text-stone-900 shadow-xs'
+                    : 'text-stone-500 hover:text-stone-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           <div className="relative">
             <input
               type="text"
@@ -500,37 +555,41 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
                       <td className="px-4 py-3 text-stone-600">{formatDate(enq.travelDate)}</td>
                       <td className="px-4 py-3 text-center text-stone-600">{enq.guests}</td>
                       <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          {prev && (
+                        <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={enq.status || 'logged'}
+                            disabled={isUpdating}
+                            onChange={(e) => updateStatus(enq.id, e.target.value)}
+                            className={`text-[11px] font-bold px-2 py-1 rounded-lg border cursor-pointer outline-none transition-all ${STATUS_COLORS[enq.status] || STATUS_COLORS.logged}`}
+                          >
+                            {STATUS_OPTIONS.map((s) => (
+                              <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>
+                            ))}
+                          </select>
+
+                          {enq.status !== 'converted' ? (
                             <button
+                              type="button"
                               disabled={isUpdating}
-                              onClick={() => updateStatus(enq.id, prev)}
-                              className="p-1 rounded hover:bg-stone-100 text-stone-400 disabled:opacity-30 transition-colors"
-                              title={`Move to ${STATUS_LABELS[prev]}`}
+                              onClick={() => convertToBooking(enq.id)}
+                              title="Push to Booking section"
+                              className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[10px] font-bold shadow-xs active:scale-95 transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap"
                             >
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                              </svg>
+                              {isUpdating ? (
+                                <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <>
+                                  <span>Push to Booking</span>
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                  </svg>
+                                </>
+                              )}
                             </button>
-                          )}
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${STATUS_COLORS[enq.status] || 'bg-stone-100 text-stone-600 border-stone-200'} min-w-[72px] justify-center`}>
-                            {isUpdating ? (
-                              <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              STATUS_LABELS[enq.status] || enq.status
-                            )}
-                          </span>
-                          {next && (
-                            <button
-                              disabled={isUpdating}
-                              onClick={() => updateStatus(enq.id, next)}
-                              className="p-1 rounded hover:bg-stone-100 text-stone-400 disabled:opacity-30 transition-colors"
-                              title={`Move to ${STATUS_LABELS[next]}`}
-                            >
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                              </svg>
-                            </button>
+                          ) : (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/90 border border-emerald-200 px-2 py-0.5 rounded-md whitespace-nowrap">
+                              ✓ In Bookings
+                            </span>
                           )}
                         </div>
                       </td>

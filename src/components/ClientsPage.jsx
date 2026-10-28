@@ -565,9 +565,358 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Profiles Grid (2/3 width) */}
-        <div className="lg:col-span-2 space-y-4">
+      {selectedClient ? (
+        /* FULL-PAGE CLIENT PROFILE WORKSPACE */
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Top navigation & action bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-stone-200/80 rounded-2xl p-5 shadow-xs">
+            <div className="flex flex-wrap items-center gap-4">
+              <button
+                type="button"
+                onClick={() => setSelectedClient(null)}
+                className="px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-xs active:scale-95"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span>Back to All Clients</span>
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl p-0.5 bg-stone-100 shadow-sm shrink-0">
+                  <img src={imgUrl(selectedClient.avatar)} alt={selectedClient.name} className="w-full h-full object-cover rounded-[10px]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold text-stone-900 leading-tight">{selectedClient.name}</h3>
+                    <span className={`inline-flex px-2 py-0.5 rounded text-[9px] font-extrabold uppercase border ${getTierColor(selectedClient.tier)}`}>
+                      {selectedClient.tier}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-stone-400 mt-0.5">
+                    <span className="font-mono text-[11px] font-semibold">{selectedClient.id}</span>
+                    <span>•</span>
+                    <span>Status: <strong className="text-emerald-700">{selectedClient.status}</strong></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {onBookForClient && (
+                <button
+                  type="button"
+                  onClick={() => onBookForClient(selectedClient.name)}
+                  className="py-2 px-3.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-xs active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Book Trip
+                </button>
+              )}
+              {canWriteClient && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit(selectedClient)}
+                  className="py-2 px-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Edit Profile"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                  Edit Profile
+                </button>
+              )}
+              {canDeleteClient && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteClient(selectedClient.id)}
+                  className="py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Delete Client"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Full-width 2-column workspace */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            {/* Left Column: Contact, Financials, Emergency, Notes */}
+            <div className="space-y-6">
+              {/* Contact Channels */}
+              <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-xs space-y-3">
+                <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Contact Channels</span>
+                <div className="flex items-center gap-3 text-xs text-stone-800">
+                  <svg className="w-4 h-4 text-stone-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <a href={`mailto:${selectedClient.email}`} className="text-amber-700 hover:underline font-semibold">{selectedClient.email}</a>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-stone-800">
+                  <svg className="w-4 h-4 text-stone-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                  <a href={`tel:${selectedClient.phone}`} className="font-semibold hover:underline">{selectedClient.phone}</a>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-stone-800">
+                  <svg className="w-4 h-4 text-stone-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  </svg>
+                  <span className="font-semibold text-stone-700">{selectedClient.country || 'Global'}</span>
+                </div>
+              </div>
+
+              {/* Financial Metrics / Wallets */}
+              <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-xs space-y-4">
+                <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Financial Profile & Wallet</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-[#FAF9F5] border border-stone-200/60 p-3.5 rounded-xl text-center">
+                    <span className="text-[9px] text-stone-400 font-bold uppercase block mb-1">Lifetime Value (LTV)</span>
+                    <span className="text-base font-extrabold text-stone-900">{selectedClient.ltv}</span>
+                  </div>
+                  <div className="bg-[#FAF9F5] border border-stone-200/60 p-3.5 rounded-xl text-center">
+                    <span className="text-[9px] text-stone-400 font-bold uppercase block mb-1">Travel Wallet</span>
+                    <span className="text-base font-extrabold text-amber-700">₹{Number(selectedClient.walletBalance || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center text-xs text-stone-600 border-t border-stone-100 pt-3">
+                  <span className="font-semibold">Completed Bookings:</span>
+                  <span className="font-bold text-stone-900">{selectedClient.bookingsCount || 0}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs text-stone-600">
+                  <span className="font-semibold">Last Contact:</span>
+                  <span className="font-medium text-stone-800">{formatDateDisplay(selectedClient.lastContact)}</span>
+                </div>
+              </div>
+
+              {/* Emergency Contact */}
+              <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-xs space-y-3">
+                <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Emergency Contact</span>
+                <div className="p-3.5 rounded-xl border border-stone-200 bg-stone-50/40 text-xs space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-stone-400">Full Name:</span>
+                    <span className="font-bold text-stone-800">{selectedClient.emergencyContact?.name || 'Not Listed'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-400">Phone No:</span>
+                    <a href={`tel:${selectedClient.emergencyContact?.phone}`} className="font-semibold text-amber-700 hover:underline">
+                      {selectedClient.emergencyContact?.phone || 'Not Listed'}
+                    </a>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-400">Relationship:</span>
+                    <span className="font-medium text-stone-600">{selectedClient.emergencyContact?.relation || 'Not Listed'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Agent Directives & Notes */}
+              <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-xs space-y-3">
+                <span className="text-[10px] text-stone-400 font-bold uppercase tracking-wider block">Agent Directives & Notes</span>
+                <div className="p-3.5 bg-amber-50/20 border border-amber-200/50 rounded-xl text-xs text-stone-700 leading-relaxed italic whitespace-pre-wrap">
+                  {selectedClient.notes || 'No operational notes entered.'}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Preferences, Documents, Bookings & Activity Logs */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Preferences Matrix */}
+              <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-xs space-y-3">
+                <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Client Preferences Matrix</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-[#FAF9F5] border border-stone-200/60 p-3 rounded-xl">
+                    <span className="text-[9px] text-stone-400 font-bold uppercase block mb-1">Pref Airline</span>
+                    <span className="text-xs font-semibold text-stone-800">{selectedClient.preferences?.airline || 'Any'}</span>
+                  </div>
+                  <div className="bg-[#FAF9F5] border border-stone-200/60 p-3 rounded-xl">
+                    <span className="text-[9px] text-stone-400 font-bold uppercase block mb-1">Seat Class</span>
+                    <span className="text-xs font-semibold text-stone-800">{selectedClient.preferences?.seat || 'Any'}</span>
+                  </div>
+                  <div className="bg-[#FAF9F5] border border-stone-200/60 p-3 rounded-xl">
+                    <span className="text-[9px] text-stone-400 font-bold uppercase block mb-1">Room Pref</span>
+                    <span className="text-xs font-semibold text-stone-800">{selectedClient.preferences?.room || 'Standard King'}</span>
+                  </div>
+                  <div className="bg-[#FAF9F5] border border-stone-200/60 p-3 rounded-xl">
+                    <span className="text-[9px] text-stone-400 font-bold uppercase block mb-1">Dietary Details</span>
+                    <span className={`text-xs font-semibold ${selectedClient.preferences?.dietary !== 'None' ? 'text-amber-700' : 'text-stone-800'}`}>
+                      {selectedClient.preferences?.dietary || 'None'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Compliance Documents Vault */}
+              <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-xs space-y-3">
+                <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Compliance Documents Vault</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3.5 rounded-xl border border-stone-200 bg-stone-50/30 flex justify-between items-center">
+                    <div>
+                      <span className="text-[9px] text-stone-400 font-bold uppercase block">Passport Scans</span>
+                      <span className="text-xs font-semibold text-stone-800">No: {selectedClient.passport.number}</span>
+                      <span className="text-[10px] text-stone-500 block">Expires: {formatDateDisplay(selectedClient.passport.expires)}</span>
+                    </div>
+                    <span className={`px-2.5 py-1 text-[9px] font-bold rounded-lg border ${
+                      selectedClient.passport.status === 'Expiring Soon'
+                        ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    }`}>
+                      {selectedClient.passport.status || 'Valid'}
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-stone-200 bg-stone-50/30 flex justify-between items-center">
+                    <div>
+                      <span className="text-[9px] text-stone-400 font-bold uppercase block">Visa Clearances</span>
+                      <span className="text-xs font-semibold text-stone-800">Class: {selectedClient.visa?.class || 'Tourist'}</span>
+                      <span className="text-[10px] text-stone-500 block">Country: {selectedClient.visa?.country || 'Pending'}</span>
+                      <span className="text-[10px] text-stone-500 block">Expires: {formatDateDisplay(selectedClient.visa?.expires) || 'Pending'}</span>
+                    </div>
+                    <span className="px-2.5 py-1 text-[9px] font-bold rounded-lg border bg-stone-100 text-stone-700 border-stone-200">
+                      Standard
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Associated Bookings for this Client */}
+              <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-xs space-y-3">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Client Trips & Bookings</h4>
+                  <span className="text-[11px] font-bold text-stone-500">
+                    {bookings.filter(b => b?.client && b.client.toLowerCase() === (selectedClient.name || '').toLowerCase()).length} records
+                  </span>
+                </div>
+                {bookings.filter(b => b?.client && b.client.toLowerCase() === (selectedClient.name || '').toLowerCase()).length === 0 ? (
+                  <p className="text-xs text-stone-400 py-3 italic">No bookings recorded for this client yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-stone-100 text-stone-400 text-left">
+                          <th className="py-2 pr-3 font-bold uppercase text-[9px]">ID</th>
+                          <th className="py-2 px-3 font-bold uppercase text-[9px]">Package</th>
+                          <th className="py-2 px-3 font-bold uppercase text-[9px]">Departure</th>
+                          <th className="py-2 px-3 font-bold uppercase text-[9px]">Amount</th>
+                          <th className="py-2 pl-3 font-bold uppercase text-[9px]">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-100">
+                        {bookings.filter(b => b?.client && b.client.toLowerCase() === (selectedClient.name || '').toLowerCase()).map(bk => (
+                          <tr key={bk.id} className="hover:bg-stone-50/60">
+                            <td className="py-2.5 pr-3 font-mono text-[10px] text-stone-500 font-semibold">{bk.id}</td>
+                            <td className="py-2.5 px-3 font-semibold text-stone-800">{bk.package}</td>
+                            <td className="py-2.5 px-3 text-stone-600">{bk.date}</td>
+                            <td className="py-2.5 px-3 font-bold text-stone-900">₹{Number(bk.amount || 0).toLocaleString('en-IN')}</td>
+                            <td className="py-2.5 pl-3">
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                                bk.status === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}>
+                                {bk.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Activity Timeline */}
+              <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-xs space-y-4">
+                <div className="flex justify-between items-center border-b border-stone-100 pb-3">
+                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Activity Notes & CRM Log</h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogClient(selectedClient)
+                      setLogText('')
+                    }}
+                    className="text-xs font-bold text-amber-700 hover:text-amber-600 px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-1 cursor-pointer transition-all hover:scale-105"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Log Note
+                  </button>
+                </div>
+                
+                <div className="max-h-96 overflow-y-auto pr-1 space-y-1">
+                  {selectedClient.logs.map((log, index) => {
+                    const isSystem = log.text.includes('System:') || log.text.includes('initialized')
+                    const isBooking = log.text.includes('Booking') || log.text.includes('BK-')
+                    const isUpdate = log.text.includes('updated') || log.text.includes('details') || log.text.includes('details updated')
+                    
+                    let iconBg = 'bg-stone-100 text-stone-600 border-stone-200'
+                    let iconSvg = (
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                    )
+
+                    if (isSystem) {
+                      iconBg = 'bg-blue-50 text-blue-600 border-blue-200/60'
+                      iconSvg = (
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      )
+                    } else if (isBooking) {
+                      iconBg = 'bg-emerald-50 text-emerald-600 border-emerald-200/60'
+                      iconSvg = (
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      )
+                    } else if (isUpdate) {
+                      iconBg = 'bg-amber-50 text-amber-600 border-amber-200/60'
+                      iconSvg = (
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      )
+                    }
+
+                    return (
+                      <div key={index} className="relative pl-7 pb-4 last:pb-1">
+                        {index < (selectedClient.logs || []).length - 1 && (
+                          <span className="absolute left-[11px] top-6 bottom-0 w-0.5 bg-stone-200/50"></span>
+                        )}
+                        <span className={`absolute left-0 top-1 w-6 h-6 rounded-full border flex items-center justify-center shadow-sm ${iconBg}`}>
+                          {iconSvg}
+                        </span>
+                        
+                        <div className="bg-[#FAF9F5]/45 border border-stone-200/40 rounded-xl p-2.5 ml-1 space-y-1 hover:bg-[#FAF9F5]/80 transition-all">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[9px] text-stone-400 font-bold">{formatDateDisplay(log.time)}</span>
+                            <span className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                              isSystem ? 'bg-blue-50/50 text-blue-600 border-blue-100' :
+                              isBooking ? 'bg-emerald-50/50 text-emerald-600 border-emerald-100' :
+                              isUpdate ? 'bg-amber-50/50 text-amber-600 border-amber-100' :
+                              'bg-stone-50 text-stone-550 border-stone-100'
+                            }`}>
+                              {isSystem ? 'System' : isBooking ? 'Booking' : isUpdate ? 'Update' : 'Note'}
+                            </span>
+                          </div>
+                          <p className="text-stone-700 text-[11px] leading-relaxed font-semibold">{log.text}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* PROFILES LIST & SEARCH (FULL WIDTH) */
+        <div className="space-y-4">
           {/* Search bar */}
           <div className="bg-white border border-stone-200/80 rounded-2xl p-4 shadow-sm relative">
             <span className="absolute inset-y-0 left-4 pl-3.5 flex items-center pointer-events-none">
@@ -585,7 +934,7 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map(client => (
               <div
                 key={client.id}
@@ -595,7 +944,7 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
                 }`}
               >
                 <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-stone-100 p-0.5 shadow-inner">
+                  <div className="w-12 h-12 rounded-xl bg-stone-100 p-0.5 shadow-inner shrink-0">
                     <img src={imgUrl(client.avatar)} alt={client.name} className="w-full h-full object-cover rounded-[10px]" />
                   </div>
                   <div className="space-y-1">
@@ -679,287 +1028,7 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
             ))}
           </div>
         </div>
-
-        {/* Selected Client CRM Panel (1/3 width) */}
-        <div className="lg:col-span-1">
-          {selectedClient ? (
-            <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-sm space-y-6 animate-in fade-in duration-200 sticky top-24">
-              {/* Header profile info */}
-              <div className="flex justify-between items-start">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl p-0.5 bg-stone-100 shadow-sm">
-                    <img src={imgUrl(selectedClient.avatar)} className="w-full h-full object-cover rounded-[8px]" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-stone-900 leading-tight">{selectedClient.name}</h3>
-                    <p className="text-[10px] text-stone-400 font-semibold">{selectedClient.id}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  {canWriteClient && (
-                  <button
-                    onClick={() => handleOpenEdit(selectedClient)}
-                    className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-500 hover:text-amber-700 transition-colors cursor-pointer"
-                    title="Edit Profile"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                    </svg>
-                  </button>
-                  )}
-                  <button 
-                    onClick={() => setSelectedClient(null)}
-                    className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 hover:text-stone-600 transition-colors"
-                  >
-                    <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              {/* Prominent Contact Info Block */}
-              <div className="bg-stone-50 border border-stone-200/70 p-4 rounded-xl space-y-2.5">
-                <span className="text-[9px] text-stone-400 font-bold uppercase block -mb-1">Contact Channels</span>
-                <div className="flex items-center gap-2.5 text-xs text-stone-800">
-                  <svg className="w-4 h-4 text-stone-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                  <a href={`mailto:${selectedClient.email}`} className="text-amber-700 hover:underline font-semibold">{selectedClient.email}</a>
-                </div>
-                <div className="flex items-center gap-2.5 text-xs text-stone-800">
-                  <svg className="w-4 h-4 text-stone-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                  </svg>
-                  <a href={`tel:${selectedClient.phone}`} className="font-semibold hover:underline">{selectedClient.phone}</a>
-                </div>
-              </div>
-
-              {/* Financial Metrics / Wallets */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-[#FAF9F5] border border-stone-200/50 p-3 rounded-xl text-center">
-                  <span className="text-[9px] text-stone-400 font-bold uppercase block mb-1">Lifetime Value (LTV)</span>
-                  <span className="text-sm font-extrabold text-stone-900">{selectedClient.ltv}</span>
-                </div>
-                <div className="bg-[#FAF9F5] border border-stone-200/50 p-3 rounded-xl text-center">
-                  <span className="text-[9px] text-stone-400 font-bold uppercase block mb-1">Travel Wallet</span>
-                  <span className="text-sm font-extrabold text-amber-700">₹{Number(selectedClient.walletBalance || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                </div>
-              </div>
-
-              {/* Preferences Grid */}
-              <div className="border-t border-stone-100 pt-4 space-y-3">
-                <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Client Preferences Matrix</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-[#FAF9F5]/40 border border-stone-200/40 p-2.5 rounded-xl">
-                    <span className="text-[9px] text-stone-400 font-bold uppercase block mb-0.5">Pref Airline</span>
-                    <span className="text-xs font-semibold text-stone-800">{selectedClient.preferences.airline}</span>
-                  </div>
-                  <div className="bg-[#FAF9F5]/40 border border-stone-200/40 p-2.5 rounded-xl">
-                    <span className="text-[9px] text-stone-400 font-bold uppercase block mb-0.5">Seat Class</span>
-                    <span className="text-xs font-semibold text-stone-800">{selectedClient.preferences.seat}</span>
-                  </div>
-                  <div className="bg-[#FAF9F5]/40 border border-stone-200/40 p-2.5 rounded-xl">
-                    <span className="text-[9px] text-stone-400 font-bold uppercase block mb-0.5">Room Pref</span>
-                    <span className="text-xs font-semibold text-stone-800">{selectedClient.preferences.room}</span>
-                  </div>
-                  <div className="bg-[#FAF9F5]/40 border border-stone-200/40 p-2.5 rounded-xl">
-                    <span className="text-[9px] text-stone-400 font-bold uppercase block mb-0.5">Dietary Details</span>
-                    <span className={`text-xs font-semibold ${selectedClient.preferences.dietary !== 'None' ? 'text-amber-700' : 'text-stone-800'}`}>
-                      {selectedClient.preferences.dietary}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Compliance Documents Vault (Passports & Visas) */}
-              <div className="border-t border-stone-100 pt-4 space-y-3">
-                <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Compliance Documents Vault</h4>
-                <div className="grid grid-cols-1 gap-2.5">
-                  <div className="p-3 rounded-xl border border-stone-200 bg-stone-50/20 flex justify-between items-center">
-                    <div>
-                      <span className="text-[9px] text-stone-400 font-bold uppercase block">Passport Scans</span>
-                      <span className="text-xs font-semibold text-stone-800">No: {selectedClient.passport.number}</span>
-                      <span className="text-[10px] text-stone-500 block">Expires: {formatDateDisplay(selectedClient.passport.expires)}</span>
-                    </div>
-                    <span className={`px-2 py-0.5 text-[9px] font-bold rounded-lg border ${
-                      selectedClient.passport.status === 'Expiring Soon'
-                        ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse'
-                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    }`}>
-                      {selectedClient.passport.status}
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl border border-stone-200 bg-stone-50/20 flex justify-between items-center">
-                    <div>
-                      <span className="text-[9px] text-stone-400 font-bold uppercase block">Visa Clearances</span>
-                      <span className="text-xs font-semibold text-stone-800">Class: {selectedClient.visa?.class || 'Tourist'}</span>
-                      <span className="text-[10px] text-stone-500 block">Country: {selectedClient.visa?.country || 'Pending'}</span>
-                      <span className="text-[10px] text-stone-500 block">Expires: {formatDateDisplay(selectedClient.visa?.expires) || 'Pending'}</span>
-                    </div>
-                    <span className="px-2 py-0.5 text-[9px] font-bold rounded-lg border bg-stone-100 text-stone-700 border-stone-200">
-                      Standard
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Emergency Compliance */}
-              <div className="border-t border-stone-100 pt-4 space-y-2">
-                <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Emergency Contact</h4>
-                <div className="p-3 rounded-xl border border-stone-200/80 bg-stone-50/10 text-xs space-y-1.5">
-                  <div className="flex justify-between">
-                    <span className="text-stone-400">Full Name:</span>
-                    <span className="font-bold text-stone-800">{selectedClient.emergencyContact?.name || 'Not Listed'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-400">Phone No:</span>
-                    <a href={`tel:${selectedClient.emergencyContact?.phone}`} className="font-semibold text-amber-700 hover:underline">
-                      {selectedClient.emergencyContact?.phone || 'Not Listed'}
-                    </a>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-400">Relationship:</span>
-                    <span className="font-medium text-stone-600">{selectedClient.emergencyContact?.relation || 'Not Listed'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Notes Context Panel */}
-              <div className="border-t border-stone-100 pt-4 space-y-2">
-                <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Agent Directives & Notes</h4>
-                <div className="p-3 bg-amber-50/10 border border-amber-500/10 rounded-xl text-xs text-stone-600 leading-relaxed italic whitespace-pre-wrap">
-                  {selectedClient.notes || 'No operational notes entered.'}
-                </div>
-              </div>
-
-              {/* Book Trip Quick Action */}
-              {onBookForClient && (
-                <div className="border-t border-stone-100 pt-4">
-                  <button
-                    onClick={() => onBookForClient(selectedClient.name)}
-                    className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    Book Trip for {selectedClient.name}
-                  </button>
-                </div>
-              )}
-
-              {/* Activity Timeline */}
-              <div className="border-t border-stone-100 pt-4 space-y-3">
-                <div className="flex justify-between items-center">
-                  <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider">Activity Notes Log</h4>
-                  <button
-                    onClick={() => {
-                      setLogClient(selectedClient)
-                      setLogText('')
-                    }}
-                    className="text-[10px] font-bold text-amber-700 hover:text-amber-600 flex items-center gap-1 cursor-pointer transition-all hover:scale-105"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                    Add Note
-                  </button>
-                </div>
-                
-                <div className="max-h-72 overflow-y-auto pr-1 space-y-1">
-                  {selectedClient.logs.map((log, index) => {
-                    const isSystem = log.text.includes('System:') || log.text.includes('initialized')
-                    const isBooking = log.text.includes('Booking') || log.text.includes('BK-')
-                    const isUpdate = log.text.includes('updated') || log.text.includes('details') || log.text.includes('details updated')
-                    
-                    let iconBg = 'bg-stone-100 text-stone-600 border-stone-200'
-                    let iconSvg = (
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                      </svg>
-                    )
-
-                    if (isSystem) {
-                      iconBg = 'bg-blue-50 text-blue-600 border-blue-200/60'
-                      iconSvg = (
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      )
-                    } else if (isBooking) {
-                      iconBg = 'bg-emerald-50 text-emerald-600 border-emerald-200/60'
-                      iconSvg = (
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      )
-                    } else if (isUpdate) {
-                      iconBg = 'bg-amber-50 text-amber-600 border-amber-200/60'
-                      iconSvg = (
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
-                      )
-                    }
-
-                    return (
-                      <div key={index} className="relative pl-7 pb-4 last:pb-1">
-                        {/* Timeline Connector Line */}
-                        {index < selectedClient.logs.length - 1 && (
-                          <span className="absolute left-[11px] top-6 bottom-0 w-0.5 bg-stone-200/50"></span>
-                        )}
-                        {/* Timeline Icon */}
-                        <span className={`absolute left-0 top-1 w-6 h-6 rounded-full border flex items-center justify-center shadow-sm ${iconBg}`}>
-                          {iconSvg}
-                        </span>
-                        
-                        <div className="bg-[#FAF9F5]/45 border border-stone-200/40 rounded-xl p-2.5 ml-1 space-y-1 hover:bg-[#FAF9F5]/80 transition-all">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[9px] text-stone-400 font-bold">{formatDateDisplay(log.time)}</span>
-                            <span className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
-                              isSystem ? 'bg-blue-50/50 text-blue-600 border-blue-100' :
-                              isBooking ? 'bg-emerald-50/50 text-emerald-600 border-emerald-100' :
-                              isUpdate ? 'bg-amber-50/50 text-amber-600 border-amber-100' :
-                              'bg-stone-50 text-stone-550 border-stone-100'
-                            }`}>
-                              {isSystem ? 'System' : isBooking ? 'Booking' : isUpdate ? 'Update' : 'Note'}
-                            </span>
-                          </div>
-                          <p className="text-stone-700 text-[11px] leading-relaxed font-semibold">{log.text}</p>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Delete Client Button */}
-              <div className="border-t border-stone-100 pt-4">
-                {canDeleteClient && (
-                <button
-                  onClick={() => handleDeleteClient(selectedClient.id)}
-                  className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 hover:border-rose-350 rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  Delete Client Profile
-                </button>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-stone-50 border border-dashed border-stone-300/60 rounded-2xl p-12 text-center text-stone-400 text-xs">
-              <svg className="w-10 h-10 mx-auto text-stone-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-              </svg>
-              Select a customer from the grid to access detailed traveler preferences and activity history logs.
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Add Client Modal */}
       {showAddForm && (

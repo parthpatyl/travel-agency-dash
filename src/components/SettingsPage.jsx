@@ -72,6 +72,16 @@ export default function SettingsPage({
     buttonText: 'Request custom quote'
   }
 
+  const updateSectionVisibility = (key, value) => {
+    setSettings(prev => ({
+      ...prev,
+      sectionVisibility: {
+        ...(prev.sectionVisibility || {}),
+        [key]: value
+      }
+    }))
+  }
+
   const updateHeroField = (field, value) => {
     setSettings({
       ...settings,
@@ -655,8 +665,34 @@ export default function SettingsPage({
     return diffs
   }, [])
 
+  const getVisibilityDiff = useCallback((curr, base) => {
+    if (!base) return []
+    const diffs = []
+    const cVis = curr.sectionVisibility || {}
+    const bVis = base.sectionVisibility || {}
+    const sections = [
+      { key: 'hero', label: 'Hero Banner Section' },
+      { key: 'categories', label: 'Explore Destinations Categories Strip' },
+      { key: 'featured', label: 'Featured Luxury Packages (2 Rows)' },
+      { key: 'groupTours', label: 'Upcoming Group Departures' },
+      { key: 'testimonials', label: 'Customer Reviews & Testimonial Wall' },
+      { key: 'speciality', label: 'Speciality Tour Categories' },
+      { key: 'cta', label: 'Final Call to Action Banner' },
+      { key: 'giftcards', label: 'Gift Cards' }
+    ]
+    sections.forEach(({ key, label }) => {
+      const cVal = cVis[key] !== false
+      const bVal = bVis[key] !== false
+      if (cVal !== bVal) {
+        diffs.push({ label, oldVal: bVal ? 'Visible (Ticked)' : 'Hidden (Unticked)', newVal: cVal ? 'Visible (Ticked)' : 'Hidden (Unticked)' })
+      }
+    })
+    return diffs
+  }, [])
+
   const getSectionDiff = useCallback((sectionName, curr, base) => {
     switch (sectionName) {
+      case 'Section Visibility': return getVisibilityDiff(curr, base)
       case 'Homepage Hero': return getHeroDiff(curr, base)
       case 'Homepage CTA': return getCtaDiff(curr, base)
       case 'About Us Banner': return getAboutBannerDiff(curr, base)
@@ -666,8 +702,9 @@ export default function SettingsPage({
       case 'Financial Rules': return getFinancialDiff(curr, base)
       default: return []
     }
-  }, [getHeroDiff, getCtaDiff, getAboutBannerDiff, getPhilosophyDiff, getValuesDiff, getContactDiff, getFinancialDiff])
+  }, [getVisibilityDiff, getHeroDiff, getCtaDiff, getAboutBannerDiff, getPhilosophyDiff, getValuesDiff, getContactDiff, getFinancialDiff])
 
+  const visibilityDiff = useMemo(() => getVisibilityDiff(settings, baselineSettings), [settings, baselineSettings, getVisibilityDiff])
   const heroDiff = useMemo(() => getHeroDiff(settings, baselineSettings), [settings, baselineSettings, getHeroDiff])
   const ctaDiff = useMemo(() => getCtaDiff(settings, baselineSettings), [settings, baselineSettings, getCtaDiff])
   const aboutBannerDiff = useMemo(() => getAboutBannerDiff(settings, baselineSettings), [settings, baselineSettings, getAboutBannerDiff])
@@ -826,6 +863,72 @@ export default function SettingsPage({
       {/* ───────────────────────────────────────────────────────────── */}
       {activeSubTab === 'homepage' && (
         <div className="space-y-6">
+          {/* Section Visibility Controls (CMS To Frontend) */}
+          <section className="bg-white border border-stone-200/80 rounded-2xl p-6 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-100 pb-4 gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-stone-900 tracking-tight flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  Frontend Section Visibility (CMS Control)
+                </h3>
+                <p className="text-xs text-stone-500">Tick or untick to instantly toggle what is visible on the live customer website without touching code.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleSaveSection('Section Visibility')}
+                disabled={saving === 'Section Visibility' || visibilityDiff.length === 0}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold shadow-xs transition-all ${
+                  visibilityDiff.length > 0
+                    ? 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
+                    : 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed'
+                }`}
+              >
+                {saving === 'Section Visibility' ? 'Saving...' : visibilityDiff.length > 0 ? `Save Visibility Changes (${visibilityDiff.length})` : 'Saved (No changes)'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+              {[
+                { key: 'hero', label: 'Hero Banner', desc: 'Main headline, search, counters' },
+                { key: 'categories', label: 'Explore Destinations', desc: 'Destination countries strip' },
+                { key: 'featured', label: 'Featured Packages', desc: '2 full rows (8 packages)' },
+                { key: 'groupTours', label: 'Upcoming Group Tours', desc: 'Group departures showcase' },
+                { key: 'testimonials', label: 'Customer Reviews Wall', desc: 'Affect UI testimonial wall' },
+                { key: 'speciality', label: 'Speciality Categories', desc: 'Honeymoon, wildlife, luxury' },
+                { key: 'cta', label: 'Call to Action Banner', desc: 'Bottom lead conversion bar' },
+                { key: 'giftcards', label: 'Gift Cards', desc: 'Voucher & gift cards module' }
+              ].map(({ key, label, desc }) => {
+                const isChecked = (settings.sectionVisibility || {})[key] !== false
+                return (
+                  <label
+                    key={key}
+                    className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer select-none ${
+                      isChecked
+                        ? 'bg-amber-50/40 border-amber-300 text-stone-900 shadow-xs'
+                        : 'bg-stone-50/60 border-stone-200 text-stone-400'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => updateSectionVisibility(key, e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded text-amber-600 focus:ring-amber-500 border-stone-300 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <div className="text-xs font-bold leading-snug">{label}</div>
+                      <div className="text-[10px] text-stone-500 leading-tight mt-0.5">{desc}</div>
+                      <div className="mt-1">
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${isChecked ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'}`}>
+                          {isChecked ? 'Live / Visible' : 'Hidden'}
+                        </span>
+                      </div>
+                    </div>
+                  </label>
+                )
+              })}
+            </div>
+          </section>
+
           {/* Hero Banner Section */}
           <section className="bg-white border border-stone-200/80 rounded-2xl p-6 shadow-sm space-y-6">
             <div className="flex items-center justify-between border-b border-stone-100 pb-4">

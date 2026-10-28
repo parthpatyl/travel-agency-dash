@@ -44,6 +44,77 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
   const canWritePackage = roleHas(user?.role, 'write:packages')
   const canCreatePackage = roleHas(user?.role, 'create:packages')
 
+  // Dynamic Regions Management State
+  const [customRegions, setCustomRegions] = useState(() => {
+    try {
+      const saved = localStorage.getItem('kraft_custom_regions')
+      if (saved) return JSON.parse(saved)
+    } catch { /* ignore */ }
+    return ['Africa', 'Asia', 'Australia', 'Europe', 'North America', 'South America', 'Middle East', 'India']
+  })
+  const [newRegionInput, setNewRegionInput] = useState('')
+  const [showManageRegions, setShowManageRegions] = useState(false)
+
+  const handleAddRegion = () => {
+    const trimmed = newRegionInput.trim()
+    if (!trimmed) return
+    if (!customRegions.includes(trimmed)) {
+      const updated = [...customRegions, trimmed]
+      setCustomRegions(updated)
+      try { localStorage.setItem('kraft_custom_regions', JSON.stringify(updated)) } catch { /* ignore */ }
+      if (addNotification) addNotification(`Region "${trimmed}" added`, 'success')
+    }
+    setNewRegionInput('')
+  }
+
+  const handleRemoveRegion = (regToRemove) => {
+    const updated = customRegions.filter(r => r !== regToRemove)
+    setCustomRegions(updated)
+    try { localStorage.setItem('kraft_custom_regions', JSON.stringify(updated)) } catch { /* ignore */ }
+    if (filterRegion === regToRemove) setFilterRegion('All')
+    if (addNotification) addNotification(`Region "${regToRemove}" removed`, 'info')
+  }
+
+  const handleToggleHighDemand = async (pkg, e) => {
+    if (e) e.stopPropagation()
+    if (!canWritePackage) {
+      if (addNotification) addNotification('Permission required to modify package', 'error')
+      return
+    }
+    const isCurrentlyHigh = pkg.trend === 'High Demand' || (pkg.ctaBadge && pkg.ctaBadge.includes('High Demand'))
+    const updatedTrend = isCurrentlyHigh ? 'Popular' : 'High Demand'
+    const updatedCta = isCurrentlyHigh ? '' : '🔥 High Demand'
+    const updatedPkg = { ...pkg, trend: updatedTrend, ctaBadge: updatedCta }
+
+    setPackages(packages.map(p => p.id === pkg.id ? updatedPkg : p))
+    if (selectedPackage?.id === pkg.id) {
+      setSelectedPackage(updatedPkg)
+    }
+
+    try {
+      await fetch(`${API_URL}/api/packages/${pkg.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          trend: updatedTrend,
+          ctaBadge: updatedCta
+        })
+      })
+    } catch {
+      // offline fallback
+    }
+
+    if (addNotification) {
+      addNotification(
+        !isCurrentlyHigh ? `Package "${pkg.name}" marked as 🔥 High Demand` : `Removed High Demand from "${pkg.name}"`,
+        'success'
+      )
+    }
+  }
+
   // New Package Form States
   const [pkgName, setPkgName] = useState('')
   const [pkgDays, setPkgDays] = useState('5')
@@ -679,9 +750,10 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
           <div className="space-y-3 border-b border-stone-200 pb-3">
             <div className="flex flex-wrap gap-1.5 items-center">
               <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mr-2">Regions:</span>
-              {['All', 'Africa', 'Asia', 'Australia', 'Europe', 'North America', 'South America'].map(reg => (
+              {['All', ...customRegions].map(reg => (
                 <button
                   key={reg}
+                  type="button"
                   onClick={() => setFilterRegion(reg)}
                   className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer ${filterRegion === reg
                     ? 'bg-amber-600 text-white shadow-sm'
@@ -691,7 +763,66 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                   {reg === 'All' ? 'All Regions' : reg}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setShowManageRegions(!showManageRegions)}
+                className="px-2 py-1 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 ml-1 transition-all flex items-center gap-1 cursor-pointer"
+              >
+                <span>⚙ Manage Regions</span>
+              </button>
             </div>
+
+            {/* Manage Regions Panel */}
+            {showManageRegions && (
+              <div className="p-3 bg-amber-50/50 border border-amber-200 rounded-xl space-y-2 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-amber-900">Add or Remove Custom Regions</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowManageRegions(false)}
+                    className="text-stone-400 hover:text-stone-600 text-xs font-bold"
+                  >
+                    Done ✕
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter new region name (e.g. Middle East, Scandinavia)..."
+                    value={newRegionInput}
+                    onChange={(e) => setNewRegionInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddRegion(); } }}
+                    className="flex-1 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-xs outline-none focus:ring-1 focus:ring-amber-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddRegion}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold cursor-pointer"
+                  >
+                    + Add Region
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {customRegions.map(reg => (
+                    <span
+                      key={reg}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-stone-200 text-[10px] font-semibold text-stone-700"
+                    >
+                      <span>{reg}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveRegion(reg)}
+                        className="text-stone-400 hover:text-rose-600 text-xs font-bold cursor-pointer leading-none ml-0.5"
+                        title={`Remove ${reg}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-1.5 items-center">
               <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider mr-2">Categories:</span>
               {['All', 'standard', 'luxury', 'weekend', 'event'].map(cat => (
@@ -714,6 +845,7 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
             {filteredPackages.map(pkg => {
               const spotsLeft = pkg.slots.total - pkg.slots.booked
               const isLowAllotment = spotsLeft <= 3
+              const isHighDemand = pkg.trend === 'High Demand' || (pkg.ctaBadge && pkg.ctaBadge.includes('High Demand'))
               return (
                 <div
                   key={pkg.id}
@@ -722,11 +854,31 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                     }`}
                 >
                   <div>
-                    {/* Header: base price and region tag */}
+                    {/* Header: base price, region tag and High Demand badge */}
                     <div className="flex justify-between items-center mb-2">
-                      <span className="px-2 py-0.5 text-[8.5px] font-extrabold uppercase rounded bg-stone-100 text-stone-600 border border-stone-200">
-                        {pkg.region}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="px-2 py-0.5 text-[8.5px] font-extrabold uppercase rounded bg-stone-100 text-stone-600 border border-stone-200">
+                          {pkg.region}
+                        </span>
+                        {isHighDemand && (
+                          <span className="px-1.5 py-0.5 text-[8.5px] font-extrabold uppercase rounded bg-rose-50 text-rose-700 border border-rose-200 animate-pulse flex items-center gap-0.5">
+                            <span>🔥</span>
+                            <span>High Demand</span>
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleHighDemand(pkg, e)}
+                          title={isHighDemand ? 'Remove High Demand flag' : 'Mark as High Demand'}
+                          className={`text-[8.5px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
+                            isHighDemand
+                              ? 'bg-amber-100 text-amber-800 border-amber-300'
+                              : 'bg-stone-50 text-stone-400 border-stone-200 hover:text-stone-700 hover:bg-stone-100'
+                          }`}
+                        >
+                          {isHighDemand ? '🔥 High Demand' : '+ High Demand'}
+                        </button>
+                      </div>
                       <div className="flex items-center gap-1.5 text-stone-400 bg-stone-50 px-2 py-1 rounded border border-stone-100/60">
                         <span className="text-xs font-bold text-stone-800 mr-0.5">₹{pkg.basePrice.toLocaleString('en-IN')}</span>
                         {pkg.usdBasePrice != null && (
@@ -1569,13 +1721,9 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                           onChange={(e) => setPkgRegion(e.target.value)}
                           className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                         >
-                          <option value="Africa">Africa</option>
-                          <option value="Asia">Asia</option>
-                          <option value="Australia">Australia</option>
-                          <option value="Europe">Europe</option>
-                          <option value="Middle East">Middle East</option>
-                          <option value="North America">North America</option>
-                          <option value="South America">South America</option>
+                          {customRegions.map(reg => (
+                            <option key={reg} value={reg}>{reg}</option>
+                          ))}
                         </select>
                       </div>
                       <div>
@@ -2370,13 +2518,9 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                             onChange={(e) => setEditPkgRegion(e.target.value)}
                             className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
                           >
-                            <option value="Africa">Africa</option>
-                            <option value="Asia">Asia</option>
-                            <option value="Australia">Australia</option>
-                            <option value="Europe">Europe</option>
-                            <option value="Middle East">Middle East</option>
-                            <option value="North America">North America</option>
-                            <option value="South America">South America</option>
+                            {customRegions.map(reg => (
+                              <option key={reg} value={reg}>{reg}</option>
+                            ))}
                           </select>
                         </div>
                         <div>

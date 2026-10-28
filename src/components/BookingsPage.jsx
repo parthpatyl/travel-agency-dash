@@ -5,6 +5,16 @@ import ReadOnlyBanner from './ReadOnlyBanner'
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const formatUSD = (price) => price != null ? `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
 
+const BOOKING_STATUS_OPTIONS = ['Pending', 'Confirmed', 'In Progress', 'Paid', 'Cancelled']
+
+const BOOKING_STATUS_COLORS = {
+  'Pending': 'bg-amber-50 text-amber-700 border-amber-200',
+  'Confirmed': 'bg-blue-50 text-blue-700 border-blue-200',
+  'In Progress': 'bg-purple-50 text-purple-700 border-purple-200',
+  'Paid': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'Cancelled': 'bg-stone-100 text-stone-500 border-stone-200',
+}
+
 const defaultProgress = {
   quoteSent: true,
   depositPaid: false,
@@ -431,6 +441,53 @@ export default function BookingsPage({
     }
   }
 
+  const handleQuickStatusChange = async (booking, newStatus) => {
+    if (!canWriteBooking) {
+      if (addNotification) addNotification('You do not have permission to modify bookings', 'error')
+      return
+    }
+    const currentProgress = booking.progress || defaultProgress
+    const updatedProgress = newStatus === 'Paid'
+      ? { ...currentProgress, depositPaid: true, finalPayment: true }
+      : { ...currentProgress, finalPayment: false }
+
+    const updatedBooking = {
+      ...booking,
+      status: newStatus,
+      progress: updatedProgress
+    }
+
+    setBookings(bookings.map(b => b.id === booking.id ? updatedBooking : b))
+    if (selectedBooking?.id === booking.id) {
+      setSelectedBooking(updatedBooking)
+    }
+
+    try {
+      const token = localStorage.getItem('kraft_token')
+      await fetch(`${API_URL}/api/bookings/${booking.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          client: booking.client,
+          package: booking.package,
+          amount: booking.amount,
+          discountValue: booking.discountValue || 0,
+          date: booking.date,
+          status: newStatus,
+          guests: booking.guests || 1,
+          specialDirectives: booking.specialDirectives || []
+        })
+      })
+    } catch {
+      // offline / queue sync fallback
+    }
+
+    if (addNotification) addNotification(`Booking #${booking.id} status updated to "${newStatus}"`, 'success')
+  }
+
   const handleAddBooking = (e) => {
     e.preventDefault()
     
@@ -704,8 +761,8 @@ export default function BookingsPage({
             </div>
             
             {/* Status tabs */}
-            <div className="flex bg-stone-100 p-1 rounded-lg self-stretch md:self-auto">
-              {['All', 'Paid', 'Pending'].map((status) => (
+            <div className="flex bg-stone-100 p-1 rounded-lg self-stretch md:self-auto overflow-x-auto">
+              {['All', 'Paid', 'Pending', 'Confirmed', 'Cancelled'].map((status) => (
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
@@ -757,18 +814,32 @@ export default function BookingsPage({
                         </td>
                         <td className="py-3.5 px-6 text-stone-500">{b.date}</td>
                         <td className="py-3.5 px-6">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                            b.status === 'Paid'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200/40'
-                              : 'bg-amber-50 text-amber-700 border-amber-200/40'
-                          }`}>
-                            {b.status}
-                          </span>
-                          {pendingApprovalBookings.has(b.id) && (
-                            <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-200/40">
-                              Pending Approval
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            {canWriteBooking ? (
+                              <select
+                                value={b.status || 'Pending'}
+                                onChange={(e) => handleQuickStatusChange(b, e.target.value)}
+                                className={`text-[11px] font-bold px-2 py-1 rounded-lg border cursor-pointer outline-none transition-all ${
+                                  BOOKING_STATUS_COLORS[b.status] || BOOKING_STATUS_COLORS['Pending']
+                                }`}
+                              >
+                                {BOOKING_STATUS_OPTIONS.map((st) => (
+                                  <option key={st} value={st}>{st}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                BOOKING_STATUS_COLORS[b.status] || BOOKING_STATUS_COLORS['Pending']
+                              }`}>
+                                {b.status}
+                              </span>
+                            )}
+                            {pendingApprovalBookings.has(b.id) && (
+                              <span className="inline-flex px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-200/40">
+                                Pending Approval
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3.5 px-6 text-right">
                           <button 
