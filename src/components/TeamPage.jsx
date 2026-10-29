@@ -45,7 +45,7 @@ function formatLastActive(s, now) {
   return new Date(t).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
 }
 
-export default function TeamPage({ addNotification, token, user: currentUser }) {
+export default function TeamPage({ addNotification, token, user: currentUser, onOpenAccountSettings }) {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
@@ -108,7 +108,7 @@ export default function TeamPage({ addNotification, token, user: currentUser }) 
         setUsers(prev => [user, ...prev])
         setShowCreate(false)
         setForm({ name: '', email: '', password: '', role: 'operations', avatar_url: '' })
-        addNotification?.('User created successfully', 'success')
+        addNotification?.('User created successfully and welcome email sent', 'success')
       } else {
         const err = await res.json()
         addNotification?.(err.error || 'Failed to create user', 'error')
@@ -212,12 +212,22 @@ export default function TeamPage({ addNotification, token, user: currentUser }) 
           <h2 className="text-xl font-bold text-stone-900 tracking-tight">Team Management</h2>
           <p className="text-xs text-stone-400">Manage users, assign roles, and monitor activity.</p>
         </div>
-        <button
-          onClick={() => setShowCreate(!showCreate)}
-          className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-colors"
-        >
-          {showCreate ? 'Cancel' : '+ Add User'}
-        </button>
+        <div className="flex items-center gap-2">
+          {onOpenAccountSettings && (
+            <button
+              onClick={onOpenAccountSettings}
+              className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <span>🔑</span> Change Password & Profile
+            </button>
+          )}
+          <button
+            onClick={() => setShowCreate(!showCreate)}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+          >
+            {showCreate ? 'Cancel' : '+ Add User'}
+          </button>
+        </div>
       </div>
 
       {showCreate && (
@@ -309,7 +319,7 @@ export default function TeamPage({ addNotification, token, user: currentUser }) 
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-white font-bold text-sm truncate">{user.name}{isSelf && <span className="text-white/60 text-[10px] ml-1">(you)</span>}</h3>
-                  <p className="text-white/70 text-[10px] truncate">{user.email}</p>
+                  <p className="text-white/70 text-[10px] truncate">{user.email || 'info@kraftyourtrip.com'}</p>
                 </div>
               </div>
 
@@ -364,11 +374,16 @@ export default function TeamPage({ addNotification, token, user: currentUser }) 
                       </button>
                       <button
                         onClick={() => {
-                          setResetModal({ id: user.id, name: user.name })
-                          setResetForm({ password: '', confirmPassword: '' })
-                          setResetError('')
+                          if (isSelf && onOpenAccountSettings) {
+                            onOpenAccountSettings()
+                          } else {
+                            setResetModal({ id: user.id, name: user.name })
+                            setResetForm({ password: '', confirmPassword: '' })
+                            setResetError('')
+                          }
                         }}
-                        className="px-3 py-1.5 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                        className="px-3 py-1.5 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                        title={isSelf ? 'Change your password' : 'Reset user password'}
                       >
                         Reset PW
                       </button>

@@ -1980,129 +1980,207 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
 
                     {/* Existing Days Timeline List */}
                     {pkgFormItinerary.length > 0 && (
-                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                      <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
                         {pkgFormItinerary.map((item, idx) => (
-                          <div key={item.day} className="p-2.5 bg-white border border-stone-200 rounded-lg relative group space-y-1">
-                            <div className="flex justify-between items-center pr-16">
-                              <div className="flex items-center gap-2">
+                          editingPkgFormDayIdx === idx ? (
+                            <div key={item.day} className="p-3 bg-amber-50/60 border-2 border-amber-400 rounded-xl space-y-2.5 animate-in fade-in duration-200 shadow-xs">
+                              <div className="flex items-center justify-between">
                                 <span className="px-2 py-0.5 bg-amber-600 text-white font-bold text-[9px] uppercase tracking-wider rounded">
-                                  Day {item.day}
+                                  Editing Day {pkgFormDayNum}
                                 </span>
-                                <h5 className="text-xs font-bold text-stone-800">{item.title}</h5>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingPkgFormDayIdx(null)
+                                    setPkgFormDayNum((pkgFormItinerary.length + 1).toString())
+                                    setPkgFormDayTitle('')
+                                    setPkgFormDayDesc('')
+                                  }}
+                                  className="text-stone-400 hover:text-stone-700 text-xs cursor-pointer font-bold"
+                                >
+                                  ✕ Cancel
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-4 gap-2">
+                                <div className="col-span-1">
+                                  <label className="block text-[9px] font-bold text-stone-500 uppercase tracking-wider mb-1">Day No.</label>
+                                  <input
+                                    type="number"
+                                    value={pkgFormDayNum}
+                                    onChange={(e) => setPkgFormDayNum(e.target.value)}
+                                    className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                                  />
+                                </div>
+                                <div className="col-span-3">
+                                  <label className="block text-[9px] font-bold text-stone-500 uppercase tracking-wider mb-1">Day Title</label>
+                                  <input
+                                    type="text"
+                                    autoFocus
+                                    value={pkgFormDayTitle}
+                                    onChange={(e) => setPkgFormDayTitle(e.target.value)}
+                                    className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs font-semibold text-stone-800 outline-none"
+                                    placeholder="e.g. Arrival & Hotel Check-in"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <div className="flex justify-between items-center mb-1">
+                                  <label className="block text-[9px] font-bold text-stone-500 uppercase tracking-wider">Day Description</label>
+                                  {pkgFormDayDesc && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPkgFormDayDesc(formatTravelMarkdown(pkgFormDayDesc))}
+                                      className="px-2 py-0.5 text-[9px] font-bold rounded bg-white text-amber-700 border border-amber-300 hover:bg-amber-100 transition-all cursor-pointer shadow-2xs"
+                                    >
+                                      ✨ Clean Formatting
+                                    </button>
+                                  )}
+                                </div>
+                                <textarea
+                                  rows="3"
+                                  value={pkgFormDayDesc}
+                                  onChange={(e) => setPkgFormDayDesc(e.target.value)}
+                                  className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none resize-y"
+                                  placeholder="Details on schedule, meals, transport... (Use • for bullets)"
+                                />
+                              </div>
+
+                              <div className="flex items-center gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={handleAddPkgFormItineraryDay}
+                                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-xs transition-all cursor-pointer flex items-center gap-1"
+                                >
+                                  <span>✓</span> Save Day {pkgFormDayNum}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingPkgFormDayIdx(null)
+                                    setPkgFormDayNum((pkgFormItinerary.length + 1).toString())
+                                    setPkgFormDayTitle('')
+                                    setPkgFormDayDesc('')
+                                  }}
+                                  className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-lg text-xs font-bold cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
                               </div>
                             </div>
-                            <SmartMarkdown content={item.desc} className="text-[11px] text-stone-600 leading-relaxed pl-1" />
-                            
-                            <div className="absolute right-2 top-2 flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingPkgFormDayIdx(idx)
-                                  setPkgFormDayNum(item.day.toString())
-                                  setPkgFormDayTitle(item.title)
-                                  setPkgFormDayDesc(item.desc)
-                                }}
-                                className="p-1 rounded hover:bg-amber-50 text-stone-400 hover:text-amber-600 cursor-pointer"
-                                title="Edit Day"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-                                </svg>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRemovePkgFormItineraryDay(item.day)}
-                                className="p-1 rounded hover:bg-rose-50 text-stone-400 hover:text-rose-600 cursor-pointer"
-                                title="Remove Day"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
+                          ) : (
+                            <div key={item.day} className="p-2.5 bg-white border border-stone-200 rounded-lg relative group space-y-1">
+                              <div className="flex justify-between items-center pr-16">
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-0.5 bg-amber-600 text-white font-bold text-[9px] uppercase tracking-wider rounded">
+                                    Day {item.day}
+                                  </span>
+                                  <h5 className="text-xs font-bold text-stone-800">{item.title}</h5>
+                                </div>
+                              </div>
+                              <SmartMarkdown content={item.desc} className="text-[11px] text-stone-600 leading-relaxed pl-1" />
+                              
+                              <div className="absolute right-2 top-2 flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingPkgFormDayIdx(idx)
+                                    setPkgFormDayNum(item.day.toString())
+                                    setPkgFormDayTitle(item.title)
+                                    setPkgFormDayDesc(item.desc)
+                                  }}
+                                  className="p-1 rounded hover:bg-amber-50 text-stone-400 hover:text-amber-600 cursor-pointer"
+                                  title="Edit Day"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePkgFormItineraryDay(item.day)}
+                                  className="p-1 rounded hover:bg-rose-50 text-stone-400 hover:text-rose-600 cursor-pointer"
+                                  title="Remove Day"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
                             </div>
-                          </div>
+                          )
                         ))}
                       </div>
                     )}
 
-                    {/* Form to Add / Edit Day inside Modal */}
-                    <div className="pt-2 border-t border-stone-200/60 space-y-2">
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="col-span-1">
-                          <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Day No.</label>
-                          <input
-                            type="number"
-                            placeholder="1"
-                            value={pkgFormDayNum}
-                            onChange={(e) => setPkgFormDayNum(e.target.value)}
-                            className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
-                          />
+                    {/* Form to Add New Day inside Modal (shown when not editing inline) */}
+                    {editingPkgFormDayIdx === null && (
+                      <div className="pt-2 border-t border-stone-200/60 space-y-2">
+                        <h5 className="text-[11px] font-bold text-stone-700">+ Add Next Itinerary Day (Day {pkgFormDayNum})</h5>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="col-span-1">
+                            <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Day No.</label>
+                            <input
+                              type="number"
+                              placeholder="1"
+                              value={pkgFormDayNum}
+                              onChange={(e) => setPkgFormDayNum(e.target.value)}
+                              className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Day Title</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Arrival & Hotel Check-in"
+                              value={pkgFormDayTitle}
+                              onChange={(e) => setPkgFormDayTitle(e.target.value)}
+                              className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                            />
+                          </div>
                         </div>
-                        <div className="col-span-2">
-                          <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Day Title</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Arrival & Hotel Check-in"
-                            value={pkgFormDayTitle}
-                            onChange={(e) => setPkgFormDayTitle(e.target.value)}
-                            className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
-                          />
-                        </div>
-                      </div>
 
-                      <div>
-                        <div className="flex justify-between items-center mb-1">
-                          <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider">Day Description (Markdown Supported)</label>
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider">Day Description (Markdown Supported)</label>
+                            {pkgFormDayDesc && (
+                              <button
+                                type="button"
+                                onClick={() => setPkgFormDayDesc(formatTravelMarkdown(pkgFormDayDesc))}
+                                className="px-2 py-0.5 text-[9px] font-bold rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
+                                title="Auto-format inline bullets (•) and labels"
+                              >
+                                ✨ Clean Formatting
+                              </button>
+                            )}
+                          </div>
+                          <textarea
+                            rows="3"
+                            placeholder="Details on schedule, meals, transport... (Use • for bullets)"
+                            value={pkgFormDayDesc}
+                            onChange={(e) => setPkgFormDayDesc(e.target.value)}
+                            className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none resize-y"
+                          />
                           {pkgFormDayDesc && (
-                            <button
-                              type="button"
-                              onClick={() => setPkgFormDayDesc(formatTravelMarkdown(pkgFormDayDesc))}
-                              className="px-2 py-0.5 text-[9px] font-bold rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
-                              title="Auto-format inline bullets (•) and labels"
-                            >
-                              ✨ Clean Formatting
-                            </button>
+                            <div className="mt-1 p-2 bg-white border border-stone-200 rounded text-[11px] text-stone-600 leading-relaxed">
+                              <SmartMarkdown content={pkgFormDayDesc} />
+                            </div>
                           )}
                         </div>
-                        <textarea
-                          rows="3"
-                          placeholder="Details on schedule, meals, transport... (Use • for bullets)"
-                          value={pkgFormDayDesc}
-                          onChange={(e) => setPkgFormDayDesc(e.target.value)}
-                          className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none resize-y"
-                        />
-                        {pkgFormDayDesc && (
-                          <div className="mt-1 p-2 bg-white border border-stone-200 rounded text-[11px] text-stone-600 leading-relaxed">
-                            <SmartMarkdown content={pkgFormDayDesc} />
-                          </div>
-                        )}
-                      </div>
 
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={handleAddPkgFormItineraryDay}
-                          className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
-                        >
-                          <span>+</span>
-                          {editingPkgFormDayIdx !== null ? `Save Day ${pkgFormDayNum}` : `Add Day ${pkgFormDayNum} Event`}
-                        </button>
-                        {editingPkgFormDayIdx !== null && (
+                        <div className="flex gap-2">
                           <button
                             type="button"
-                            onClick={() => {
-                              setEditingPkgFormDayIdx(null)
-                              setPkgFormDayNum((pkgFormItinerary.length + 1).toString())
-                              setPkgFormDayTitle('')
-                              setPkgFormDayDesc('')
-                            }}
-                            className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-lg text-xs font-bold cursor-pointer"
+                            onClick={handleAddPkgFormItineraryDay}
+                            className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
                           >
-                            Cancel
+                            <span>+</span>
+                            Add Day {pkgFormDayNum} Event
                           </button>
-                        )}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
@@ -2761,129 +2839,207 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
 
                       {/* Existing Days Timeline List */}
                       {editPkgFormItinerary.length > 0 && (
-                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
                           {editPkgFormItinerary.map((item, idx) => (
-                            <div key={item.day} className="p-2.5 bg-white border border-stone-200 rounded-lg relative group space-y-1">
-                              <div className="flex justify-between items-center pr-16">
-                                <div className="flex items-center gap-2">
+                            editingEditPkgFormDayIdx === idx ? (
+                              <div key={item.day} className="p-3 bg-amber-50/60 border-2 border-amber-400 rounded-xl space-y-2.5 animate-in fade-in duration-200 shadow-xs">
+                                <div className="flex items-center justify-between">
                                   <span className="px-2 py-0.5 bg-amber-600 text-white font-bold text-[9px] uppercase tracking-wider rounded">
-                                    Day {item.day}
+                                    Editing Day {editPkgFormDayNum}
                                   </span>
-                                  <h5 className="text-xs font-bold text-stone-800">{item.title}</h5>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingEditPkgFormDayIdx(null)
+                                      setEditPkgFormDayNum((editPkgFormItinerary.length + 1).toString())
+                                      setEditPkgFormDayTitle('')
+                                      setEditPkgFormDayDesc('')
+                                    }}
+                                    className="text-stone-400 hover:text-stone-700 text-xs cursor-pointer font-bold"
+                                  >
+                                    ✕ Cancel
+                                  </button>
+                                </div>
+
+                                <div className="grid grid-cols-4 gap-2">
+                                  <div className="col-span-1">
+                                    <label className="block text-[9px] font-bold text-stone-500 uppercase tracking-wider mb-1">Day No.</label>
+                                    <input
+                                      type="number"
+                                      value={editPkgFormDayNum}
+                                      onChange={(e) => setEditPkgFormDayNum(e.target.value)}
+                                      className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                                    />
+                                  </div>
+                                  <div className="col-span-3">
+                                    <label className="block text-[9px] font-bold text-stone-500 uppercase tracking-wider mb-1">Day Title</label>
+                                    <input
+                                      type="text"
+                                      autoFocus
+                                      value={editPkgFormDayTitle}
+                                      onChange={(e) => setEditPkgFormDayTitle(e.target.value)}
+                                      className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs font-semibold text-stone-800 outline-none"
+                                      placeholder="e.g. Arrival in Denpasar & Ubud Jungle Resort"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="flex justify-between items-center mb-1">
+                                    <label className="block text-[9px] font-bold text-stone-500 uppercase tracking-wider">Day Description</label>
+                                    {editPkgFormDayDesc && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditPkgFormDayDesc(formatTravelMarkdown(editPkgFormDayDesc))}
+                                        className="px-2 py-0.5 text-[9px] font-bold rounded bg-white text-amber-700 border border-amber-300 hover:bg-amber-100 transition-all cursor-pointer shadow-2xs"
+                                      >
+                                        ✨ Clean Formatting
+                                      </button>
+                                    )}
+                                  </div>
+                                  <textarea
+                                    rows="3"
+                                    value={editPkgFormDayDesc}
+                                    onChange={(e) => setEditPkgFormDayDesc(e.target.value)}
+                                    className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none resize-y"
+                                    placeholder="Details on schedule, meals, transport... (Use • for bullets)"
+                                  />
+                                </div>
+
+                                <div className="flex items-center gap-2 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={handleAddEditPkgFormItineraryDay}
+                                    className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-xs transition-all cursor-pointer flex items-center gap-1"
+                                  >
+                                    <span>✓</span> Save Day {editPkgFormDayNum}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingEditPkgFormDayIdx(null)
+                                      setEditPkgFormDayNum((editPkgFormItinerary.length + 1).toString())
+                                      setEditPkgFormDayTitle('')
+                                      setEditPkgFormDayDesc('')
+                                    }}
+                                    className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-lg text-xs font-bold cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
                                 </div>
                               </div>
-                              <SmartMarkdown content={item.desc} className="text-[11px] text-stone-600 leading-relaxed pl-1" />
-                              
-                              <div className="absolute right-2 top-2 flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingEditPkgFormDayIdx(idx)
-                                    setEditPkgFormDayNum(item.day.toString())
-                                    setEditPkgFormDayTitle(item.title)
-                                    setEditPkgFormDayDesc(item.desc)
-                                  }}
-                                  className="p-1 rounded hover:bg-amber-50 text-stone-400 hover:text-amber-600 cursor-pointer"
-                                  title="Edit Day"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-                                  </svg>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveEditPkgFormItineraryDay(item.day)}
-                                  className="p-1 rounded hover:bg-rose-50 text-stone-400 hover:text-rose-600 cursor-pointer"
-                                  title="Remove Day"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
+                            ) : (
+                              <div key={item.day} className="p-2.5 bg-white border border-stone-200 rounded-lg relative group space-y-1">
+                                <div className="flex justify-between items-center pr-16">
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2 py-0.5 bg-amber-600 text-white font-bold text-[9px] uppercase tracking-wider rounded">
+                                      Day {item.day}
+                                    </span>
+                                    <h5 className="text-xs font-bold text-stone-800">{item.title}</h5>
+                                  </div>
+                                </div>
+                                <SmartMarkdown content={item.desc} className="text-[11px] text-stone-600 leading-relaxed pl-1" />
+                                
+                                <div className="absolute right-2 top-2 flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingEditPkgFormDayIdx(idx)
+                                      setEditPkgFormDayNum(item.day.toString())
+                                      setEditPkgFormDayTitle(item.title)
+                                      setEditPkgFormDayDesc(item.desc)
+                                    }}
+                                    className="p-1 rounded hover:bg-amber-50 text-stone-400 hover:text-amber-600 cursor-pointer"
+                                    title="Edit Day"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveEditPkgFormItineraryDay(item.day)}
+                                    className="p-1 rounded hover:bg-rose-50 text-stone-400 hover:text-rose-600 cursor-pointer"
+                                    title="Remove Day"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
                               </div>
-                            </div>
+                            )
                           ))}
                         </div>
                       )}
 
-                      {/* Form to Add / Edit Day inside Modal */}
-                      <div className="pt-2 border-t border-stone-200/60 space-y-2">
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="col-span-1">
-                            <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Day No.</label>
-                            <input
-                              type="number"
-                              placeholder="1"
-                              value={editPkgFormDayNum}
-                              onChange={(e) => setEditPkgFormDayNum(e.target.value)}
-                              className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
-                            />
+                      {/* Form to Add New Day inside Modal (shown when not editing inline) */}
+                      {editingEditPkgFormDayIdx === null && (
+                        <div className="pt-2 border-t border-stone-200/60 space-y-2">
+                          <h5 className="text-[11px] font-bold text-stone-700">+ Add Next Itinerary Day (Day {editPkgFormDayNum})</h5>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="col-span-1">
+                              <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Day No.</label>
+                              <input
+                                type="number"
+                                placeholder="1"
+                                value={editPkgFormDayNum}
+                                onChange={(e) => setEditPkgFormDayNum(e.target.value)}
+                                className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Day Title</label>
+                              <input
+                                type="text"
+                                placeholder="e.g. Arrival & Hotel Check-in"
+                                value={editPkgFormDayTitle}
+                                onChange={(e) => setEditPkgFormDayTitle(e.target.value)}
+                                className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
+                              />
+                            </div>
                           </div>
-                          <div className="col-span-2">
-                            <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider mb-1">Day Title</label>
-                            <input
-                              type="text"
-                              placeholder="e.g. Arrival & Hotel Check-in"
-                              value={editPkgFormDayTitle}
-                              onChange={(e) => setEditPkgFormDayTitle(e.target.value)}
-                              className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
-                            />
-                          </div>
-                        </div>
 
-                        <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider">Day Description (Markdown Supported)</label>
+                          <div>
+                            <div className="flex justify-between items-center mb-1">
+                              <label className="block text-[9px] font-bold text-stone-400 uppercase tracking-wider">Day Description (Markdown Supported)</label>
+                              {editPkgFormDayDesc && (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditPkgFormDayDesc(formatTravelMarkdown(editPkgFormDayDesc))}
+                                  className="px-2 py-0.5 text-[9px] font-bold rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
+                                  title="Auto-format inline bullets (•) and labels"
+                                >
+                                  ✨ Clean Formatting
+                                </button>
+                              )}
+                            </div>
+                            <textarea
+                              rows="3"
+                              placeholder="Details on schedule, meals, transport... (Use • for bullets)"
+                              value={editPkgFormDayDesc}
+                              onChange={(e) => setEditPkgFormDayDesc(e.target.value)}
+                              className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none resize-y"
+                            />
                             {editPkgFormDayDesc && (
-                              <button
-                                type="button"
-                                onClick={() => setEditPkgFormDayDesc(formatTravelMarkdown(editPkgFormDayDesc))}
-                                className="px-2 py-0.5 text-[9px] font-bold rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all cursor-pointer"
-                                title="Auto-format inline bullets (•) and labels"
-                              >
-                                ✨ Clean Formatting
-                              </button>
+                              <div className="mt-1 p-2 bg-white border border-stone-200 rounded text-[11px] text-stone-600 leading-relaxed">
+                                <SmartMarkdown content={editPkgFormDayDesc} />
+                              </div>
                             )}
                           </div>
-                          <textarea
-                            rows="3"
-                            placeholder="Details on schedule, meals, transport... (Use • for bullets)"
-                            value={editPkgFormDayDesc}
-                            onChange={(e) => setEditPkgFormDayDesc(e.target.value)}
-                            className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none resize-y"
-                          />
-                          {editPkgFormDayDesc && (
-                            <div className="mt-1 p-2 bg-white border border-stone-200 rounded text-[11px] text-stone-600 leading-relaxed">
-                              <SmartMarkdown content={editPkgFormDayDesc} />
-                            </div>
-                          )}
-                        </div>
 
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={handleAddEditPkgFormItineraryDay}
-                            className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
-                          >
-                            <span>+</span>
-                            {editingEditPkgFormDayIdx !== null ? `Save Day ${editPkgFormDayNum}` : `Add Day ${editPkgFormDayNum} Event`}
-                          </button>
-                          {editingEditPkgFormDayIdx !== null && (
+                          <div className="flex gap-2">
                             <button
                               type="button"
-                              onClick={() => {
-                                setEditingEditPkgFormDayIdx(null)
-                                setEditPkgFormDayNum((editPkgFormItinerary.length + 1).toString())
-                                setEditPkgFormDayTitle('')
-                                setEditPkgFormDayDesc('')
-                              }}
-                              className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-lg text-xs font-bold cursor-pointer"
+                              onClick={handleAddEditPkgFormItineraryDay}
+                              className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold shadow-sm active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1"
                             >
-                              Cancel
+                              <span>+</span>
+                              Add Day {editPkgFormDayNum} Event
                             </button>
-                          )}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
 

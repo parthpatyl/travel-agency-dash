@@ -65,7 +65,7 @@ export default function LoginPage({ onLogin }) {
                   setEmail(e.target.value)
                   if (error) setError('')
                 }}
-                placeholder="admin@kraftyourtrip.com"
+                placeholder="info@kraftyourtrip.com"
                 aria-label="Admin Email"
                 className={`w-full bg-stone-50 border ${
                   error ? 'border-rose-400 focus:border-rose-500 ring-1 ring-rose-200 bg-rose-50/20' : 'border-stone-200 focus:border-amber-500'

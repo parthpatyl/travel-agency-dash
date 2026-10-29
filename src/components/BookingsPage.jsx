@@ -55,6 +55,7 @@ export default function BookingsPage({
   const [showEditModal, setShowEditModal] = useState(false)
   const [bookingToDelete, setBookingToDelete] = useState(null)
   const [pendingApprovalBookings, setPendingApprovalBookings] = useState(new Set())
+  const [showContactAccordion, setShowContactAccordion] = useState(true)
 
   const canWriteBooking = roleHas(user?.role, 'write:bookings')
 
@@ -879,13 +880,130 @@ export default function BookingsPage({
                 </div>
                 <button 
                   onClick={() => setSelectedBooking(null)}
-                  className="p-1 rounded-lg hover:bg-stone-100 text-stone-400 hover:text-stone-600"
+                  className="p-1 rounded-lg hover:bg-stone-100 text-stone-400 hover:text-stone-600 cursor-pointer"
                 >
                   <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
+
+              {/* Expandable Client Contact Details Accordion */}
+              {(() => {
+                const clientObj = clients.find(c => (selectedBooking.client_id && c.id === selectedBooking.client_id) || c.name === selectedBooking.client);
+                const email = selectedBooking.clientEmail || clientObj?.email || '';
+                const phone = selectedBooking.clientPhone || clientObj?.phone || '';
+                const tier = selectedBooking.clientTier || clientObj?.tier || 'Silver';
+                const status = selectedBooking.clientStatus || clientObj?.status || 'Active';
+                const cleanPhone = phone.replace(/[^\d+]/g, '');
+                const waNumber = cleanPhone.replace(/^\+/, '');
+
+                return (
+                  <div className="border border-stone-200/90 rounded-xl overflow-hidden bg-stone-50/50">
+                    <button
+                      type="button"
+                      onClick={() => setShowContactAccordion(!showContactAccordion)}
+                      className="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-stone-100/60 transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-stone-800 uppercase tracking-wider">Client Contact Details</span>
+                        {email || phone ? (
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Contact info verified" />
+                        ) : null}
+                      </div>
+                      <svg
+                        className={`w-4 h-4 text-stone-400 transition-transform duration-200 ${showContactAccordion ? 'rotate-180' : ''}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+
+                    {showContactAccordion && (
+                      <div className="p-3.5 space-y-2.5 bg-white border-t border-stone-200/60 animate-in fade-in duration-150">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-stone-800">{selectedBooking.client}</span>
+                          <span className="text-[9px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                            {tier} &bull; {status}
+                          </span>
+                        </div>
+
+                        {phone ? (
+                          <div className="flex items-center justify-between gap-2 p-2 bg-stone-50 rounded-lg border border-stone-100">
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block">Phone</span>
+                              <span className="text-xs font-semibold text-stone-800 tabular-nums">{phone}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <a
+                                href={`https://wa.me/${waNumber}?text=${encodeURIComponent(`Hi ${selectedBooking.client}, following up on your Kraft Your Trip booking (${selectedBooking.id}) for ${selectedBooking.package}.`)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-bold flex items-center gap-1 transition-colors"
+                                title="Chat on WhatsApp"
+                              >
+                                <span>💬</span> WhatsApp
+                              </a>
+                              <a
+                                href={`tel:${cleanPhone}`}
+                                className="px-2.5 py-1 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-md text-[10px] font-bold transition-colors"
+                                title="Call client"
+                              >
+                                📞 Call
+                              </a>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-stone-400 italic p-2 bg-stone-50 rounded-lg">
+                            No phone number recorded
+                          </div>
+                        )}
+
+                        {email ? (
+                          <div className="flex items-center justify-between gap-2 p-2 bg-stone-50 rounded-lg border border-stone-100">
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block">Email</span>
+                              <span className="text-xs font-semibold text-stone-800 truncate block">{email}</span>
+                            </div>
+                            <a
+                              href={`mailto:${email}?subject=${encodeURIComponent(`Kraft Your Trip — Booking Update: ${selectedBooking.package} (${selectedBooking.id})`)}`}
+                              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-[10px] font-bold shrink-0 transition-colors"
+                              title="Send Email"
+                            >
+                              ✉️ Email
+                            </a>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-stone-400 italic p-2 bg-stone-50 rounded-lg">
+                            No email address recorded
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-stone-100 text-stone-500">
+                          <div>
+                            <span className="font-bold text-stone-400 text-[9px] uppercase tracking-wider block">Guests</span>
+                            <span className="font-semibold text-stone-800">{selectedBooking.guests || 1} Person(s)</span>
+                          </div>
+                          <div>
+                            <span className="font-bold text-stone-400 text-[9px] uppercase tracking-wider block">Travel Date</span>
+                            <span className="font-semibold text-stone-800">{selectedBooking.date || 'Flexible'}</span>
+                          </div>
+                        </div>
+
+                        {selectedBooking.notes && (
+                          <div className="p-2 bg-amber-50/50 border border-amber-200/50 rounded-lg text-[11px] text-amber-900 leading-snug">
+                            <span className="font-bold uppercase text-[9px] text-amber-700 tracking-wider block mb-0.5">Booking Notes</span>
+                            {selectedBooking.notes}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Status workflow */}
               <div className="space-y-4">

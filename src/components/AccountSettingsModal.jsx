@@ -2,16 +2,68 @@ import { useState } from 'react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
-export default function AccountSettingsModal({ user, onClose, addNotification }) {
+export default function AccountSettingsModal({ user, onClose, addNotification, onUserUpdated }) {
+  // Profile update state
+  const [name, setName] = useState(user?.name || 'Admin')
+  const [email, setEmail] = useState(user?.email && user.email !== 'admin@kraftyourtrip.com' ? user.email : 'info@kraftyourtrip.com')
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileMsg, setProfileMsg] = useState('')
+  const [profileError, setProfileError] = useState('')
+
+  // Password change state
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showCurrent, setShowCurrent] = useState(false)
   const [showNew, setShowNew] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [pwdLoading, setPwdLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
+
+  const handleProfileUpdate = async (e) => {
+    e.preventDefault()
+    setProfileError('')
+    setProfileMsg('')
+
+    if (!name.trim()) {
+      setProfileError('Name cannot be empty')
+      return
+    }
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      setProfileError('Please enter a valid email address')
+      return
+    }
+
+    setProfileLoading(true)
+    try {
+      const token = localStorage.getItem('kraft_token')
+      const res = await fetch(`${API_URL}/api/auth/update-profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ name: name.trim(), email: email.trim() })
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update profile')
+      }
+
+      setProfileMsg('Profile updated successfully!')
+      const updatedUser = { ...(user || {}), ...data.user }
+      localStorage.setItem('kraft_user', JSON.stringify(updatedUser))
+      if (onUserUpdated) onUserUpdated(updatedUser)
+      if (addNotification) addNotification('Profile details updated', 'success')
+    } catch (err) {
+      setProfileError(err.message || 'Error updating profile')
+      if (addNotification) addNotification(err.message || 'Profile update failed', 'error')
+    } finally {
+      setProfileLoading(false)
+    }
+  }
 
   const handlePasswordChange = async (e) => {
     e.preventDefault()
@@ -39,7 +91,7 @@ export default function AccountSettingsModal({ user, onClose, addNotification })
       return
     }
 
-    setLoading(true)
+    setPwdLoading(true)
     try {
       const token = localStorage.getItem('kraft_token')
       const res = await fetch(`${API_URL}/api/auth/change-password`, {
@@ -69,7 +121,7 @@ export default function AccountSettingsModal({ user, onClose, addNotification })
         addNotification(err.message || 'Password update failed', 'error')
       }
     } finally {
-      setLoading(false)
+      setPwdLoading(false)
     }
   }
 
@@ -79,11 +131,11 @@ export default function AccountSettingsModal({ user, onClose, addNotification })
       onClick={onClose}
     >
       <div
-        className="bg-white border border-stone-200 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
+        className="bg-white border border-stone-200 rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-stone-100 bg-stone-50/50">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-stone-100 bg-stone-50/50 sticky top-0 bg-white/95 backdrop-blur-sm z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200/60 flex items-center justify-center text-amber-700">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -92,7 +144,7 @@ export default function AccountSettingsModal({ user, onClose, addNotification })
             </div>
             <div>
               <h3 className="font-bold text-stone-900 text-base leading-tight">Account & Security</h3>
-              <p className="text-xs text-stone-500">Manage credentials and login security</p>
+              <p className="text-xs text-stone-500">Manage credentials, email ID, and login password</p>
             </div>
           </div>
           <button
@@ -110,21 +162,77 @@ export default function AccountSettingsModal({ user, onClose, addNotification })
           {/* User Profile Summary */}
           <div className="bg-stone-50 border border-stone-200/80 rounded-2xl p-4 flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-xl bg-amber-600 text-white font-bold text-lg flex items-center justify-center shrink-0 shadow-xs">
-              {user?.name?.charAt(0) || 'A'}
+              {name?.charAt(0) || 'A'}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <h4 className="font-bold text-stone-900 text-sm truncate">{user?.name || 'Administrator'}</h4>
+                <h4 className="font-bold text-stone-900 text-sm truncate">{name || 'Administrator'}</h4>
                 <span className="text-[9px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
                   {user?.role || 'admin'}
                 </span>
               </div>
-              <p className="text-xs text-stone-500 font-medium truncate mt-0.5">{user?.email || 'admin@kraftyourtrip.com'}</p>
+              <p className="text-xs text-stone-600 font-medium truncate mt-0.5">{email || 'info@kraftyourtrip.com'}</p>
             </div>
           </div>
 
-          {/* Change Password Form */}
-          <form onSubmit={handlePasswordChange} className="space-y-4">
+          {/* Section 1: Update Email & Name */}
+          <form onSubmit={handleProfileUpdate} className="space-y-3.5 pt-1 border-t border-stone-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <svg className="w-4 h-4 text-stone-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <span className="text-xs font-bold text-stone-800 uppercase tracking-wider">Profile Information</span>
+              </div>
+            </div>
+
+            {profileError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs">
+                {profileError}
+              </div>
+            )}
+            {profileMsg && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs">
+                {profileMsg}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-stone-600 mb-1">Display Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your Name"
+                  className="w-full px-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-stone-600 mb-1">Account Email ID</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="info@kraftyourtrip.com"
+                  className="w-full px-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={profileLoading}
+                className="px-4 py-2 text-xs font-bold text-stone-800 bg-stone-100 hover:bg-stone-200 rounded-xl transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {profileLoading ? 'Saving Profile...' : 'Save Profile Details'}
+              </button>
+            </div>
+          </form>
+
+          {/* Section 2: Change Password Form */}
+          <form onSubmit={handlePasswordChange} className="space-y-4 pt-4 border-t border-stone-100">
             <div className="flex items-center gap-1.5 pb-1">
               <svg className="w-4 h-4 text-stone-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -238,10 +346,10 @@ export default function AccountSettingsModal({ user, onClose, addNotification })
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={pwdLoading}
                 className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 active:scale-98 rounded-xl shadow-xs transition-all disabled:opacity-50 cursor-pointer"
               >
-                {loading ? 'Updating Password...' : 'Update Password'}
+                {pwdLoading ? 'Updating Password...' : 'Update Password'}
               </button>
             </div>
           </form>

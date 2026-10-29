@@ -387,24 +387,24 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
       </div>
 
       {/* Departures Grid / Table */}
-      <div className="bg-white border border-stone-200/80 rounded-2xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+      <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden shadow-xs">
+        <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
+          <table className="w-full text-left border-collapse min-w-[780px]">
             <thead>
-              <tr className="bg-stone-50 border-b border-stone-250/60 text-xs font-bold text-stone-400 uppercase tracking-wider">
-                <th className="py-5 px-6">Departure Title</th>
-                <th className="py-5 px-6">Base Package</th>
-                <th className="py-5 px-6">Date Range</th>
-                <th className="py-5 px-6">Slots Available</th>
-                <th className="py-5 px-6">Price Modifier</th>
-                <th className="py-5 px-6">Status</th>
-                <th className="py-5 px-6 text-right">Actions</th>
+              <tr className="bg-stone-50 border-b border-stone-200 text-[11px] font-bold text-stone-500 uppercase tracking-wider">
+                <th className="py-3 px-4">Departure Title</th>
+                <th className="py-3 px-4">Base Package</th>
+                <th className="py-3 px-4">Date Range</th>
+                <th className="py-3 px-4">Slots Available</th>
+                <th className="py-3 px-4">Price Modifier</th>
+                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-stone-100">
+            <tbody className="divide-y divide-stone-200/80 bg-white">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="py-20 text-center text-stone-400 text-sm italic">
+                  <td colSpan="7" className="py-12 text-center text-stone-400 text-sm italic">
                     No group departures matching criteria.
                   </td>
                 </tr>
@@ -414,51 +414,51 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
                   const pct = Math.min(100, Math.round((slots.booked / slots.total) * 100)) || 0
                   
                   return (
-                    <tr key={dep.id} className="hover:bg-stone-50/50 transition-colors">
-                      <td className="py-5 px-6">
-                        <span className="font-bold text-stone-900 text-sm block">{dep.title}</span>
-                        {dep.notes && <span className="text-xs text-stone-400 mt-1 block truncate max-w-md">{dep.notes}</span>}
+                    <tr key={dep.id} className="hover:bg-amber-50/25 transition-colors border-b border-stone-100 last:border-b-0">
+                      <td className="py-3 px-4">
+                        <span className="font-bold text-stone-900 text-sm block leading-snug">{dep.title}</span>
+                        {dep.notes && <span className="text-xs text-stone-400 mt-0.5 block truncate max-w-xs">{dep.notes}</span>}
                         {dep.itinerary && dep.itinerary.length > 0 && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60 mt-1">
                             📅 {dep.itinerary.length} Days Itinerary
                           </span>
                         )}
                       </td>
-                      <td className="py-5 px-6">
-                        <span className="text-sm text-stone-600 font-semibold">{dep.packageName || 'Base Package'}</span>
-                        <span className="text-xs text-stone-400 block mt-1">{dep.packageRegion || 'Region'}</span>
+                      <td className="py-3 px-4">
+                        <span className="text-xs text-stone-800 font-semibold block">{dep.packageName || 'Base Package'}</span>
+                        <span className="text-[11px] text-stone-400 block mt-0.5">{dep.packageRegion || 'Region'}</span>
                       </td>
-                      <td className="py-5 px-6">
-                        <span className="text-sm text-stone-750 font-medium block">{formatDateDisplay(dep.departureDate)}</span>
-                        <span className="text-xs text-stone-400 font-medium block mt-1">to {formatDateDisplay(dep.returnDate)}</span>
+                      <td className="py-3 px-4">
+                        <span className="text-xs text-stone-750 font-medium block">{formatDateDisplay(dep.departureDate)}</span>
+                        <span className="text-[11px] text-stone-400 font-medium block mt-0.5">to {formatDateDisplay(dep.returnDate)}</span>
                       </td>
-                      <td className="py-5 px-6">
-                        <div className="flex items-center gap-3 max-w-[180px]">
-                          <div className="flex-1 bg-stone-100 rounded-full h-2 overflow-hidden">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2.5 max-w-[150px]">
+                          <div className="flex-1 bg-stone-100 rounded-full h-1.5 overflow-hidden">
                             <div className="bg-amber-600 h-full rounded-full" style={{ width: `${pct}%` }}></div>
                           </div>
-                          <span className="text-xs font-bold text-stone-600 shrink-0">
+                          <span className="text-[11px] font-bold text-stone-600 shrink-0 tabular-nums">
                             {slots.booked}/{slots.total}
                           </span>
                         </div>
                       </td>
-                      <td className="py-5 px-6">
-                        <span className={`text-sm font-semibold ${dep.priceModifier > 0 ? 'text-amber-700' : dep.priceModifier < 0 ? 'text-emerald-700' : 'text-stone-500'}`}>
+                      <td className="py-3 px-4">
+                        <span className={`text-xs font-bold tabular-nums ${dep.priceModifier > 0 ? 'text-amber-700' : dep.priceModifier < 0 ? 'text-emerald-700' : 'text-stone-500'}`}>
                           {dep.priceModifier > 0 ? `+₹${dep.priceModifier.toLocaleString()}` : dep.priceModifier < 0 ? `-₹${Math.abs(dep.priceModifier).toLocaleString()}` : '₹0'}
                         </span>
                       </td>
-                      <td className="py-5 px-6">
-                        <span className={`inline-block px-3 py-1 text-[11px] font-extrabold uppercase rounded-full border ${getStatusBadgeClass(dep.status)}`}>
+                      <td className="py-3 px-4">
+                        <span className={`inline-block px-2.5 py-0.5 text-[10px] font-extrabold uppercase rounded-full border ${getStatusBadgeClass(dep.status)}`}>
                           {dep.status}
                         </span>
                       </td>
-                      <td className="py-5 px-6 text-right">
-                        <div className="flex items-center justify-end gap-2.5">
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
                           {canWrite && (
-                            <button onClick={() => openEdit(dep)} className="py-1.5 px-3.5 border border-stone-200 hover:bg-stone-100 text-stone-600 rounded-lg text-xs font-bold transition-all cursor-pointer">Edit</button>
+                            <button onClick={() => openEdit(dep)} className="py-1 px-3 border border-stone-200 hover:bg-stone-100 text-stone-700 rounded-lg text-xs font-bold transition-all cursor-pointer">Edit</button>
                           )}
                           {canWrite && (
-                            <button onClick={() => setDeleteTarget(dep)} className="py-1.5 px-3.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold transition-all cursor-pointer">Delete</button>
+                            <button onClick={() => setDeleteTarget(dep)} className="py-1 px-3 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold transition-all cursor-pointer">Delete</button>
                           )}
                         </div>
                       </td>

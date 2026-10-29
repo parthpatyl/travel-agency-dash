@@ -1529,7 +1529,7 @@ function App() {
                     </div>
                     <div>
                       <h5 className="font-bold text-stone-900 text-sm leading-tight">{user?.name || 'Admin'}</h5>
-                      <p className="text-[10px] text-stone-400 font-semibold mb-0.5">{user?.email || ''}</p>
+                      <p className="text-[10px] text-stone-400 font-semibold mb-0.5">{user?.email || 'info@kraftyourtrip.com'}</p>
                       <span className="bg-amber-500/10 text-amber-700 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border border-amber-500/10">
                         {user?.role || 'admin'}
                       </span>
@@ -1567,103 +1567,67 @@ function App() {
         <div className={`p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 flex-1 w-full mx-auto animate-in fade-in duration-300 ${activeTab === 'groupDepartures' ? 'max-w-none px-6 sm:px-10 lg:px-16' : 'max-w-7xl'}`}>
           {activeTab === 'dashboard' && (
             <>
-              {/* Quick Statistics Grid */}
-              <section className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-5">
+              {/* Simplified 4-KPI Overview Strip */}
+              <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 {[
                   {
                     label: 'This Month Revenue',
                     value: formatINRCompact(thisMonthRevenue),
-                    sub: monthOverMonth === null
-                      ? 'No data last month'
-                      : `${monthOverMonth >= 0 ? '+' : ''}${monthOverMonth.toFixed(1)}% vs last month`,
-                    subTone: monthOverMonth === null ? 'neutral' : monthOverMonth >= 0 ? 'good' : 'bad',
+                    sub: 'Gross bookings',
                     icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6',
-                    bg: 'bg-amber-100', iconColor: 'text-amber-700',
-                    usdValue: formatUSDdash(toUSDdashboard(thisMonthRevenue)),
+                    bg: 'bg-amber-100',
+                    iconColor: 'text-amber-700',
                     tab: 'reports'
                   },
                   {
                     label: 'Active Bookings',
                     value: bookings.filter(b => (b.status || 'Pending') !== 'Cancelled').length.toString(),
-                    sub: `${bookings.filter(b => b.status === 'Pending').length} pending`,
-                    subTone: 'neutral',
+                    sub: `${bookings.filter(b => b.status === 'Pending').length} pending approval`,
                     icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
-                    bg: 'bg-orange-100', iconColor: 'text-orange-700',
-                    tab: 'bookings'
-                  },
-                  {
-                    label: 'Outstanding Payments',
-                    value: formatINRCompact(outstandingRevenue),
-                    sub: 'Awaiting collection',
-                    subTone: 'bad',
-                    icon: 'M12 2a10 10 0 100 20 10 10 0 000-20zm1 14h-2v-2h2v2zm0-4h-2V7h2v5z',
-                    bg: 'bg-rose-100', iconColor: 'text-rose-700',
-                    usdValue: formatUSDdash(toUSDdashboard(outstandingRevenue)),
+                    bg: 'bg-orange-100',
+                    iconColor: 'text-orange-700',
                     tab: 'bookings'
                   },
                   {
                     label: 'Departures (14d)',
                     value: (totalDepartures14dCount > 0 ? totalDepartures14dCount : upcomingGroupDepartures.length).toString(),
-                    sub: totalDepartures14dCount > 0 
-                      ? `${totalDepartures14dCount} trips this window` 
-                      : (upcomingGroupDepartures.length > 0 ? `${upcomingGroupDepartures.length} upcoming group tours` : 'No upcoming trips'),
-                    subTone: (totalDepartures14dCount > 0 || upcomingGroupDepartures.length > 0) ? 'good' : 'neutral',
+                    sub: 'Next 14-day window',
                     icon: 'M12 19V5m0 0l-7 7m7-7l7 7',
-                    bg: 'bg-emerald-100', iconColor: 'text-emerald-700',
+                    bg: 'bg-emerald-100',
+                    iconColor: 'text-emerald-700',
                     tab: 'groupDepartures'
                   },
                   {
-                    label: 'Avg Booking Value',
-                    value: formatINRCompact(avgBookingValue),
-                    sub: `${bookings.length} total bookings`,
-                    subTone: 'neutral',
-                    icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-                    bg: 'bg-blue-100', iconColor: 'text-blue-700',
-                    usdValue: formatUSDdash(toUSDdashboard(avgBookingValue)),
-                    tab: 'reports'
-                  },
-                  {
-                    label: 'New Clients (Month)',
-                    value: newClientsThisMonth.toString(),
-                    sub: `${clients.length} total profiles`,
-                    subTone: 'neutral',
-                    icon: 'M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0M3 20a6 6 0 0112 0v1H3v-1z',
-                    bg: 'bg-stone-100', iconColor: 'text-stone-700',
-                    tab: 'clients'
+                    label: 'New Enquiries',
+                    value: bookings.filter(b => b.status === 'inquiry' || b.status === 'Pending').length.toString(),
+                    sub: 'Leads & pending inquiries',
+                    icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+                    bg: 'bg-blue-100',
+                    iconColor: 'text-blue-700',
+                    tab: 'enquiries'
                   }
                 ].map((stat, i) => (
                   <div
                     key={i}
                     onClick={() => { if (stat.tab) setActiveTab(stat.tab) }}
-                    className="bg-white border border-stone-200/60 rounded-xl p-4 sm:p-5 hover:border-amber-200/50 hover:shadow-md transition-all duration-300 shadow-sm group cursor-pointer"
+                    className="bg-white border border-stone-200/90 rounded-2xl p-5 hover:border-amber-300 hover:shadow-md transition-all duration-300 shadow-xs group cursor-pointer"
                   >
-                    <div className="flex items-center justify-between gap-3 mb-3">
-                      <span className="text-[11px] font-semibold text-stone-500 group-hover:text-stone-700 transition-colors leading-tight">
+                    <div className="flex items-center justify-between gap-3 mb-2.5">
+                      <span className="text-xs font-semibold text-stone-500 group-hover:text-stone-800 transition-colors">
                         {stat.label}
                       </span>
-                      <div className={`w-8 h-8 rounded-lg ${stat.bg} ${stat.iconColor} flex items-center justify-center shrink-0`}>
+                      <div className={`w-8 h-8 rounded-xl ${stat.bg} ${stat.iconColor} flex items-center justify-center shrink-0`}>
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d={stat.icon} />
                         </svg>
                       </div>
                     </div>
-                    <h3 className="text-xl font-bold text-stone-900 mb-1.5 tracking-tight">
+                    <h3 className="text-2xl sm:text-3xl font-extrabold text-stone-900 mb-1 tracking-tight">
                       {stat.value}
                     </h3>
-                    {inrToUsdRate > 0 && stat.usdValue && (
-                      <p className="text-[10px] font-medium text-stone-400 -mt-1 mb-1.5">{stat.usdValue}</p>
-                    )}
-                    <div className="flex items-center gap-1.5">
-                      {stat.subTone === 'good' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
-                      {stat.subTone === 'bad' && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />}
-                      <p className={`text-[11px] font-medium ${
-                        stat.subTone === 'good' ? 'text-emerald-600' :
-                        stat.subTone === 'bad'  ? 'text-rose-600' :
-                                                 'text-stone-400'
-                      }`}>
-                        {stat.sub}
-                      </p>
-                    </div>
+                    <p className="text-xs text-stone-400 font-medium">
+                      {stat.sub}
+                    </p>
                   </div>
                 ))}
               </section>
@@ -2157,6 +2121,7 @@ function App() {
               addNotification={addNotification}
               token={token}
               user={user}
+              onOpenAccountSettings={() => setShowAccountSettingsModal(true)}
             />
           )}
 
@@ -2218,6 +2183,7 @@ function App() {
           user={user}
           onClose={() => setShowAccountSettingsModal(false)}
           addNotification={addNotification}
+          onUserUpdated={(updatedUser) => setUser(updatedUser)}
         />
       )}
     </div>
