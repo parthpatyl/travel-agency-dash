@@ -937,22 +937,23 @@ export default function BookingsPage({
                               <span className="text-[9px] font-bold text-stone-400 uppercase tracking-wider block">Phone</span>
                               <span className="text-xs font-semibold text-stone-800 tabular-nums">{phone}</span>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex items-center gap-3 shrink-0">
                               <a
                                 href={`https://wa.me/${waNumber}?text=${encodeURIComponent(`Hi ${selectedBooking.client}, following up on your Kraft Your Trip booking (${selectedBooking.id}) for ${selectedBooking.package}.`)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-bold flex items-center gap-1 transition-colors"
+                                className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline inline-flex items-center gap-1 transition-colors cursor-pointer py-0.5"
                                 title="Chat on WhatsApp"
                               >
                                 <span>💬</span> WhatsApp
                               </a>
+                              <span className="text-stone-300 text-xs">|</span>
                               <a
                                 href={`tel:${cleanPhone}`}
-                                className="px-2.5 py-1 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-md text-[10px] font-bold transition-colors"
+                                className="text-[11px] font-semibold text-stone-600 hover:text-stone-900 hover:underline inline-flex items-center gap-1 transition-colors cursor-pointer py-0.5"
                                 title="Call client"
                               >
-                                📞 Call
+                                <span>📞</span> Call
                               </a>
                             </div>
                           </div>
@@ -970,10 +971,10 @@ export default function BookingsPage({
                             </div>
                             <a
                               href={`mailto:${email}?subject=${encodeURIComponent(`Kraft Your Trip — Booking Update: ${selectedBooking.package} (${selectedBooking.id})`)}`}
-                              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-[10px] font-bold shrink-0 transition-colors"
+                              className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 hover:underline inline-flex items-center gap-1 shrink-0 transition-colors cursor-pointer py-0.5"
                               title="Send Email"
                             >
-                              ✉️ Email
+                              <span>✉️</span> Email
                             </a>
                           </div>
                         ) : (

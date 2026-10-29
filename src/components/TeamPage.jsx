@@ -108,13 +108,13 @@ export default function TeamPage({ addNotification, token, user: currentUser, on
         setUsers(prev => [user, ...prev])
         setShowCreate(false)
         setForm({ name: '', email: '', password: '', role: 'operations', avatar_url: '' })
-        addNotification?.('User created successfully and welcome email sent', 'success')
+        addNotification?.('Employee added successfully and welcome email sent', 'success')
       } else {
         const err = await res.json()
-        addNotification?.(err.error || 'Failed to create user', 'error')
+        addNotification?.(err.error || 'Failed to add employee', 'error')
       }
     } catch {
-      addNotification?.('Failed to create user', 'error')
+      addNotification?.('Failed to add employee', 'error')
     }
   }
 
@@ -210,29 +210,21 @@ export default function TeamPage({ addNotification, token, user: currentUser, on
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-stone-900 tracking-tight">Team Management</h2>
-          <p className="text-xs text-stone-400">Manage users, assign roles, and monitor activity.</p>
+          <p className="text-xs text-stone-400">Manage employees, assign roles, and monitor activity.</p>
         </div>
         <div className="flex items-center gap-2">
-          {onOpenAccountSettings && (
-            <button
-              onClick={onOpenAccountSettings}
-              className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-            >
-              <span>🔑</span> Change Password & Profile
-            </button>
-          )}
           <button
             onClick={() => setShowCreate(!showCreate)}
             className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
           >
-            {showCreate ? 'Cancel' : '+ Add User'}
+            {showCreate ? 'Cancel' : '+ Add Employee'}
           </button>
         </div>
       </div>
 
       {showCreate && (
         <form onSubmit={handleCreate} className="bg-white border border-stone-200 rounded-2xl p-6 space-y-4">
-          <h3 className="font-bold text-sm text-stone-800">Create New User</h3>
+          <h3 className="font-bold text-sm text-stone-800">Add New Employee</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wide">Name</label>
@@ -275,8 +267,8 @@ export default function TeamPage({ addNotification, token, user: currentUser, on
               </select>
             </div>
           </div>
-          <button type="submit" className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold rounded-xl transition-colors">
-            Create User
+          <button type="submit" className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer">
+            Add Employee
           </button>
         </form>
       )}
@@ -350,49 +342,49 @@ export default function TeamPage({ addNotification, token, user: currentUser, on
                   Joined {user.created_at ? new Date(user.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
                 </div>
 
-                {/* Actions */}
-                <div className="pt-2 border-t border-stone-100 flex items-center gap-2">
+                {/* Actions: Minimal distinctive text buttons */}
+                <div className="pt-2 border-t border-stone-100 flex items-center gap-3">
                   {editing?.id === user.id ? (
                     <div className="flex items-center gap-2 w-full">
                       <select
                         value={editing.role}
                         onChange={e => setEditing({ ...editing, role: e.target.value })}
-                        className="flex-1 px-2 py-1.5 border border-stone-200 rounded-lg text-[10px]"
+                        className="flex-1 px-2 py-1.5 border border-stone-200 rounded-lg text-xs"
                       >
                         {VALID_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                       </select>
-                      <button onClick={() => handleUpdate(user.id)} className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700">Save</button>
-                      <button onClick={() => setEditing(null)} className="text-[10px] text-stone-400">Cancel</button>
+                      <button onClick={() => handleUpdate(user.id)} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer">Save</button>
+                      <button onClick={() => setEditing(null)} className="text-xs text-stone-400 hover:text-stone-600 hover:underline cursor-pointer">Cancel</button>
                     </div>
                   ) : (
                     <>
                       <button
                         onClick={() => setEditing({ id: user.id, name: user.name, role: user.role, avatar_url: user.avatar_url })}
-                        className="px-3 py-1.5 text-[10px] font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors"
+                        className="text-xs font-semibold text-amber-600 hover:text-amber-700 hover:underline transition-colors cursor-pointer py-0.5"
                       >
                         Edit
                       </button>
-                      <button
-                        onClick={() => {
-                          if (isSelf && onOpenAccountSettings) {
-                            onOpenAccountSettings()
-                          } else {
+                      {!isSelf && (
+                        <button
+                          onClick={() => {
                             setResetModal({ id: user.id, name: user.name })
                             setResetForm({ password: '', confirmPassword: '' })
                             setResetError('')
-                          }
-                        }}
-                        className="px-3 py-1.5 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
-                        title={isSelf ? 'Change your password' : 'Reset user password'}
-                      >
-                        Reset PW
-                      </button>
-                      <button
-                        onClick={() => handleDelete(user.id)}
-                        className="px-3 py-1.5 text-[10px] font-bold text-rose-500 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors ml-auto"
-                      >
-                        Delete
-                      </button>
+                          }}
+                          className="text-xs font-medium text-stone-500 hover:text-stone-800 hover:underline transition-colors cursor-pointer py-0.5"
+                          title="Reset employee password"
+                        >
+                          Reset Password
+                        </button>
+                      )}
+                      {!isSelf && (
+                        <button
+                          onClick={() => handleDelete(user.id)}
+                          className="text-xs font-semibold text-stone-400 hover:text-rose-600 hover:underline transition-colors ml-auto cursor-pointer py-0.5"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
