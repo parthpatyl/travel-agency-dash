@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
@@ -54,6 +55,30 @@ export default function NavigationPage({ token, addNotification, user }) {
   useEffect(() => {
     fetchNavigation()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle ESC key and body scroll locking when any modal is open
+  const isAnyModalOpen = showPreview || showResetConfirm || addTopModalOpen || addRegionModalOpen || addColumnModalOpen || addCityModalOpen
+
+  useEffect(() => {
+    if (!isAnyModalOpen) return
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowPreview(false)
+        setShowResetConfirm(false)
+        setAddTopModalOpen(false)
+        setAddRegionModalOpen(false)
+        setAddColumnModalOpen(false)
+        setAddCityModalOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    const origOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = origOverflow
+    }
+  }, [isAnyModalOpen])
 
   // Dirty state tracking
   const isDirty = useMemo(() => {
@@ -872,9 +897,12 @@ export default function NavigationPage({ token, addNotification, user }) {
       </div>
 
       {/* ── MODAL: Add Top Item ── */}
-      {addTopModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-stone-200 animate-scale-up">
+      {addTopModalOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+          onClick={(e) => { if (e.target === e.currentTarget) setAddTopModalOpen(false) }}
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200 animate-in zoom-in-95 duration-150">
             <h3 className="text-lg font-bold text-stone-900 mb-4">Add Navbar Item</h3>
             <div className="space-y-4">
               <div>
@@ -920,7 +948,7 @@ export default function NavigationPage({ token, addNotification, user }) {
               <button
                 type="button"
                 onClick={() => setAddTopModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100"
+                className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100 cursor-pointer"
               >
                 Cancel
               </button>
@@ -928,19 +956,23 @@ export default function NavigationPage({ token, addNotification, user }) {
                 type="button"
                 onClick={handleAddTopItem}
                 disabled={!newTopItem.label.trim()}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50"
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 cursor-pointer"
               >
                 Add Item
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── MODAL: Add Region ── */}
-      {addRegionModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-stone-200 animate-scale-up">
+      {addRegionModalOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+          onClick={(e) => { if (e.target === e.currentTarget) setAddRegionModalOpen(false) }}
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200 animate-in zoom-in-95 duration-150">
             <h3 className="text-lg font-bold text-stone-900 mb-4">Add Regional Category</h3>
             <div className="space-y-4">
               <div>
@@ -971,7 +1003,7 @@ export default function NavigationPage({ token, addNotification, user }) {
               <button
                 type="button"
                 onClick={() => setAddRegionModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100"
+                className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100 cursor-pointer"
               >
                 Cancel
               </button>
@@ -979,19 +1011,23 @@ export default function NavigationPage({ token, addNotification, user }) {
                 type="button"
                 onClick={handleAddRegion}
                 disabled={!newRegion.name.trim()}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50"
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 cursor-pointer"
               >
                 Add Region
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── MODAL: Add Column Group ── */}
-      {addColumnModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-stone-200 animate-scale-up">
+      {addColumnModalOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+          onClick={(e) => { if (e.target === e.currentTarget) setAddColumnModalOpen(false) }}
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200 animate-in zoom-in-95 duration-150">
             <h3 className="text-lg font-bold text-stone-900 mb-4">Add State / Column Group</h3>
             <div>
               <label className="text-xs font-semibold text-stone-700">State / Group Heading</label>
@@ -1009,7 +1045,7 @@ export default function NavigationPage({ token, addNotification, user }) {
               <button
                 type="button"
                 onClick={() => setAddColumnModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100"
+                className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100 cursor-pointer"
               >
                 Cancel
               </button>
@@ -1017,19 +1053,23 @@ export default function NavigationPage({ token, addNotification, user }) {
                 type="button"
                 onClick={handleAddColumn}
                 disabled={!newColumnName.trim()}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50"
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 cursor-pointer"
               >
                 Add Column
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── MODAL: Add City Destination ── */}
-      {addCityModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-stone-200 animate-scale-up">
+      {addCityModalOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+          onClick={(e) => { if (e.target === e.currentTarget) setAddCityModalOpen(false) }}
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200 animate-in zoom-in-95 duration-150">
             <h3 className="text-lg font-bold text-stone-900 mb-4">Add Destination / City</h3>
             <div className="space-y-4">
               <div>
@@ -1063,7 +1103,7 @@ export default function NavigationPage({ token, addNotification, user }) {
               <button
                 type="button"
                 onClick={() => setAddCityModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100"
+                className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100 cursor-pointer"
               >
                 Cancel
               </button>
@@ -1071,19 +1111,23 @@ export default function NavigationPage({ token, addNotification, user }) {
                 type="button"
                 onClick={handleAddCity}
                 disabled={!newCity.label.trim()}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50"
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 cursor-pointer"
               >
                 Add Destination
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── MODAL: Reset Defaults Confirmation ── */}
-      {showResetConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-stone-200">
+      {showResetConfirm && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowResetConfirm(false) }}
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200 animate-in zoom-in-95 duration-150">
             <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mb-3">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -1098,7 +1142,7 @@ export default function NavigationPage({ token, addNotification, user }) {
               <button
                 type="button"
                 onClick={() => setShowResetConfirm(false)}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100"
+                className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100 cursor-pointer"
               >
                 Cancel
               </button>
@@ -1106,27 +1150,37 @@ export default function NavigationPage({ token, addNotification, user }) {
                 type="button"
                 onClick={handleReset}
                 disabled={resetting}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50"
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50 cursor-pointer"
               >
                 {resetting ? 'Resetting...' : 'Yes, Reset Defaults'}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── DRAWER / MODAL: Live Preview of Mega Menu ── */}
-      {showPreview && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-stone-950/80 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-stone-900 text-white rounded-3xl max-w-5xl w-full p-6 shadow-2xl border border-stone-800 my-8">
-            <div className="flex items-center justify-between pb-4 border-b border-stone-800">
+      {showPreview && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/80 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowPreview(false)
+          }}
+        >
+          <div
+            className="bg-stone-900 text-white rounded-3xl max-w-5xl w-full p-6 shadow-2xl border border-stone-800 my-auto max-h-[92vh] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-stone-800 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                 <h3 className="text-base font-bold text-white tracking-wide">Live Mega Menu Simulation</h3>
               </div>
               <button
                 onClick={() => setShowPreview(false)}
-                className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-white/10 transition-colors"
+                className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                title="Close (Esc)"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1135,12 +1189,12 @@ export default function NavigationPage({ token, addNotification, user }) {
             </div>
 
             {/* Simulating Customer Navbar */}
-            <div className="py-4 border-b border-stone-800/80 flex items-center justify-center gap-2 flex-wrap">
+            <div className="py-4 border-b border-stone-800/80 flex items-center justify-center gap-2 flex-wrap shrink-0">
               {menu.filter(item => item.visible !== false).map((item) => (
                 <button
                   key={item.id}
                   onClick={() => handleSelectTopItem(item.id)}
-                  className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
                     selectedTopItemId === item.id
                       ? 'text-amber-400 bg-white/10 font-semibold'
                       : 'text-stone-300 hover:text-white hover:bg-white/5'
@@ -1153,8 +1207,8 @@ export default function NavigationPage({ token, addNotification, user }) {
 
             {/* Simulating Mega Menu Dropdown */}
             {selectedTopItem?.type === 'megamenu' && (
-              <div className="mt-4 bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col text-stone-900 max-h-[550px]">
-                <div className="flex items-center justify-between px-5 py-2.5 bg-stone-50 border-b border-stone-200">
+              <div className="mt-4 bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col text-stone-900 flex-1 min-h-[380px] max-h-[550px]">
+                <div className="flex items-center justify-between px-5 py-2.5 bg-stone-50 border-b border-stone-200 shrink-0">
                   <span className="text-xs font-bold text-stone-800 uppercase tracking-wider">
                     {selectedTopItem.label} Destinations
                   </span>
@@ -1163,16 +1217,16 @@ export default function NavigationPage({ token, addNotification, user }) {
                   </span>
                 </div>
 
-                <div className="flex flex-1 min-h-[350px] overflow-hidden">
+                <div className="flex flex-1 min-h-0 overflow-hidden">
                   {/* Sidebar */}
-                  <div className="w-56 bg-stone-100 border-r border-stone-200 py-2 flex flex-col overflow-y-auto">
+                  <div className="w-56 bg-stone-100 border-r border-stone-200 py-2 flex flex-col overflow-y-auto shrink-0">
                     {selectedTopItem.continents?.filter(r => r.visible !== false).map((cont) => {
                       const isActive = cont.id === selectedRegionId
                       return (
                         <button
                           key={cont.id}
                           onClick={() => setSelectedRegionId(cont.id)}
-                          className={`w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors flex items-center justify-between ${
+                          className={`w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
                             isActive
                               ? 'bg-amber-600 text-white font-bold'
                               : 'text-stone-600 hover:bg-stone-200/70 hover:text-stone-900'
@@ -1186,7 +1240,7 @@ export default function NavigationPage({ token, addNotification, user }) {
                   </div>
 
                   {/* Destination Grid */}
-                  <div className="flex-1 p-5 overflow-y-auto bg-white">
+                  <div className="flex-1 p-5 overflow-y-auto bg-white min-h-0">
                     {selectedRegion ? (
                       <div>
                         <div className="flex items-center justify-between pb-3 border-b border-stone-100 mb-4">
@@ -1215,7 +1269,7 @@ export default function NavigationPage({ token, addNotification, user }) {
                                           message: `Preview Click: Filters Destinations page by "${cSearch}"`
                                         })
                                       }}
-                                      className="block text-left text-xs text-stone-500 hover:text-amber-600 transition-colors py-0.5"
+                                      className="block text-left text-xs text-stone-500 hover:text-amber-600 transition-colors py-0.5 cursor-pointer"
                                     >
                                       {cLabel}
                                     </button>
@@ -1236,7 +1290,8 @@ export default function NavigationPage({ token, addNotification, user }) {
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
