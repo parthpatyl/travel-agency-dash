@@ -3,6 +3,7 @@ import { roleHas } from '../utils/permissions'
 import SpecialityCategoriesAdmin from './SpecialityCategoriesAdmin'
 import SaveConfirmationModal from './SaveConfirmationModal'
 import NavigationPage from './NavigationPage'
+import { validateEmail, validatePhone, validatePercentage, validateNumber } from '../utils/validation'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
@@ -717,6 +718,41 @@ export default function SettingsPage({
     if (!canWriteSettings) {
       if (addNotification) addNotification('You do not have permission to modify settings', 'error')
       return
+    }
+
+    if (sectionName === 'Footer & Contact') {
+      if (agencyEmail) {
+        const emailCheck = validateEmail(agencyEmail)
+        if (!emailCheck.isValid) {
+          if (addNotification) addNotification(emailCheck.error, 'error')
+          return
+        }
+      }
+      if (agencyPhone) {
+        const phoneCheck = validatePhone(agencyPhone)
+        if (!phoneCheck.isValid) {
+          if (addNotification) addNotification(phoneCheck.error, 'error')
+          return
+        }
+      }
+    }
+
+    if (sectionName === 'Financial Rules') {
+      const markupCheck = validatePercentage(defaultMarkup, 'Default Agency Markup')
+      if (!markupCheck.isValid) {
+        if (addNotification) addNotification(markupCheck.error, 'error')
+        return
+      }
+      const splitCheck = validatePercentage(defaultAgentSplit, 'Agent Commission Split')
+      if (!splitCheck.isValid) {
+        if (addNotification) addNotification(splitCheck.error, 'error')
+        return
+      }
+      const rateCheck = validateNumber(inrToUsdRate, { min: 0.0001, fieldName: 'INR / USD Multiplier' })
+      if (!rateCheck.isValid) {
+        if (addNotification) addNotification(rateCheck.error, 'error')
+        return
+      }
     }
 
     const changes = getSectionDiff(sectionName, settings, baselineSettings)

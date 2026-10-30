@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
+import { validateEmail, validatePhone, validateName, validatePrice } from '../utils/validation'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const DEFAULT_AVATAR = `${API_URL}/assets/default-avatar.png`
@@ -25,13 +26,7 @@ const calculatePassportStatus = (expiresStr) => {
   return 'Valid'
 }
 
-const validatePhone = (phone) => {
-  if (!phone?.trim()) return false
-  const digits = phone.replace(/\D/g, '')
-  return digits.length >= 7 && digits.length <= 15
-}
-
-// eslint-disable-next-line no-unused-vars
+// formatPhoneDisplay
 const formatPhoneDisplay = (phone) => {
   if (!phone) return ''
   return phone
@@ -281,29 +276,24 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
 
   const handleAddClient = (e) => {
     e.preventDefault()
-    if (!newName.trim()) {
-      showToast('Please enter the client\'s name.')
+    const nameCheck = validateName(newName)
+    if (!nameCheck.isValid) {
+      showToast(nameCheck.error)
       return
     }
-    if (!newEmail.trim()) {
-      showToast('Please enter the client\'s email address.')
+    const emailCheck = validateEmail(newEmail)
+    if (!emailCheck.isValid) {
+      showToast(emailCheck.error)
       return
     }
-    if (!/\S+@\S+\.\S+/.test(newEmail)) {
-      showToast('Please enter a valid email address.')
+    const phoneCheck = validatePhone(newPhone)
+    if (!phoneCheck.isValid) {
+      showToast(phoneCheck.error)
       return
     }
-    if (!newPhone.trim()) {
-      showToast('Please enter the client\'s phone number.')
-      return
-    }
-    if (!validatePhone(newPhone)) {
-      showToast('Please enter a valid phone number (7-15 digits with optional country code).')
-      return
-    }
-    const parsedWallet = parseFloat(walletAmt ?? '0')
-    if (isNaN(parsedWallet) || parsedWallet < 0) {
-      showToast('Initial travel credit must be a non-negative number.')
+    const walletCheck = validatePrice(walletAmt ?? 0, 'Initial travel credit')
+    if (!walletCheck.isValid) {
+      showToast(walletCheck.error)
       return
     }
     if (passNo.trim() && !passExp) {
@@ -322,9 +312,12 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
       showToast('Please provide the visa target country.')
       return
     }
-    if (emergPhone.trim() && !validatePhone(emergPhone)) {
-      showToast('Please enter a valid emergency contact phone number.')
-      return
+    if (emergPhone.trim()) {
+      const emergCheck = validatePhone(emergPhone)
+      if (!emergCheck.isValid) {
+        showToast(`Emergency contact: ${emergCheck.error}`)
+        return
+      }
     }
 
     const calculatedStatus = calculatePassportStatus(passExp)
@@ -425,29 +418,24 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
 
   const handleSaveEdit = (e) => {
     e.preventDefault()
-    if (!editName.trim()) {
-      showToast('Please enter the client\'s name.')
+    const nameCheck = validateName(editName)
+    if (!nameCheck.isValid) {
+      showToast(nameCheck.error)
       return
     }
-    if (!editEmail.trim()) {
-      showToast('Please enter the client\'s email address.')
+    const emailCheck = validateEmail(editEmail)
+    if (!emailCheck.isValid) {
+      showToast(emailCheck.error)
       return
     }
-    if (!/\S+@\S+\.\S+/.test(editEmail)) {
-      showToast('Please enter a valid email address.')
+    const phoneCheck = validatePhone(editPhone)
+    if (!phoneCheck.isValid) {
+      showToast(phoneCheck.error)
       return
     }
-    if (!editPhone.trim()) {
-      showToast('Please enter the client\'s phone number.')
-      return
-    }
-    if (!validatePhone(editPhone)) {
-      showToast('Please enter a valid phone number (7-15 digits with optional country code).')
-      return
-    }
-    const parsedWallet = parseFloat(editWalletAmt ?? '0')
-    if (isNaN(parsedWallet) || parsedWallet < 0) {
-      showToast('Travel wallet credit must be a non-negative number.')
+    const walletCheck = validatePrice(editWalletAmt ?? 0, 'Travel wallet credit')
+    if (!walletCheck.isValid) {
+      showToast(walletCheck.error)
       return
     }
     if (editPassNo.trim() && !editPassExp) {
@@ -466,9 +454,12 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
       showToast('Please provide the visa target country.')
       return
     }
-    if (editEmergPhone.trim() && !validatePhone(editEmergPhone)) {
-      showToast('Please enter a valid emergency contact phone number.')
-      return
+    if (editEmergPhone.trim()) {
+      const emergCheck = validatePhone(editEmergPhone)
+      if (!emergCheck.isValid) {
+        showToast(`Emergency contact: ${emergCheck.error}`)
+        return
+      }
     }
 
     const calculatedStatus = calculatePassportStatus(editPassExp)

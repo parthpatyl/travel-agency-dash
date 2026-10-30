@@ -4,6 +4,7 @@ import Markdown from 'react-markdown'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
 import PackageBrochureModal from './PackageBrochureModal'
+import { validatePrice, validateInteger } from '../utils/validation'
 
 const PrinterIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -200,6 +201,22 @@ export default function CorporatePackagesPage({ corporatePackages, setCorporateP
     if (!form.destination.trim()) {
       if (addNotification) addNotification('Destination is required', 'warning')
       return
+    }
+
+    if (form.startingPrice !== '' && form.startingPrice !== null && form.startingPrice !== undefined) {
+      const priceCheck = validatePrice(form.startingPrice, 'Starting price')
+      if (!priceCheck.isValid) {
+        if (addNotification) addNotification(priceCheck.error, 'warning')
+        return
+      }
+    }
+
+    if (form.displayOrder !== '' && form.displayOrder !== null && form.displayOrder !== undefined) {
+      const orderCheck = validateInteger(form.displayOrder, { min: 0, fieldName: 'Display order' })
+      if (!orderCheck.isValid) {
+        if (addNotification) addNotification(orderCheck.error, 'warning')
+        return
+      }
     }
 
     const payload = {

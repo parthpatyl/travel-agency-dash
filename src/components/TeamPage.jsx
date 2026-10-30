@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { validateEmail, validateName } from '../utils/validation'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const VALID_ROLES = ['admin', 'operations', 'sales', 'owner']
@@ -89,6 +90,16 @@ export default function TeamPage({ addNotification, token, user: currentUser, on
 
   const handleCreate = async (e) => {
     e.preventDefault()
+    const nameCheck = validateName(form.name)
+    if (!nameCheck.isValid) {
+      addNotification?.(nameCheck.error, 'error')
+      return
+    }
+    const emailCheck = validateEmail(form.email)
+    if (!emailCheck.isValid) {
+      addNotification?.(emailCheck.error, 'error')
+      return
+    }
     if (form.password.length < 8) {
       addNotification?.('Password must be at least 8 characters', 'error')
       return

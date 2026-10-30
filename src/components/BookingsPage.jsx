@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
+import { validateEmail, validatePhone, validateName, validatePrice, validateGuests } from '../utils/validation'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const formatUSD = (price) => price != null ? `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
@@ -251,6 +252,24 @@ export default function BookingsPage({
   const handleSaveEditBooking = async (e) => {
     e.preventDefault()
     if (!editBookingObj || !editClient || !editPackage || !editAmount || !editDate) return
+
+    const editAmountCheck = validatePrice(editAmount, 'Booking amount')
+    if (!editAmountCheck.isValid) {
+      if (addNotification) addNotification(editAmountCheck.error, 'warning')
+      return
+    }
+    const editGuestsCheck = validateGuests(editGuests || 1)
+    if (!editGuestsCheck.isValid) {
+      if (addNotification) addNotification(editGuestsCheck.error, 'warning')
+      return
+    }
+    if (editDiscount !== undefined && editDiscount !== '') {
+      const editDiscCheck = validatePrice(editDiscount, 'Discount amount')
+      if (!editDiscCheck.isValid) {
+        if (addNotification) addNotification(editDiscCheck.error, 'warning')
+        return
+      }
+    }
 
     // Slot validation guard (read-only check; backend is the source of truth)
     const newGuestCount = parseInt(editGuests) || 1
@@ -583,9 +602,22 @@ export default function BookingsPage({
     
     let activeClientName = newClient
     if (clientMode === 'new') {
-      if (!newClientName.trim() || !newClientEmail.trim()) {
-        if (addNotification) addNotification('Please enter Client Name and Email', 'warning')
+      const nameCheck = validateName(newClientName)
+      if (!nameCheck.isValid) {
+        if (addNotification) addNotification(nameCheck.error, 'warning')
         return
+      }
+      const emailCheck = validateEmail(newClientEmail)
+      if (!emailCheck.isValid) {
+        if (addNotification) addNotification(emailCheck.error, 'warning')
+        return
+      }
+      if (newClientPhone.trim()) {
+        const phoneCheck = validatePhone(newClientPhone)
+        if (!phoneCheck.isValid) {
+          if (addNotification) addNotification(phoneCheck.error, 'warning')
+          return
+        }
       }
       activeClientName = newClientName.trim()
 
@@ -619,6 +651,26 @@ export default function BookingsPage({
     if (!activeClientName || !newPackage || !newAmount || !newDate) {
       if (addNotification) addNotification('Please fill in all required booking fields', 'warning')
       return
+    }
+
+    const amountCheck = validatePrice(newAmount, 'Booking amount')
+    if (!amountCheck.isValid) {
+      if (addNotification) addNotification(amountCheck.error, 'warning')
+      return
+    }
+
+    const guestsCheck = validateGuests(newGuests || 1)
+    if (!guestsCheck.isValid) {
+      if (addNotification) addNotification(guestsCheck.error, 'warning')
+      return
+    }
+
+    if (newDiscount !== undefined && newDiscount !== '') {
+      const discCheck = validatePrice(newDiscount, 'Discount amount')
+      if (!discCheck.isValid) {
+        if (addNotification) addNotification(discCheck.error, 'warning')
+        return
+      }
     }
     
     // Check package availability (per-guest slot consumption)

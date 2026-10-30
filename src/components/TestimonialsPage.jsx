@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
+import { validateName, validateRating, validateInteger, validatePercentage } from '../utils/validation'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 const DEFAULT_AVATAR = `${API_URL}/assets/default-avatar.png`
@@ -77,6 +78,24 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
 
     if (!trips || !sat || !dest) {
       if (addNotification) addNotification('Please fill in all stat fields', 'warning');
+      return;
+    }
+
+    const tripsCheck = validateInteger(trips, { min: 0, fieldName: 'Trips Crafted' });
+    if (!tripsCheck.isValid) {
+      if (addNotification) addNotification(tripsCheck.error, 'warning');
+      return;
+    }
+
+    const satCheck = validatePercentage(sat, 'Satisfaction Rate');
+    if (!satCheck.isValid) {
+      if (addNotification) addNotification(satCheck.error, 'warning');
+      return;
+    }
+
+    const destCheck = validateInteger(dest, { min: 0, fieldName: 'Destinations Explored' });
+    if (!destCheck.isValid) {
+      if (addNotification) addNotification(destCheck.error, 'warning');
       return;
     }
 
@@ -224,6 +243,18 @@ export default function TestimonialsPage({ testimonials, setTestimonials, addNot
         if (!form.text.trim()) missing.push('Testimonial Text')
         addNotification(`Please fill in required fields: ${missing.join(', ')}`, 'warning')
       }
+      return
+    }
+
+    const nameCheck = validateName(form.name)
+    if (!nameCheck.isValid) {
+      if (addNotification) addNotification(nameCheck.error, 'warning')
+      return
+    }
+
+    const ratingCheck = validateRating(form.rating)
+    if (!ratingCheck.isValid) {
+      if (addNotification) addNotification(ratingCheck.error, 'warning')
       return
     }
 

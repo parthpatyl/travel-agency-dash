@@ -4,6 +4,7 @@ import ReadOnlyBanner from './ReadOnlyBanner'
 import PackageBrochureModal from './PackageBrochureModal'
 import { SmartMarkdown, SmartMarkdownInline } from '../utils/markdownUtils'
 import { formatTravelMarkdown, splitBulletedItems, flattenBulletedItems } from '../utils/markdownHelpers'
+import { validatePrice, validateInteger } from '../utils/validation'
 
 const PrinterIcon = ({ className = "w-4 h-4" }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -431,6 +432,34 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
       return
     }
 
+    const priceCheck = validatePrice(String(editPkgPrice).replace(/,/g, ''), 'Retail price')
+    if (!priceCheck.isValid) {
+      if (addNotification) addNotification(priceCheck.error, 'warning')
+      return
+    }
+
+    const daysCheck = validateInteger(editPkgDays, { min: 1, fieldName: 'Duration (days)' })
+    if (!daysCheck.isValid) {
+      if (addNotification) addNotification(daysCheck.error, 'warning')
+      return
+    }
+
+    if (!editPkgIsBespoke) {
+      const slotsCheck = validateInteger(editPkgSlots, { min: 0, fieldName: 'Total slots' })
+      if (!slotsCheck.isValid) {
+        if (addNotification) addNotification(slotsCheck.error, 'warning')
+        return
+      }
+    }
+
+    if (editPkgCostPrice !== '' && editPkgCostPrice !== null && editPkgCostPrice !== undefined) {
+      const costCheck = validatePrice(String(editPkgCostPrice).replace(/,/g, ''), 'Cost price')
+      if (!costCheck.isValid) {
+        if (addNotification) addNotification(costCheck.error, 'warning')
+        return
+      }
+    }
+
     const updated = {
       ...selectedPackage,
       name: editPkgName,
@@ -534,6 +563,34 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
         addNotification(`Please fill in required fields: ${missing.join(', ')}`, 'warning')
       }
       return
+    }
+
+    const priceCheck = validatePrice(String(pkgPrice).replace(/,/g, ''), 'Retail price')
+    if (!priceCheck.isValid) {
+      if (addNotification) addNotification(priceCheck.error, 'warning')
+      return
+    }
+
+    const daysCheck = validateInteger(pkgDays, { min: 1, fieldName: 'Duration (days)' })
+    if (!daysCheck.isValid) {
+      if (addNotification) addNotification(daysCheck.error, 'warning')
+      return
+    }
+
+    if (!bespokeMode) {
+      const slotsCheck = validateInteger(pkgSlots, { min: 0, fieldName: 'Total slots' })
+      if (!slotsCheck.isValid) {
+        if (addNotification) addNotification(slotsCheck.error, 'warning')
+        return
+      }
+    }
+
+    if (pkgCostPrice !== '' && pkgCostPrice !== null && pkgCostPrice !== undefined) {
+      const costCheck = validatePrice(String(pkgCostPrice).replace(/,/g, ''), 'Cost price')
+      if (!costCheck.isValid) {
+        if (addNotification) addNotification(costCheck.error, 'warning')
+        return
+      }
     }
 
     const newPkgObj = {

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import Markdown from 'react-markdown'
 import { roleHas } from '../utils/permissions'
 import ReadOnlyBanner from './ReadOnlyBanner'
+import { validatePrice, validateInteger, validateNumber } from '../utils/validation'
 
 const API_URL_DEFAULT = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
@@ -251,6 +252,16 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
         if (addNotification) addNotification('Please enter Package Name', 'warning')
         return
       }
+      const durCheck = validateInteger(newPkgDuration, { min: 1, fieldName: 'Package duration' })
+      if (!durCheck.isValid) {
+        if (addNotification) addNotification(durCheck.error, 'warning')
+        return
+      }
+      const priceCheck = validatePrice(newPkgPrice, 'Package base price')
+      if (!priceCheck.isValid) {
+        if (addNotification) addNotification(priceCheck.error, 'warning')
+        return
+      }
       activePackageId = `PKG-${crypto.randomUUID()}`
       createdPkgObj = {
         id: activePackageId,
@@ -283,6 +294,34 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
     if (!form.departureDate || !form.returnDate) {
       if (addNotification) addNotification('Departure and return dates are required', 'warning')
       return
+    }
+
+    const totalSlotsCheck = validateInteger(form.slotsTotal, { min: 1, fieldName: 'Total seats' })
+    if (!totalSlotsCheck.isValid) {
+      if (addNotification) addNotification(totalSlotsCheck.error, 'warning')
+      return
+    }
+
+    const bookedSlotsCheck = validateInteger(form.slotsBooked || 0, { min: 0, fieldName: 'Booked seats' })
+    if (!bookedSlotsCheck.isValid) {
+      if (addNotification) addNotification(bookedSlotsCheck.error, 'warning')
+      return
+    }
+
+    if (form.priceModifier !== '' && form.priceModifier !== null && form.priceModifier !== undefined) {
+      const modCheck = validateNumber(form.priceModifier, { fieldName: 'Price modifier' })
+      if (!modCheck.isValid) {
+        if (addNotification) addNotification(modCheck.error, 'warning')
+        return
+      }
+    }
+
+    if (form.costPrice !== '' && form.costPrice !== null && form.costPrice !== undefined) {
+      const costCheck = validatePrice(form.costPrice, 'Cost price')
+      if (!costCheck.isValid) {
+        if (addNotification) addNotification(costCheck.error, 'warning')
+        return
+      }
     }
 
     const parseList = (str) => typeof str === 'string' ? str.split(',').map(s => s.trim()).filter(Boolean) : (str || [])

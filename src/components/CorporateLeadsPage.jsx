@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { roleHas } from '../utils/permissions'
+import { validateEmail, validatePhone, validateName, validatePrice, validateInteger, validateNumber } from '../utils/validation'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
@@ -185,6 +186,51 @@ export default function CorporateLeadsPage({ addNotification, token, user, onCon
 
   const saveEdit = async () => {
     if (!editDraft || !selectedLead) return
+
+    const nameCheck = validateName(editDraft.name)
+    if (!nameCheck.isValid) {
+      if (addNotification) addNotification(nameCheck.error, 'warning')
+      return
+    }
+
+    const emailCheck = validateEmail(editDraft.work_email)
+    if (!emailCheck.isValid) {
+      if (addNotification) addNotification(emailCheck.error, 'warning')
+      return
+    }
+
+    if (editDraft.mobile) {
+      const phoneCheck = validatePhone(editDraft.mobile)
+      if (!phoneCheck.isValid) {
+        if (addNotification) addNotification(phoneCheck.error, 'warning')
+        return
+      }
+    }
+
+    if (editDraft.group_size !== '' && editDraft.group_size !== null && editDraft.group_size !== undefined) {
+      const groupCheck = validateInteger(editDraft.group_size, { min: 1, fieldName: 'Group size' })
+      if (!groupCheck.isValid) {
+        if (addNotification) addNotification(groupCheck.error, 'warning')
+        return
+      }
+    }
+
+    if (editDraft.per_person_rate !== '' && editDraft.per_person_rate !== null && editDraft.per_person_rate !== undefined) {
+      const rateCheck = validatePrice(editDraft.per_person_rate, 'Per person rate')
+      if (!rateCheck.isValid) {
+        if (addNotification) addNotification(rateCheck.error, 'warning')
+        return
+      }
+    }
+
+    if (editDraft.discount_value !== '' && editDraft.discount_value !== null && editDraft.discount_value !== undefined) {
+      const discCheck = validateNumber(editDraft.discount_value, { min: 0, fieldName: 'Discount value' })
+      if (!discCheck.isValid) {
+        if (addNotification) addNotification(discCheck.error, 'warning')
+        return
+      }
+    }
+
     try {
       const res = await fetch(`${API_URL}/api/corporate-leads/${selectedLead.id}`, {
         method: 'PUT',

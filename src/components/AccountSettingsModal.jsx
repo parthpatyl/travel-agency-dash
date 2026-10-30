@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { validateEmail, validateName } from '../utils/validation'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
@@ -26,12 +27,14 @@ export default function AccountSettingsModal({ user, onClose, addNotification, o
     setProfileError('')
     setProfileMsg('')
 
-    if (!name.trim()) {
-      setProfileError('Name cannot be empty')
+    const nameCheck = validateName(name)
+    if (!nameCheck.isValid) {
+      setProfileError(nameCheck.error)
       return
     }
-    if (!email || !/\S+@\S+\.\S+/.test(email)) {
-      setProfileError('Please enter a valid email address')
+    const emailCheck = validateEmail(email)
+    if (!emailCheck.isValid) {
+      setProfileError(emailCheck.error)
       return
     }
 
