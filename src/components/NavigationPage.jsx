@@ -60,6 +60,22 @@ export default function NavigationPage({ token, addNotification, user }) {
   const [carouselCompressionInfo, setCarouselCompressionInfo] = useState(null)
   const carouselFileInputRef = useRef(null)
 
+  // Live Popular Expeditions for Group Tours dropdown (mirroring customer MegaNavBar.jsx / Image 3)
+  const [popularExpeditions, setPopularExpeditions] = useState([
+    { label: 'Vietnam Group tour', search: 'Vietnam' },
+    { label: 'Aegean Blue Santorini & Mykonos Cruise — Sep 2026', search: 'Santorini' },
+    { label: 'Swiss Alps Autumn Panorama — Oct 2026 Batch', search: 'Swiss' },
+    { label: 'Kashmir Autumn Houseboat & Snow Valley — Oct 2026', search: 'Kashmir' },
+    { label: 'Great Migration Safari Expedition — Nov 2026', search: 'Safari' },
+    { label: 'Vietnam Heritage & Ha Long Bay Cruise — Nov 2026 Batch', search: 'Vietnam' },
+    { label: 'Bali Tropical Escape & Nusa Penida', search: 'Bali' },
+    { label: 'Serengeti & Masai Mara Wildlife Safari', search: 'Masai Mara' }
+  ])
+
+  // Interactive Live Preview Simulation states
+  const [previewOpenNavId, setPreviewOpenNavId] = useState('group_tours')
+  const [previewActiveContinentId, setPreviewActiveContinentId] = useState('north')
+
   // Fetch navigation & destination carousel data
   const fetchNavigation = async () => {
     setLoading(true)
@@ -78,6 +94,7 @@ export default function NavigationPage({ token, addNotification, user }) {
         setSelectedTopItemId(menuArray[0].id)
         if (menuArray[0].continents && menuArray[0].continents.length > 0) {
           setSelectedRegionId(menuArray[0].continents[0].id)
+          setPreviewActiveContinentId(menuArray[0].continents[0].id)
         }
       }
 
@@ -92,6 +109,43 @@ export default function NavigationPage({ token, addNotification, user }) {
       } else {
         setBaselineCarousel(JSON.parse(JSON.stringify(DEFAULT_CAROUSEL_ITEMS)))
       }
+
+      // Also dynamically fetch live packages & group departures to mirror customer MegaNavBar.jsx
+      Promise.all([
+        fetch(`${API_URL}/api/group-departures`).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+        fetch(`${API_URL}/api/packages`).then((r) => (r.ok ? r.json() : [])).catch(() => [])
+      ]).then(([depData, pkgData]) => {
+        const items = []
+        const seen = new Set()
+        if (Array.isArray(depData) && depData.length > 0) {
+          depData.forEach((d) => {
+            const name = d.title || d.packageName
+            if (name && !seen.has(name)) {
+              seen.add(name)
+              items.push({
+                label: name,
+                region: d.packageRegion || 'All',
+                search: d.packageName || d.title
+              })
+            }
+          })
+        }
+        if (Array.isArray(pkgData) && pkgData.length > 0) {
+          pkgData.forEach((p) => {
+            if (p.name && !seen.has(p.name)) {
+              seen.add(p.name)
+              items.push({
+                label: p.name,
+                region: p.region || 'All',
+                search: p.name
+              })
+            }
+          })
+        }
+        if (items.length > 0) {
+          setPopularExpeditions(items.slice(0, 10))
+        }
+      }).catch(() => {})
     } catch (err) {
       addNotification?.({ type: 'error', message: 'Error loading navigation menu: ' + err.message })
     } finally {
@@ -1866,156 +1920,304 @@ export default function NavigationPage({ token, addNotification, user }) {
               </button>
             </div>
 
-            {/* PREVIEW SUB-TAB 1: Navigation Bar & Menus */}
+            {/* PREVIEW SUB-TAB 1: Navigation Bar & Menus (1:1 Pixel-Accurate Customer Site Clone) */}
             {previewSubTab === 'nav' && (
-              <div className="flex flex-col flex-1 min-h-0">
-                {/* Simulating Customer Navbar */}
-                <div className="py-4 border-b border-stone-800/80 flex items-center justify-center gap-2 flex-wrap shrink-0">
-                  {menu.filter(item => item.visible !== false).map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => handleSelectTopItem(item.id)}
-                      className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                        selectedTopItemId === item.id
-                          ? 'text-amber-400 bg-white/10 font-semibold'
-                          : 'text-stone-300 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+              <div className="flex flex-col flex-1 min-h-0 bg-[#090d16] rounded-2xl border border-stone-800 overflow-hidden shadow-inner">
+                {/* Browser Shell Top Bar */}
+                <div className="flex items-center justify-between px-4 py-2 bg-stone-950 border-b border-stone-800/90 text-xs shrink-0 select-none">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block" />
+                    <span className="ml-2 text-stone-400 text-[11px] font-mono bg-stone-900 px-3 py-0.5 rounded-md border border-stone-800">
+                      https://kraftyourtrip.com/
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-stone-400">
+                    <span className="text-emerald-400 font-semibold">● 1:1 Customer Site Navbar Simulation</span>
+                    <span className="hidden sm:inline text-stone-500">| Hover or click tabs below</span>
+                  </div>
                 </div>
 
-                {/* Mega Menu View */}
-                {selectedTopItem?.type === 'megamenu' && (
-                  <div className="mt-4 bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col text-stone-900 flex-1 min-h-[380px] max-h-[550px]">
-                    <div className="flex items-center justify-between px-5 py-2.5 bg-stone-50 border-b border-stone-200 shrink-0">
-                      <span className="text-xs font-bold text-stone-800 uppercase tracking-wider">
-                        {selectedTopItem.label} Destinations
-                      </span>
-                      <span className="text-[11px] text-stone-400 font-semibold">
-                        Hover/Click continent to explore
-                      </span>
+                {/* Simulated Customer Header Bar */}
+                <div className="bg-[#0b1120]/95 backdrop-blur-md border-b border-white/10 px-6 py-2.5 flex items-center justify-between gap-4 shrink-0 relative z-20">
+                  {/* Brand Logo */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-stone-950 font-black text-xs shadow-sm">
+                      K
                     </div>
-
-                    <div className="flex flex-1 min-h-0 overflow-hidden">
-                      {/* Sidebar */}
-                      <div className="w-56 bg-stone-100 border-r border-stone-200 py-2 flex flex-col overflow-y-auto shrink-0">
-                        {selectedTopItem.continents?.filter(r => r.visible !== false).map((cont) => {
-                          const isActive = cont.id === selectedRegionId
-                          return (
-                            <button
-                              key={cont.id}
-                              onClick={() => setSelectedRegionId(cont.id)}
-                              className={`w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
-                                isActive
-                                  ? 'bg-amber-600 text-white font-bold'
-                                  : 'text-stone-600 hover:bg-stone-200/70 hover:text-stone-900'
-                              }`}
-                            >
-                              <span>{cont.name}</span>
-                              <span className="text-[10px] opacity-70">&rarr;</span>
-                            </button>
-                          )
-                        })}
-                      </div>
-
-                      {/* Destination Grid */}
-                      <div className="flex-1 p-5 overflow-y-auto bg-white min-h-0">
-                        {selectedRegion ? (
-                          <div>
-                            <div className="flex items-center justify-between pb-3 border-b border-stone-100 mb-4">
-                              <h4 className="text-sm font-bold text-stone-900">{selectedRegion.name}</h4>
-                              <span className="text-xs text-amber-600 font-semibold">
-                                {selectedRegion.allLink?.label || `All of ${selectedRegion.name}`} &rarr;
-                              </span>
-                            </div>
-
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
-                              {selectedRegion.countries?.filter(c => c.visible !== false).map((country) => (
-                                <div key={country.name} className="space-y-1.5">
-                                  <h5 className="text-xs font-bold uppercase tracking-wider text-stone-700">
-                                    {country.name}
-                                  </h5>
-                                  <div className="space-y-1">
-                                    {country.cities?.filter(ct => (typeof ct === 'object' ? ct.visible !== false : true)).map((city, idx) => {
-                                      const cLabel = typeof city === 'object' ? city.label : city
-                                      const cSearch = typeof city === 'object' ? (city.search || city.label) : city
-                                      return (
-                                        <button
-                                          key={cLabel + idx}
-                                          onClick={() => {
-                                            addNotification?.({
-                                              type: 'info',
-                                              message: `Preview Click: Filters Destinations page by "${cSearch}"`
-                                            })
-                                          }}
-                                          className="block text-left text-xs text-stone-500 hover:text-amber-600 transition-colors py-0.5 cursor-pointer"
-                                        >
-                                          {cLabel}
-                                        </button>
-                                      )
-                                    })}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="p-8 text-center text-stone-400 text-xs">
-                            Select a region from the sidebar
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    <span className="font-serif tracking-widest font-extrabold text-white text-sm">
+                      KRAFT YOUR TRIP
+                    </span>
                   </div>
-                )}
 
-                {/* Dropdown Menu View */}
-                {selectedTopItem?.type === 'dropdown' && (
-                  <div className="mt-4 bg-white rounded-2xl overflow-hidden shadow-2xl p-6 text-stone-900 flex-1 min-h-[380px] max-h-[550px] overflow-y-auto">
-                    <div className="border-b border-stone-200 pb-3 mb-4 flex items-center justify-between">
-                      <span className="text-xs font-bold text-stone-800 uppercase tracking-wider">
-                        Dropdown Menu Simulation: {selectedTopItem.label}
-                      </span>
-                      <span className="text-xs text-stone-400">Renders as floating dropdown with tour highlights</span>
-                    </div>
+                  {/* Centered Navigation Links & Interactive Dropdown Triggers */}
+                  <div className="flex items-center justify-center gap-1 sm:gap-2 flex-wrap">
+                    {menu.filter(item => item.visible !== false).map((item) => {
+                      const isOpen = previewOpenNavId === item.id
+                      const hasDropdown = item.type === 'megamenu' || item.type === 'dropdown'
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {getHighlights(selectedTopItem).map((h, idx) => (
-                        <div key={h.id || idx} className="p-4 rounded-xl border border-stone-200 bg-stone-50/80 flex flex-col justify-between">
-                          <div>
-                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded uppercase">
-                              {h.region}
+                      return (
+                        <div
+                          key={item.id}
+                          className="relative"
+                          onMouseEnter={() => {
+                            if (hasDropdown) {
+                              setPreviewOpenNavId(item.id)
+                              if (item.continents && item.continents.length > 0 && !item.continents.some(c => c.id === previewActiveContinentId)) {
+                                setPreviewActiveContinentId(item.continents[0].id)
+                              }
+                            }
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (hasDropdown) {
+                                setPreviewOpenNavId(isOpen ? null : item.id)
+                                if (item.continents && item.continents.length > 0 && !item.continents.some(c => c.id === previewActiveContinentId)) {
+                                  setPreviewActiveContinentId(item.continents[0].id)
+                                }
+                              } else {
+                                setPreviewOpenNavId(item.id)
+                                addNotification?.({
+                                  type: 'info',
+                                  message: `Preview Click: Routes to /${item.page || item.id}`
+                                })
+                              }
+                            }}
+                            className={`rounded-lg font-medium transition-all duration-200 flex items-center gap-1 text-[13.5px] tracking-wide px-3 py-1.5 cursor-pointer ${
+                              isOpen
+                                ? 'text-amber-400 bg-white/10 font-semibold'
+                                : 'text-stone-200 hover:text-white hover:bg-white/10'
+                            }`}
+                          >
+                            <span>{item.label}</span>
+                            {hasDropdown && (
+                              <ChevronDownIcon
+                                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                  isOpen ? 'rotate-180 text-amber-400' : 'text-stone-400'
+                                }`}
+                              />
+                            )}
+                          </button>
+
+                          {/* ── DROPDOWN POPUP: Group Tours (Exact 1:1 match to Customer Site Image 3) ── */}
+                          {isOpen && item.type === 'dropdown' && (
+                            <div
+                              className="absolute top-full left-0 mt-2 z-50 bg-white/[0.98] backdrop-blur-2xl border border-stone-200/90 rounded-2xl shadow-2xl shadow-stone-950/40 p-4 min-w-[290px] max-w-[340px] text-stone-900 animate-in fade-in slide-in-from-top-1 duration-150"
+                              onMouseEnter={() => setPreviewOpenNavId(item.id)}
+                            >
+                              {/* Menu Title Bar */}
+                              <div className="flex items-center justify-between gap-3 pb-2.5 mb-2.5 border-b border-stone-150">
+                                <div className="flex items-center gap-1.5">
+                                  <GlobeIcon className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span className="text-[12px] font-bold text-stone-800 uppercase tracking-wider">
+                                    {item.label} Destinations
+                                  </span>
+                                </div>
+                                <span className="text-[11px] text-stone-400 font-medium">Explore Destinations</span>
+                              </div>
+
+                              {/* Column Heading */}
+                              <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-indigo-600 mb-2 flex items-center gap-1">
+                                <MapPinIcon className="w-3 h-3 text-indigo-600 shrink-0" />
+                                <span>{item.columns?.[0]?.heading || 'POPULAR GROUP EXPEDITIONS'}</span>
+                              </div>
+
+                              {/* Tours List */}
+                              <ul className="space-y-0.5 max-h-[320px] overflow-y-auto pr-1">
+                                {(popularExpeditions.length > 0 ? popularExpeditions : (item.columns?.[0]?.links || [])).map((tour, idx) => (
+                                  <li key={tour.label + idx}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        addNotification?.({
+                                          type: 'info',
+                                          message: `Preview Click: Opens Expedition "${tour.label}" details`
+                                        })
+                                      }}
+                                      className="text-[13px] text-stone-700 hover:text-indigo-600 hover:bg-indigo-50/80 transition-all py-1.5 px-2 rounded-lg block w-full text-left font-normal hover:font-medium leading-snug whitespace-normal break-words cursor-pointer"
+                                      title={tour.label}
+                                    >
+                                      {tour.label}
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Header Right CTA */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => addNotification?.({ type: 'info', message: 'Preview Click: Opens Booking / Inquiry modal' })}
+                      className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 rounded-full text-xs font-bold transition-all hover:scale-105 shadow-sm cursor-pointer"
+                    >
+                      Book Now
+                    </button>
+                  </div>
+                </div>
+
+                {/* Preview Canvas Area (Shows Split MegaMenu or Hero Simulation) */}
+                <div className="flex-1 p-4 sm:p-6 overflow-y-auto flex flex-col items-center justify-start min-h-[380px] max-h-[520px]">
+                  {/* Split Mega Menu Simulation (India / International) */}
+                  {(() => {
+                    const activeItem = menu.find(i => i.id === previewOpenNavId && i.type === 'megamenu')
+                    if (!activeItem) return null
+
+                    const activeContinent = activeItem.continents?.find(c => c.id === previewActiveContinentId) || activeItem.continents?.[0]
+
+                    return (
+                      <div className="bg-white border border-stone-200/90 rounded-2xl shadow-2xl shadow-stone-950/40 overflow-hidden w-full max-w-4xl max-h-[460px] flex flex-col text-stone-900 animate-in fade-in slide-in-from-top-1 duration-150">
+                        {/* Header Title Bar */}
+                        <div className="flex items-center justify-between px-5 py-2.5 bg-stone-50 border-b border-stone-200/80 shrink-0">
+                          <div className="flex items-center gap-2">
+                            <GlobeIcon className="w-4 h-4 text-amber-600" />
+                            <span className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                              {activeItem.label} Destinations
                             </span>
-                            <h4 className="font-bold text-sm text-stone-900 mt-2">{h.title}</h4>
-                            <p className="text-xs text-stone-500 mt-0.5">Destination: {h.destination}</p>
                           </div>
-                          <span className="text-xs text-amber-600 font-semibold mt-3 flex items-center gap-1">
-                            Explore Tour &rarr;
+                          <span className="text-[11px] text-stone-400 font-semibold">
+                            Hover continent to explore destinations
                           </span>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
-                {/* Link View */}
-                {selectedTopItem?.type === 'link' && (
-                  <div className="mt-4 bg-white rounded-2xl overflow-hidden shadow-2xl p-8 text-stone-900 flex-1 min-h-[380px] max-h-[550px] flex flex-col items-center justify-center text-center">
-                    <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-2xl text-amber-600 mb-3 shadow-sm">
-                      🔗
+                        {/* Main Split Body: Left Continents Sidebar + Right Countries/Cities Grid */}
+                        <div className="flex flex-1 min-h-0 overflow-hidden">
+                          {/* Left Sidebar */}
+                          <div className="w-52 sm:w-56 shrink-0 bg-[#f4f6fa] border-r border-stone-200/90 py-2 flex flex-col overflow-y-auto min-h-0">
+                            {activeItem.continents?.filter(c => c.visible !== false).map((cont) => {
+                              const isActive = cont.id === (activeContinent?.id || previewActiveContinentId)
+                              return (
+                                <button
+                                  key={cont.id}
+                                  onMouseEnter={() => setPreviewActiveContinentId(cont.id)}
+                                  onClick={() => setPreviewActiveContinentId(cont.id)}
+                                  className={`w-full text-left px-4 py-2.5 text-[13.5px] font-semibold flex items-center justify-between transition-all cursor-pointer ${
+                                    isActive
+                                      ? 'bg-white text-stone-900 border-l-4 border-amber-500 shadow-xs pl-3 font-bold'
+                                      : 'text-stone-700 hover:bg-stone-100 hover:text-stone-900'
+                                  }`}
+                                >
+                                  <span>{cont.name}</span>
+                                  <ChevronRightIcon
+                                    className={`w-4 h-4 transition-transform ${
+                                      isActive ? 'text-amber-600 font-bold' : 'text-stone-400'
+                                    }`}
+                                  />
+                                </button>
+                              )
+                            })}
+                          </div>
+
+                          {/* Right Panel */}
+                          <div className="flex-1 bg-white p-5 md:p-6 overflow-y-auto min-h-0">
+                            {activeContinent && (
+                              <div className="space-y-4">
+                                <div className="pb-2 border-b border-stone-100">
+                                  <button
+                                    onClick={() => {
+                                      addNotification?.({
+                                        type: 'info',
+                                        message: `Preview Click: Filters Destinations by "${activeContinent.allLink?.label || activeContinent.name}"`
+                                      })
+                                    }}
+                                    className="group text-[14px] font-extrabold text-stone-900 hover:text-amber-600 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                                  >
+                                    <span>{activeContinent.allLink?.label || `All of ${activeContinent.name}`}</span>
+                                    <ChevronRightIcon className="w-4 h-4 group-hover:translate-x-0.5 transition-transform text-amber-600" />
+                                  </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 items-start">
+                                  {activeContinent.countries?.filter(c => c.visible !== false).map((country) => (
+                                    <div key={country.name} className="space-y-1.5">
+                                      <button
+                                        onClick={() => {
+                                          addNotification?.({
+                                            type: 'info',
+                                            message: `Preview Click: Filters Destinations by country "${country.name}"`
+                                          })
+                                        }}
+                                        className="text-[13px] font-bold text-stone-900 hover:text-amber-600 transition-colors pb-1 border-b border-stone-200/80 block text-left w-full cursor-pointer"
+                                      >
+                                        {country.name}
+                                      </button>
+                                      {country.cities && country.cities.length > 0 && (
+                                        <div className="space-y-1">
+                                          {country.cities.filter(city => typeof city === 'object' ? city.visible !== false : true).map((city, idx) => {
+                                            const cityLabel = typeof city === 'string' ? city : city.label
+                                            const searchVal = typeof city === 'string' ? city : (city.search || city.label)
+                                            return (
+                                              <button
+                                                key={cityLabel + idx}
+                                                onClick={() => {
+                                                  addNotification?.({
+                                                    type: 'info',
+                                                    message: `Preview Click: Filters Destinations by city "${searchVal}"`
+                                                  })
+                                                }}
+                                                className="text-[12px] text-stone-600 hover:text-stone-950 block text-left w-full py-0.5 transition-colors font-medium cursor-pointer hover:underline truncate"
+                                              >
+                                                {cityLabel}
+                                              </button>
+                                            )
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Direct Route Links (Corporate Travel, Stories & Gallery) */}
+                  {(() => {
+                    const activeItem = menu.find(i => i.id === previewOpenNavId && i.type === 'link')
+                    if (!activeItem) return null
+
+                    return (
+                      <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center text-stone-900 shadow-xl border border-stone-200 animate-in zoom-in-95 duration-150 my-auto">
+                        <div className="w-12 h-12 rounded-full bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto mb-3 text-xl shadow-xs">
+                          🔗
+                        </div>
+                        <h4 className="font-bold text-base text-stone-900">{activeItem.label}</h4>
+                        <p className="text-xs text-stone-500 mt-1">
+                          Direct Page Route: <code className="font-mono bg-stone-100 text-amber-700 px-2 py-0.5 rounded font-semibold">/{activeItem.page || activeItem.id}</code>
+                        </p>
+                        <p className="text-xs text-stone-400 mt-3">
+                          On the customer site, clicking &quot;{activeItem.label}&quot; takes travelers directly to the full-page surface.
+                        </p>
+                      </div>
+                    )
+                  })()}
+
+                  {/* Empty/Neutral Canvas Prompt when Group Tours dropdown is open or no split megamenu is active */}
+                  {(!previewOpenNavId || menu.find(i => i.id === previewOpenNavId)?.type === 'dropdown') && (
+                    <div className="my-auto text-center p-8 bg-white/5 rounded-2xl border border-white/10 max-w-md">
+                      <div className="text-amber-400 text-2xl mb-2">✨</div>
+                      <h4 className="text-sm font-bold text-white tracking-wide">
+                        {previewOpenNavId === 'group_tours' ? 'Group Tours Dropdown Active Above' : 'Interactive Navbar Ready'}
+                      </h4>
+                      <p className="text-xs text-stone-400 mt-1">
+                        {previewOpenNavId === 'group_tours'
+                          ? 'The floating expeditions menu above matches the live customer site (Image 3).'
+                          : 'Hover or click India, International, Group Tours, or Corporate Travel in the bar above to test their live navigation behaviors.'}
+                      </p>
                     </div>
-                    <h4 className="font-display font-bold text-lg text-stone-900">{selectedTopItem.label}</h4>
-                    <p className="text-xs text-stone-500 mt-1 max-w-sm">
-                      Direct Route Link: <code className="bg-stone-100 text-amber-700 px-2 py-0.5 rounded font-mono font-semibold">/{selectedTopItem.page || selectedTopItem.route || 'corporate'}</code>
-                    </p>
-                    <div className="mt-5 p-4 bg-stone-50 rounded-2xl border border-stone-200/80 text-xs text-stone-600 max-w-md text-left space-y-1">
-                      <p className="font-semibold text-stone-800">Customer Site Behavior:</p>
-                      <p>Clicking <strong>&quot;{selectedTopItem.label}&quot;</strong> directly routes visitors to the {selectedTopItem.label} surface with full page details.</p>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
 
@@ -2275,7 +2477,8 @@ export default function NavigationPage({ token, addNotification, user }) {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── MODAL: Add / Edit Tour Highlight ── */}
@@ -2367,5 +2570,38 @@ export default function NavigationPage({ token, addNotification, user }) {
         document.body
       )}
     </div>
+  )
+}
+
+function GlobeIcon({ className = 'w-3.5 h-3.5' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function MapPinIcon({ className = 'w-3 h-3' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  )
+}
+
+function ChevronDownIcon({ className = 'w-3.5 h-3.5' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+    </svg>
+  )
+}
+
+function ChevronRightIcon({ className = 'w-3.5 h-3.5' }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+    </svg>
   )
 }
