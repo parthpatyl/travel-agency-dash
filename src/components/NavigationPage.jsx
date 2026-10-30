@@ -897,29 +897,40 @@ export default function NavigationPage({ token, addNotification, user }) {
   return (
     <div className="space-y-6 pb-20">
       {/* ── Page Header & Action Controls ── */}
-      <div className="bg-white rounded-2xl p-6 border border-stone-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-xl p-5 border border-stone-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-serif font-bold text-stone-900 tracking-tight">Navigation & Mega Menu CMS</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-lg font-semibold text-stone-900 tracking-tight">Navigation & Mega Menu CMS</h1>
             {isDirty && (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                Unsaved Changes
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200/80">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                Unsaved changes
               </span>
             )}
           </div>
-          <p className="text-stone-500 text-sm mt-1">
-            Manage top-level navigation links, mega menu regions, destination columns, and search keyword filters with instant live preview.
+          <p className="text-stone-500 text-xs mt-0.5">
+            Configure navigation tabs, nested dropdown options, and multi-region mega menus.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowResetConfirm(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-stone-500 hover:text-rose-600 hover:bg-rose-50/60 transition-colors cursor-pointer"
+          >
+            <svg className="w-3.5 h-3.5 text-stone-400 group-hover:text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Reset Defaults
+          </button>
+
           <button
             type="button"
             onClick={() => setShowPreview(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium text-stone-700 bg-stone-100 hover:bg-stone-200 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 shadow-xs transition-colors cursor-pointer"
           >
-            <svg className="w-4 h-4 text-stone-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3.5 h-3.5 text-stone-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
@@ -928,28 +939,17 @@ export default function NavigationPage({ token, addNotification, user }) {
 
           <button
             type="button"
-            onClick={() => setShowResetConfirm(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 transition-colors cursor-pointer"
-          >
-            <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Reset Defaults
-          </button>
-
-          <button
-            type="button"
             onClick={handleSave}
             disabled={saving || !isDirty}
-            className={`inline-flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold shadow-xs transition-all cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer ${
               isDirty && !saving
-                ? 'bg-amber-600 hover:bg-amber-700 text-white active:scale-95'
-                : 'bg-stone-200 text-stone-400 cursor-not-allowed'
+                ? 'bg-amber-600 hover:bg-amber-700 text-white active:scale-98'
+                : 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed'
             }`}
           >
             {saving ? (
               <>
-                <svg className="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -957,7 +957,7 @@ export default function NavigationPage({ token, addNotification, user }) {
               </>
             ) : (
               <>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 Publish Changes
@@ -967,18 +967,18 @@ export default function NavigationPage({ token, addNotification, user }) {
         </div>
       </div>
 
-      {/* ── 3-Column Visual CMS Hierarchy ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* ── 3-Column Visual CMS Hierarchy (Unified Minimal Workbench) ── */}
+      <div className="bg-white rounded-xl border border-stone-200/90 shadow-2xs overflow-hidden grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-stone-200/90 items-stretch min-h-[620px]">
         {/* ── COLUMN 1: Top Bar Navigation Items (width: 3 cols) ── */}
-        <div className="lg:col-span-3 bg-white rounded-2xl border border-stone-200/80 shadow-xs p-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+        <div className="lg:col-span-3 p-4 flex flex-col gap-3 bg-white">
+          <div className="flex items-center justify-between pb-2.5 border-b border-stone-100">
             <div>
-              <h2 className="text-sm font-bold text-stone-900 uppercase tracking-wider">Top Bar Tabs</h2>
-              <span className="text-xs text-stone-400">{menu.length} total items</span>
+              <h2 className="text-xs font-semibold text-stone-900 uppercase tracking-wider">Top Bar Tabs</h2>
+              <span className="text-[11px] text-stone-400">{menu.length} total items</span>
             </div>
             <button
               onClick={() => setAddTopModalOpen(true)}
-              className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 transition-colors"
+              className="p-1 rounded-md text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"
               title="Add Navbar Item"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -987,7 +987,7 @@ export default function NavigationPage({ token, addNotification, user }) {
             </button>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1 overflow-y-auto max-h-[560px] pr-0.5">
             {menu.map((item, idx) => {
               const isSelected = item.id === selectedTopItemId
               const isVis = item.visible !== false
@@ -995,37 +995,36 @@ export default function NavigationPage({ token, addNotification, user }) {
                 <div
                   key={item.id}
                   onClick={() => handleSelectTopItem(item.id)}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 group ${
+                  className={`px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center justify-between gap-2 group ${
                     isSelected
-                      ? 'border-amber-500 bg-amber-50/40 shadow-xs'
-                      : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50/50'
+                      ? 'bg-stone-100 text-stone-900 shadow-2xs'
+                      : 'hover:bg-stone-50 text-stone-600'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${isVis ? 'bg-emerald-500' : 'bg-stone-300'}`} />
-                    <div className="truncate">
-                      <div className="font-semibold text-stone-800 text-sm truncate">{item.label}</div>
-                      <div className="text-[11px] text-stone-400 flex items-center gap-1.5 mt-0.5">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                          item.type === 'link'
-                            ? 'bg-sky-100 text-sky-800 border border-sky-200'
-                            : item.type === 'dropdown'
-                            ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
-                            : 'bg-amber-100 text-amber-800 border border-amber-200'
-                        }`}>
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isVis ? 'bg-emerald-500' : 'bg-stone-300'}`} />
+                    <div className="truncate min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs truncate ${isSelected ? 'font-semibold text-stone-900' : 'text-stone-700'}`}>
+                          {item.label}
+                        </span>
+                        <span className="text-[10px] font-medium text-stone-400 bg-stone-100 px-1 py-0.2 rounded shrink-0">
                           {item.type === 'link' ? 'Link' : item.type === 'dropdown' ? 'Dropdown' : 'Mega Menu'}
                         </span>
-                        {item.type === 'megamenu' && <span>• {item.continents?.length || 0} regions</span>}
-                        {item.type === 'dropdown' && <span>• {getHighlights(item).length} options</span>}
+                      </div>
+                      <div className="text-[10px] text-stone-400 mt-0.5">
+                        {item.type === 'megamenu' && `${item.continents?.length || 0} regions`}
+                        {item.type === 'dropdown' && `${getHighlights(item).length} options`}
+                        {item.type === 'link' && `/${item.page || item.id}`}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()}>
                     <button
                       type="button"
                       onClick={() => toggleTopItemVisibility(item.id)}
-                      className={`p-1 rounded hover:bg-stone-200/60 transition-colors ${isVis ? 'text-stone-500' : 'text-stone-300'}`}
+                      className={`p-1 rounded hover:bg-stone-200/70 transition-colors ${isVis ? 'text-stone-400 hover:text-stone-700' : 'text-stone-300'}`}
                       title={isVis ? 'Hide from navigation' : 'Show in navigation'}
                     >
                       {isVis ? (
@@ -1043,7 +1042,8 @@ export default function NavigationPage({ token, addNotification, user }) {
                       type="button"
                       disabled={idx === 0}
                       onClick={() => moveTopItem(idx, -1)}
-                      className="p-1 rounded text-stone-400 hover:text-stone-700 hover:bg-stone-200/60 disabled:opacity-20"
+                      className="p-1 rounded text-stone-400 hover:text-stone-700 hover:bg-stone-200/70 disabled:opacity-20 cursor-pointer"
+                      title="Move Up"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -1053,7 +1053,8 @@ export default function NavigationPage({ token, addNotification, user }) {
                       type="button"
                       disabled={idx === menu.length - 1}
                       onClick={() => moveTopItem(idx, 1)}
-                      className="p-1 rounded text-stone-400 hover:text-stone-700 hover:bg-stone-200/60 disabled:opacity-20"
+                      className="p-1 rounded text-stone-400 hover:text-stone-700 hover:bg-stone-200/70 disabled:opacity-20 cursor-pointer"
+                      title="Move Down"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -1062,7 +1063,7 @@ export default function NavigationPage({ token, addNotification, user }) {
                     <button
                       type="button"
                       onClick={() => deleteTopItem(item.id)}
-                      className="p-1 rounded text-rose-400 hover:text-rose-600 hover:bg-rose-50"
+                      className="p-1 rounded text-stone-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
                       title="Delete Navbar Item"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1077,13 +1078,13 @@ export default function NavigationPage({ token, addNotification, user }) {
         </div>
 
         {/* ── COLUMN 2: Sidebar Regions / Categories (width: 3 cols) ── */}
-        <div className="lg:col-span-3 bg-white rounded-2xl border border-stone-200/80 shadow-xs p-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+        <div className="lg:col-span-3 p-4 flex flex-col gap-3 bg-stone-50/40">
+          <div className="flex items-center justify-between pb-2.5 border-b border-stone-200/70">
             <div>
-              <h2 className="text-sm font-bold text-stone-900 uppercase tracking-wider">
+              <h2 className="text-xs font-semibold text-stone-900 uppercase tracking-wider">
                 {selectedTopItem?.type === 'megamenu' ? 'Regions / Tabs' : 'Content Details'}
               </h2>
-              <span className="text-xs text-stone-400">
+              <span className="text-[11px] text-stone-400">
                 {selectedTopItem?.label} ({selectedTopItem?.type || 'megamenu'})
               </span>
             </div>
@@ -1091,7 +1092,7 @@ export default function NavigationPage({ token, addNotification, user }) {
             {selectedTopItem?.type === 'megamenu' && (
               <button
                 onClick={() => setAddRegionModalOpen(true)}
-                className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 transition-colors"
+                className="p-1 rounded-md text-stone-500 hover:text-stone-900 hover:bg-stone-200/60 transition-colors cursor-pointer"
                 title="Add Region"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1101,20 +1102,20 @@ export default function NavigationPage({ token, addNotification, user }) {
             )}
           </div>
 
-          {/* ── TAB TYPE SWITCHER (Switch between Direct Link, Dropdown, Mega Menu) ── */}
+          {/* ── TAB TYPE SWITCHER (Linear/Apple Segmented Control) ── */}
           {selectedTopItem && (
-            <div className="bg-stone-50 p-2.5 rounded-xl border border-stone-200/80 space-y-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-stone-600 block">
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-stone-400 block">
                 Tab Menu Type
               </label>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="bg-stone-200/70 p-0.5 rounded-lg grid grid-cols-3 gap-0.5 border border-stone-200">
                 <button
                   type="button"
                   onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'link')}
-                  className={`h-9 px-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center text-center whitespace-nowrap cursor-pointer ${
+                  className={`h-7 px-2 rounded-md text-xs font-medium transition-all flex items-center justify-center whitespace-nowrap cursor-pointer ${
                     selectedTopItem.type === 'link'
-                      ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
-                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100 hover:text-stone-900'
+                      ? 'bg-white text-stone-900 shadow-xs font-semibold'
+                      : 'text-stone-600 hover:text-stone-900'
                   }`}
                   title="Direct single-click navigation link (e.g. /corporate or /gallery)"
                 >
@@ -1123,10 +1124,10 @@ export default function NavigationPage({ token, addNotification, user }) {
                 <button
                   type="button"
                   onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'dropdown')}
-                  className={`h-9 px-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center text-center whitespace-nowrap cursor-pointer ${
+                  className={`h-7 px-2 rounded-md text-xs font-medium transition-all flex items-center justify-center whitespace-nowrap cursor-pointer ${
                     selectedTopItem.type === 'dropdown'
-                      ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
-                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100 hover:text-stone-900'
+                      ? 'bg-white text-stone-900 shadow-xs font-semibold'
+                      : 'text-stone-600 hover:text-stone-900'
                   }`}
                   title="Floating dropdown menu with customizable options / highlights"
                 >
@@ -1135,10 +1136,10 @@ export default function NavigationPage({ token, addNotification, user }) {
                 <button
                   type="button"
                   onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'megamenu')}
-                  className={`h-9 px-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center text-center whitespace-nowrap cursor-pointer ${
+                  className={`h-7 px-2 rounded-md text-xs font-medium transition-all flex items-center justify-center whitespace-nowrap cursor-pointer ${
                     selectedTopItem.type === 'megamenu'
-                      ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
-                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100 hover:text-stone-900'
+                      ? 'bg-white text-stone-900 shadow-xs font-semibold'
+                      : 'text-stone-600 hover:text-stone-900'
                   }`}
                   title="Multi-continent split mega menu with continents and countries grid"
                 >
@@ -1149,9 +1150,9 @@ export default function NavigationPage({ token, addNotification, user }) {
           )}
 
           {selectedTopItem?.type === 'megamenu' ? (
-            <div className="space-y-2">
+            <div className="space-y-1 overflow-y-auto max-h-[500px] pr-0.5">
               {(!selectedTopItem.continents || selectedTopItem.continents.length === 0) && (
-                <div className="p-4 rounded-xl border border-dashed border-stone-200 text-center text-xs text-stone-400">
+                <div className="p-4 rounded-lg border border-dashed border-stone-200 text-center text-xs text-stone-400">
                   No regions added yet. Click &quot;+&quot; to add one.
                 </div>
               )}
@@ -1162,24 +1163,27 @@ export default function NavigationPage({ token, addNotification, user }) {
                   <div
                     key={region.id}
                     onClick={() => setSelectedRegionId(region.id)}
-                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                    className={`px-3 py-2 rounded-lg transition-all cursor-pointer flex items-center justify-between gap-2 group ${
                       isSelected
-                        ? 'border-amber-500 bg-amber-50/40 shadow-xs'
-                        : 'border-stone-200 hover:border-stone-300 hover:bg-stone-50/50'
+                        ? 'bg-white text-stone-900 font-semibold shadow-2xs border border-stone-200/80'
+                        : 'hover:bg-stone-100/70 text-stone-600'
                     }`}
                   >
-                    <div className="truncate">
-                      <div className="font-semibold text-stone-800 text-sm truncate">{region.name}</div>
-                      <div className="text-[11px] text-stone-400">
+                    <div className="truncate min-w-0 flex-1">
+                      <div className={`text-xs truncate ${isSelected ? 'font-semibold text-stone-900' : 'text-stone-700'}`}>
+                        {region.name}
+                      </div>
+                      <div className="text-[10px] text-stone-400">
                         {region.countries?.length || 0} destination columns
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0" onClick={e => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={() => toggleRegionVisibility(region.id)}
-                        className={`p-1 rounded hover:bg-stone-200/60 ${isVis ? 'text-stone-500' : 'text-stone-300'}`}
+                        className={`p-1 rounded hover:bg-stone-200/70 ${isVis ? 'text-stone-400 hover:text-stone-700' : 'text-stone-300'}`}
+                        title={isVis ? 'Hide Region' : 'Show Region'}
                       >
                         {isVis ? (
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1196,7 +1200,8 @@ export default function NavigationPage({ token, addNotification, user }) {
                         type="button"
                         disabled={rIdx === 0}
                         onClick={() => moveRegion(rIdx, -1)}
-                        className="p-1 rounded text-stone-400 hover:text-stone-700 disabled:opacity-20"
+                        className="p-1 rounded text-stone-400 hover:text-stone-700 hover:bg-stone-200/70 disabled:opacity-20 cursor-pointer"
+                        title="Move Up"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
@@ -1206,7 +1211,8 @@ export default function NavigationPage({ token, addNotification, user }) {
                         type="button"
                         disabled={rIdx === selectedTopItem.continents.length - 1}
                         onClick={() => moveRegion(rIdx, 1)}
-                        className="p-1 rounded text-stone-400 hover:text-stone-700 disabled:opacity-20"
+                        className="p-1 rounded text-stone-400 hover:text-stone-700 hover:bg-stone-200/70 disabled:opacity-20 cursor-pointer"
+                        title="Move Down"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -1215,7 +1221,8 @@ export default function NavigationPage({ token, addNotification, user }) {
                       <button
                         type="button"
                         onClick={() => deleteRegion(region.id)}
-                        className="p-1 rounded text-rose-400 hover:text-rose-600 hover:bg-rose-50"
+                        className="p-1 rounded text-stone-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                        title="Delete Region"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1227,9 +1234,9 @@ export default function NavigationPage({ token, addNotification, user }) {
               })}
             </div>
           ) : selectedTopItem?.type === 'link' ? (
-            <div className="space-y-4 p-4 rounded-xl bg-stone-50 border border-stone-200">
+            <div className="space-y-3 p-3 rounded-lg bg-white border border-stone-200/80">
               <div>
-                <label className="text-xs font-semibold text-stone-700">Item Label</label>
+                <label className="text-xs font-medium text-stone-700">Item Label</label>
                 <input
                   type="text"
                   value={selectedTopItem.label || ''}
@@ -1237,11 +1244,11 @@ export default function NavigationPage({ token, addNotification, user }) {
                     const val = e.target.value
                     updateMenu(prev => prev.map(item => item.id === selectedTopItem.id ? { ...item, label: val } : item))
                   }}
-                  className="w-full mt-1 px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm"
+                  className="w-full mt-1 px-2.5 py-1.5 bg-white border border-stone-200 rounded-md text-xs focus:ring-1 focus:ring-amber-500"
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold text-stone-700">Target Page Route</label>
+                <label className="text-xs font-medium text-stone-700">Target Page Route</label>
                 <input
                   type="text"
                   value={selectedTopItem.page || ''}
@@ -1250,26 +1257,23 @@ export default function NavigationPage({ token, addNotification, user }) {
                     updateMenu(prev => prev.map(item => item.id === selectedTopItem.id ? { ...item, page: val } : item))
                   }}
                   placeholder="e.g. corporate, gallery, giftcards"
-                  className="w-full mt-1 px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm"
+                  className="w-full mt-1 px-2.5 py-1.5 bg-white border border-stone-200 rounded-md text-xs focus:ring-1 focus:ring-amber-500"
                 />
               </div>
-              <div className="pt-3 border-t border-stone-200/80">
-                <p className="text-[11px] text-stone-500 leading-relaxed mb-2">
-                  Want to provide dropdown options for travelers when they hover or click &quot;{selectedTopItem.label}&quot;?
-                </p>
+              <div className="pt-2 border-t border-stone-100">
                 <button
                   type="button"
                   onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'dropdown')}
-                  className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-xl text-xs transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                  className="w-full py-1.5 px-3 bg-stone-100 hover:bg-stone-200 text-stone-800 font-medium rounded-md text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  <span>Switch to Dropdown with Options</span>
+                  <span>Switch to Dropdown Options</span>
                 </button>
               </div>
             </div>
           ) : (
-            <div className="space-y-4 p-4 rounded-xl bg-stone-50 border border-stone-200">
+            <div className="space-y-3 p-3 rounded-lg bg-white border border-stone-200/80">
               <div>
-                <label className="text-xs font-semibold text-stone-700">Dropdown Menu Title</label>
+                <label className="text-xs font-medium text-stone-700">Dropdown Title</label>
                 <input
                   type="text"
                   value={selectedTopItem.label || ''}
@@ -1277,12 +1281,12 @@ export default function NavigationPage({ token, addNotification, user }) {
                     const val = e.target.value
                     updateMenu(prev => prev.map(item => item.id === selectedTopItem.id ? { ...item, label: val } : item))
                   }}
-                  className="w-full mt-1 px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm"
+                  className="w-full mt-1 px-2.5 py-1.5 bg-white border border-stone-200 rounded-md text-xs focus:ring-1 focus:ring-amber-500"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-stone-700">Section Subheading</label>
+                <label className="text-xs font-medium text-stone-700">Subheading</label>
                 <input
                   type="text"
                   value={selectedTopItem.columns?.[0]?.heading || 'Popular Group Expeditions'}
@@ -1296,13 +1300,13 @@ export default function NavigationPage({ token, addNotification, user }) {
                     }))
                   }}
                   placeholder="e.g. Popular Group Expeditions"
-                  className="w-full mt-1 px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm"
+                  className="w-full mt-1 px-2.5 py-1.5 bg-white border border-stone-200 rounded-md text-xs focus:ring-1 focus:ring-amber-500"
                 />
               </div>
 
-              <div className="pt-2 border-t border-stone-200">
+              <div className="pt-2 border-t border-stone-100">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-stone-800">
+                  <span className="text-xs font-semibold text-stone-800">
                     Tour Highlights ({getHighlights(selectedTopItem).length})
                   </span>
                   <button
@@ -1312,38 +1316,35 @@ export default function NavigationPage({ token, addNotification, user }) {
                       setHighlightForm({ title: '', region: 'Europe', destination: '', active: true })
                       setHighlightModalOpen(true)
                     }}
-                    className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-[11px] font-bold cursor-pointer"
+                    className="px-2 py-0.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded text-[11px] font-medium cursor-pointer"
                   >
                     + Add Highlight
                   </button>
                 </div>
-                <p className="text-[11px] text-stone-500 mb-3">
-                  Administrators can view, edit, add, remove, and reorder tour highlights for active packages/dropdowns.
-                </p>
 
-                <div className="space-y-2 max-h-[360px] overflow-y-auto">
+                <div className="space-y-1.5 max-h-[320px] overflow-y-auto">
                   {getHighlights(selectedTopItem).length === 0 ? (
-                    <div className="p-3 text-center text-xs text-stone-400 border border-dashed rounded-lg">
-                      No tour highlights configured. Click &quot;+ Add Highlight&quot; to create one.
+                    <div className="p-3 text-center text-xs text-stone-400 border border-dashed rounded-md">
+                      No tour highlights. Click &quot;+ Add Highlight&quot;.
                     </div>
                   ) : (
                     getHighlights(selectedTopItem).map((h, hIdx) => (
                       <div
                         key={h.id || hIdx}
-                        className={`p-2.5 rounded-lg border flex items-center justify-between gap-2 text-xs transition-all ${
-                          h.active ? 'bg-white border-stone-200 shadow-xs' : 'bg-stone-100 border-stone-200 opacity-60'
+                        className={`p-2 rounded-md border flex items-center justify-between gap-2 text-xs transition-all group ${
+                          h.active ? 'bg-white border-stone-200/80 shadow-2xs' : 'bg-stone-50 border-stone-200/50 opacity-60'
                         }`}
                       >
                         <div className="truncate flex-1">
-                          <div className="font-semibold text-stone-800 truncate">{h.title}</div>
+                          <div className="font-medium text-stone-800 truncate">{h.title}</div>
                           <div className="text-[10px] text-stone-400 truncate">{h.region} • {h.destination}</div>
                         </div>
 
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
                           <button
                             type="button"
                             onClick={() => toggleHighlightActive(h.id)}
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer ${
+                            className={`px-1 py-0.2 rounded text-[9px] font-medium cursor-pointer ${
                               h.active ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
                             }`}
                             title={h.active ? 'Click to deactivate' : 'Click to activate'}
@@ -1354,7 +1355,7 @@ export default function NavigationPage({ token, addNotification, user }) {
                             type="button"
                             disabled={hIdx === 0}
                             onClick={() => moveHighlight(hIdx, -1)}
-                            className="p-1 rounded text-stone-400 hover:text-stone-700 disabled:opacity-20 cursor-pointer"
+                            className="p-0.5 rounded text-stone-400 hover:text-stone-700 disabled:opacity-20 cursor-pointer"
                             title="Move Up"
                           >
                             ▲
@@ -1363,7 +1364,7 @@ export default function NavigationPage({ token, addNotification, user }) {
                             type="button"
                             disabled={hIdx === getHighlights(selectedTopItem).length - 1}
                             onClick={() => moveHighlight(hIdx, 1)}
-                            className="p-1 rounded text-stone-400 hover:text-stone-700 disabled:opacity-20 cursor-pointer"
+                            className="p-0.5 rounded text-stone-400 hover:text-stone-700 disabled:opacity-20 cursor-pointer"
                             title="Move Down"
                           >
                             ▼
@@ -1380,7 +1381,7 @@ export default function NavigationPage({ token, addNotification, user }) {
                               })
                               setHighlightModalOpen(true)
                             }}
-                            className="p-1 rounded text-stone-400 hover:text-amber-700 cursor-pointer"
+                            className="p-0.5 rounded text-stone-400 hover:text-stone-700 cursor-pointer"
                             title="Edit"
                           >
                             ✎
@@ -1388,7 +1389,7 @@ export default function NavigationPage({ token, addNotification, user }) {
                           <button
                             type="button"
                             onClick={() => deleteHighlight(h.id)}
-                            className="p-1 rounded text-rose-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                            className="p-0.5 rounded text-stone-400 hover:text-rose-600 cursor-pointer"
                             title="Delete"
                           >
                             ✕
@@ -1404,17 +1405,17 @@ export default function NavigationPage({ token, addNotification, user }) {
         </div>
 
         {/* ── COLUMN 3: Destination Columns & Cities (width: 6 cols) ── */}
-        <div className="lg:col-span-6 bg-white rounded-2xl border border-stone-200/80 shadow-xs p-5 flex flex-col gap-4">
-          <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+        <div className="lg:col-span-6 p-5 flex flex-col gap-4 bg-white">
+          <div className="flex items-center justify-between pb-2.5 border-b border-stone-100">
             <div>
-              <h2 className="text-sm font-bold text-stone-900 uppercase tracking-wider">
+              <h2 className="text-xs font-semibold text-stone-900 uppercase tracking-wider">
                 {selectedTopItem?.type === 'megamenu'
                   ? (selectedRegion ? `Destinations in ${selectedRegion.name}` : 'Destination Columns')
                   : selectedTopItem?.type === 'dropdown'
                   ? `${selectedTopItem.label} Dropdown Options`
                   : 'Direct Link Route'}
               </h2>
-              <span className="text-xs text-stone-400">
+              <span className="text-[11px] text-stone-400">
                 {selectedTopItem?.type === 'megamenu'
                   ? 'Filter by search keywords or configure individual city cards'
                   : selectedTopItem?.type === 'dropdown'
@@ -1426,7 +1427,7 @@ export default function NavigationPage({ token, addNotification, user }) {
             {selectedTopItem?.type === 'megamenu' && selectedRegion && (
               <button
                 onClick={() => setAddColumnModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-medium transition-colors cursor-pointer"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1443,7 +1444,7 @@ export default function NavigationPage({ token, addNotification, user }) {
                   setHighlightForm({ title: '', region: 'Europe', destination: '', active: true })
                   setHighlightModalOpen(true)
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-stone-900 hover:bg-stone-800 text-white text-xs font-medium transition-all shadow-xs cursor-pointer"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1454,67 +1455,58 @@ export default function NavigationPage({ token, addNotification, user }) {
           </div>
 
           {selectedTopItem?.type === 'link' ? (
-            <div className="p-8 text-center bg-stone-50 rounded-2xl border border-stone-200/80 my-auto">
-              <div className="w-14 h-14 rounded-full bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center mx-auto mb-3 shadow-xs">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="p-8 text-center bg-stone-50/50 rounded-xl border border-stone-200/80 my-auto">
+              <div className="w-10 h-10 rounded-full bg-stone-100 text-stone-600 border border-stone-200 flex items-center justify-center mx-auto mb-3 shadow-2xs">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                 </svg>
               </div>
-              <h3 className="font-bold text-stone-900 text-base">{selectedTopItem.label} is currently a Direct Link</h3>
-              <p className="text-xs text-stone-500 max-w-md mx-auto mt-1 leading-relaxed">
-                Travelers clicking this tab are routed directly to <code className="bg-white px-2 py-0.5 rounded font-mono text-sky-700 font-semibold border border-stone-200">/{selectedTopItem.page || selectedTopItem.id}</code>.
+              <h3 className="font-semibold text-stone-900 text-sm">{selectedTopItem.label} is a Direct Link</h3>
+              <p className="text-xs text-stone-500 max-w-sm mx-auto mt-1 leading-relaxed">
+                Travelers clicking this tab are routed directly to <code className="bg-white px-1.5 py-0.5 rounded font-mono text-stone-800 font-medium border border-stone-200">/{selectedTopItem.page || selectedTopItem.id}</code>.
               </p>
-              <div className="mt-5">
+              <div className="mt-4">
                 <button
                   type="button"
                   onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'dropdown')}
-                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer inline-flex items-center gap-2 transition-all hover:scale-102"
+                  className="px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-lg text-xs font-medium transition-all cursor-pointer"
                 >
-                  <span>Switch to Dropdown Menu &amp; Add Options</span>
+                  Switch to Dropdown Menu &amp; Add Options
                 </button>
               </div>
             </div>
           ) : selectedTopItem?.type === 'dropdown' ? (
-            <div className="space-y-4">
-              <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-200/80 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-amber-950">{selectedTopItem.label} Dropdown Options CMS</h3>
-                  <p className="text-xs text-amber-700 font-light mt-0.5">
-                    Options and tour highlights configured here persist via Navigation API and reflect dynamically across the customer site.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 {getHighlights(selectedTopItem).map((h, hIdx) => (
                   <div
                     key={h.id || hIdx}
-                    className={`rounded-xl border p-4 flex flex-col justify-between gap-3 transition-all ${
-                      h.active ? 'bg-white border-stone-200 shadow-xs' : 'bg-stone-50 border-stone-200 opacity-60'
+                    className={`rounded-lg border p-3 flex flex-col justify-between gap-2.5 transition-all group ${
+                      h.active ? 'bg-white border-stone-200 shadow-2xs' : 'bg-stone-50 border-stone-200/60 opacity-60'
                     }`}
                   >
                     <div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          h.active ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
+                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-medium ${
+                          h.active ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'
                         }`}>
-                          {h.active ? 'Live / Active' : 'Hidden'}
+                          {h.active ? 'Active' : 'Hidden'}
                         </span>
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        <span className="text-[10px] text-stone-400 bg-stone-50 px-1.5 py-0.2 rounded border border-stone-200/60">
                           {h.region}
                         </span>
                       </div>
-                      <h4 className="font-bold text-stone-900 text-sm mt-2">{h.title}</h4>
-                      <p className="text-xs text-stone-500 mt-1">Destination: <strong className="text-stone-700">{h.destination}</strong></p>
+                      <h4 className="font-semibold text-stone-900 text-xs mt-1.5">{h.title}</h4>
+                      <p className="text-[11px] text-stone-400 mt-0.5">Filter: <span className="text-stone-600 font-medium">{h.destination}</span></p>
                     </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-stone-100">
-                      <div className="flex items-center gap-1">
+                    <div className="flex items-center justify-between pt-2 border-t border-stone-100 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-0.5">
                         <button
                           type="button"
                           disabled={hIdx === 0}
                           onClick={() => moveHighlight(hIdx, -1)}
-                          className="px-2 py-1 rounded bg-stone-100 text-stone-600 hover:bg-stone-200 disabled:opacity-30 text-xs font-bold cursor-pointer"
+                          className="px-1.5 py-0.5 rounded text-stone-400 hover:text-stone-700 hover:bg-stone-100 disabled:opacity-20 text-[10px] cursor-pointer"
                           title="Move Up"
                         >
                           ▲
@@ -1523,20 +1515,20 @@ export default function NavigationPage({ token, addNotification, user }) {
                           type="button"
                           disabled={hIdx === getHighlights(selectedTopItem).length - 1}
                           onClick={() => moveHighlight(hIdx, 1)}
-                          className="px-2 py-1 rounded bg-stone-100 text-stone-600 hover:bg-stone-200 disabled:opacity-30 text-xs font-bold cursor-pointer"
+                          className="px-1.5 py-0.5 rounded text-stone-400 hover:text-stone-700 hover:bg-stone-100 disabled:opacity-20 text-[10px] cursor-pointer"
                           title="Move Down"
                         >
                           ▼
                         </button>
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1">
                         <button
                           type="button"
                           onClick={() => toggleHighlightActive(h.id)}
-                          className="px-2.5 py-1 text-xs font-medium rounded-lg text-stone-600 hover:bg-stone-100 border border-stone-200 cursor-pointer"
+                          className="px-2 py-0.5 text-[11px] rounded text-stone-500 hover:bg-stone-100 cursor-pointer"
                         >
-                          {h.active ? 'Deactivate' : 'Activate'}
+                          {h.active ? 'Hide' : 'Show'}
                         </button>
                         <button
                           type="button"
@@ -1550,14 +1542,14 @@ export default function NavigationPage({ token, addNotification, user }) {
                             })
                             setHighlightModalOpen(true)
                           }}
-                          className="px-2.5 py-1 text-xs font-bold rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors cursor-pointer"
+                          className="px-2 py-0.5 text-[11px] font-medium rounded text-stone-700 hover:bg-stone-100 cursor-pointer"
                         >
                           Edit
                         </button>
                         <button
                           type="button"
                           onClick={() => deleteHighlight(h.id)}
-                          className="px-2 py-1 text-xs font-bold rounded-lg text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          className="px-2 py-0.5 text-[11px] rounded text-stone-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
                           title="Remove Highlight"
                         >
                           Delete
@@ -1569,32 +1561,32 @@ export default function NavigationPage({ token, addNotification, user }) {
               </div>
             </div>
           ) : !selectedRegion ? (
-            <div className="p-8 text-center text-stone-400 text-sm">
+            <div className="p-8 text-center text-stone-400 text-xs">
               Select a region on the left to edit its states and city destinations.
             </div>
           ) : (!selectedRegion.countries || selectedRegion.countries.length === 0) ? (
-            <div className="p-8 text-center border border-dashed border-stone-200 rounded-xl text-stone-400 text-sm">
+            <div className="p-8 text-center border border-dashed border-stone-200 rounded-lg text-stone-400 text-xs">
               No states or country columns in this region yet. Click &quot;Add State / Column&quot; to begin.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 overflow-y-auto max-h-[520px] pr-0.5">
               {selectedRegion.countries.map((country, cIdx) => {
                 const isColVis = country.visible !== false
                 return (
                   <div
                     key={country.name + cIdx}
-                    className={`rounded-xl border p-3.5 flex flex-col gap-2.5 transition-all ${
-                      isColVis ? 'bg-stone-50/70 border-stone-200' : 'bg-stone-100/50 border-stone-200/50 opacity-70'
+                    className={`rounded-lg border p-3 flex flex-col gap-2 transition-all group/col ${
+                      isColVis ? 'bg-white border-stone-200/90 shadow-2xs' : 'bg-stone-50 border-stone-200/50 opacity-60'
                     }`}
                   >
                     {/* Column Header */}
-                    <div className="flex items-center justify-between gap-2 border-b border-stone-200/70 pb-2">
-                      <div className="flex items-center gap-2 truncate">
-                        <span className={`w-2 h-2 rounded-full ${isColVis ? 'bg-amber-500' : 'bg-stone-300'}`} />
-                        <span className="font-bold text-stone-800 text-sm truncate">{country.name}</span>
+                    <div className="flex items-center justify-between gap-2 border-b border-stone-100 pb-1.5">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className={`w-1.5 h-1.5 rounded-full ${isColVis ? 'bg-stone-400' : 'bg-stone-200'}`} />
+                        <span className="font-semibold text-stone-900 text-xs truncate">{country.name}</span>
                       </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover/col:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
                         <button
                           type="button"
                           onClick={() => toggleColumnVisibility(cIdx)}
@@ -1602,12 +1594,12 @@ export default function NavigationPage({ token, addNotification, user }) {
                           title={isColVis ? 'Hide Column' : 'Show Column'}
                         >
                           {isColVis ? (
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>
                           ) : (
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
                             </svg>
                           )}
@@ -1615,10 +1607,10 @@ export default function NavigationPage({ token, addNotification, user }) {
                         <button
                           type="button"
                           onClick={() => deleteColumn(cIdx)}
-                          className="p-1 rounded text-rose-400 hover:text-rose-600"
+                          className="p-1 rounded text-stone-400 hover:text-rose-600"
                           title="Delete Column"
                         >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
@@ -1626,44 +1618,47 @@ export default function NavigationPage({ token, addNotification, user }) {
                     </div>
 
                     {/* Cities / Links List */}
-                    <div className="space-y-1.5 min-h-[40px]">
+                    <div className="space-y-0.5 min-h-[30px]">
                       {(!country.cities || country.cities.length === 0) && (
-                        <p className="text-[11px] text-stone-400 italic py-1">No destinations in this group.</p>
+                        <p className="text-[11px] text-stone-400 italic py-1">No destinations yet.</p>
                       )}
                       {country.cities?.map((city, ctIdx) => {
                         const isObj = typeof city === 'object' && city !== null
                         const label = isObj ? city.label : city
                         const search = isObj ? city.search : city
                         const isCityVis = isObj ? city.visible !== false : true
+                        const hasDiffTag = search && String(search).trim().toLowerCase() !== String(label).trim().toLowerCase()
 
                         return (
                           <div
                             key={label + ctIdx}
-                            className={`flex items-center justify-between gap-1.5 px-2 py-1 rounded-md text-xs border transition-colors ${
-                              isCityVis ? 'bg-white border-stone-200' : 'bg-stone-100 text-stone-400 border-stone-200/50'
+                            className={`flex items-center justify-between gap-1.5 px-1.5 py-1 rounded text-xs group/city transition-colors ${
+                              isCityVis ? 'hover:bg-stone-50 text-stone-700' : 'text-stone-400 line-through'
                             }`}
                           >
-                            <div className="flex items-center gap-1.5 truncate">
-                              <span className="font-medium text-stone-800 truncate">{label}</span>
-                              <span className="text-[10px] text-stone-400 bg-stone-100 px-1 py-0.2 rounded font-mono truncate">
-                                tag: {search}
-                              </span>
+                            <div className="flex items-center gap-1.5 truncate min-w-0 flex-1">
+                              <span className="font-medium truncate">{label}</span>
+                              {hasDiffTag && (
+                                <span className="text-[10px] text-stone-400 font-mono shrink-0">
+                                  #{search}
+                                </span>
+                              )}
                             </div>
 
-                            <div className="flex items-center gap-1 shrink-0">
+                            <div className="flex items-center gap-0.5 opacity-0 group-hover/city:opacity-100 transition-opacity shrink-0">
                               <button
                                 type="button"
                                 onClick={() => toggleCityVisibility(cIdx, ctIdx)}
-                                className={`p-0.5 rounded hover:bg-stone-100 ${isCityVis ? 'text-emerald-600' : 'text-stone-300'}`}
-                                title={isCityVis ? 'Visible' : 'Hidden'}
+                                className="p-0.5 rounded text-stone-400 hover:text-stone-700"
+                                title={isCityVis ? 'Hide destination' : 'Show destination'}
                               >
                                 <span className={`inline-block w-1.5 h-1.5 rounded-full ${isCityVis ? 'bg-emerald-500' : 'bg-stone-300'}`} />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => deleteCity(cIdx, ctIdx)}
-                                className="p-0.5 rounded text-stone-300 hover:text-rose-500"
-                                title="Remove City"
+                                className="p-0.5 rounded text-stone-300 hover:text-rose-600"
+                                title="Remove Destination"
                               >
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1675,14 +1670,14 @@ export default function NavigationPage({ token, addNotification, user }) {
                       })}
                     </div>
 
-                    {/* Add City Button */}
+                    {/* Add Destination Button */}
                     <button
                       type="button"
                       onClick={() => {
                         setActiveCountryIndex(cIdx)
                         setAddCityModalOpen(true)
                       }}
-                      className="w-full mt-1 py-1 px-2 rounded-lg border border-dashed border-stone-300 hover:border-amber-400 hover:bg-amber-50/50 text-[11px] font-semibold text-stone-500 hover:text-amber-800 transition-colors flex items-center justify-center gap-1"
+                      className="w-full mt-1 py-1 px-2 rounded border border-dashed border-stone-200 hover:border-stone-300 hover:bg-stone-50 text-[11px] font-medium text-stone-400 hover:text-stone-700 transition-colors flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1698,32 +1693,31 @@ export default function NavigationPage({ token, addNotification, user }) {
       </div>
 
       {/* ── SECTION: Explore Destinations Carousel CMS (Circular Bubbles) ── */}
-      <div className="bg-white rounded-2xl border border-stone-200/80 shadow-xs p-5 flex flex-col gap-4 mt-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
+      <div className="bg-white rounded-xl border border-stone-200/90 shadow-2xs p-4 flex flex-col gap-3 mt-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2.5 border-b border-stone-100">
           <div>
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-              <h2 className="text-sm font-bold text-stone-900 uppercase tracking-wider">
+              <h2 className="text-xs font-semibold text-stone-900 uppercase tracking-wider">
                 Explore Destinations Carousel (Circular Bubbles)
               </h2>
             </div>
-            <p className="text-xs text-stone-400 mt-0.5">
-              Manage circular destination bubbles shown under &quot;Explore destinations&quot; on the customer homepage. Images are automatically cropped 1:1 and compressed to WebP.
+            <p className="text-[11px] text-stone-400 mt-0.5">
+              Manage circular destination bubbles shown on the customer homepage. Images are cropped 1:1.
             </p>
           </div>
           <button
             type="button"
             onClick={handleOpenAddCarousel}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-white text-xs font-medium transition-all shadow-xs cursor-pointer shrink-0"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             Add Destination Bubble
           </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5 gap-4 pt-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5 gap-3 pt-1">
           {carouselItems.map((item, idx) => {
             const itemImg = item.image?.startsWith('http')
               ? item.image
@@ -1732,8 +1726,8 @@ export default function NavigationPage({ token, addNotification, user }) {
             return (
               <div
                 key={item.id || idx}
-                className={`p-3.5 rounded-2xl border flex flex-col items-center text-center justify-between transition-all group ${
-                  item.isActive ? 'bg-[#FDFCF7] border-stone-200 shadow-xs' : 'bg-stone-100/60 border-stone-200 opacity-60'
+                className={`p-3 rounded-lg border flex flex-col items-center text-center justify-between transition-all group ${
+                  item.isActive ? 'bg-white border-stone-200 shadow-2xs' : 'bg-stone-50 border-stone-200/60 opacity-60'
                 }`}
               >
                 <div className="flex flex-col items-center w-full">
