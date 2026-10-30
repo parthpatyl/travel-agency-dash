@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import BookingsPage from './components/BookingsPage'
 import ClientsPage from './components/ClientsPage'
 import PackagesPage from './components/PackagesPage'
@@ -65,21 +65,70 @@ const initialTestimonials = []
 
 const VALID_TABS = ['dashboard', 'enquiries', 'bookings', 'corporateLeads', 'clients', 'packages', 'reports', 'testimonials', 'settings', 'navigation', 'team', 'approvals', 'corporatePackages', 'groupDepartures']
 
+export const TAB_PATH_MAP = {
+  dashboard: '/',
+  enquiries: '/enquiries',
+  bookings: '/bookings',
+  corporateLeads: '/corporate-leads',
+  clients: '/clients',
+  packages: '/packages',
+  reports: '/reports',
+  testimonials: '/testimonials',
+  settings: '/settings',
+  navigation: '/navigation',
+  team: '/team',
+  approvals: '/approvals',
+  corporatePackages: '/corporate-packages',
+  groupDepartures: '/group-departures'
+}
+
+export const PATH_TAB_MAP = Object.entries(TAB_PATH_MAP).reduce((acc, [tab, path]) => {
+  acc[path] = tab
+  acc[path.replace('-', '')] = tab
+  return acc
+}, {})
+
+export function getInitialRoute() {
+  const rawPathname = (typeof window !== 'undefined' ? window.location.pathname || '/' : '/').replace(/\/+$/, '') || '/'
+  const pathname = rawPathname.toLowerCase()
+  const hash = (typeof window !== 'undefined' ? window.location.hash || '' : '').replace('#', '').toLowerCase()
+
+  // 1. Direct deep link: /enquiries/:id (preserve original casing of id)
+  const enqMatch = rawPathname.match(/^\/enquiries\/([\w-]+)$/i)
+  if (enqMatch) {
+    return { tab: 'enquiries', enquiryId: enqMatch[1] }
+  }
+
+  // 2. Check legacy hash e.g. #enquiries
+  if (hash) {
+    const hashClean = hash.startsWith('/') ? hash : `/${hash}`
+    if (PATH_TAB_MAP[hashClean]) {
+      return { tab: PATH_TAB_MAP[hashClean], enquiryId: null }
+    }
+    if (VALID_TABS.includes(hash)) {
+      return { tab: hash, enquiryId: null }
+    }
+  }
+
+  // 3. Check clean path
+  if (pathname !== '/' && PATH_TAB_MAP[pathname]) {
+    return { tab: PATH_TAB_MAP[pathname], enquiryId: null }
+  }
+
+  return { tab: 'dashboard', enquiryId: null }
+}
+
 function getTabFromHash() {
-  const hash = window.location.hash.replace('#', '')
-  return VALID_TABS.includes(hash) ? hash : 'dashboard'
+  return getInitialRoute().tab
 }
 
 function App() {
-  const [activeTab, setActiveTabRaw] = useState(getTabFromHash)
+  const initialRoute = getInitialRoute()
+  const [activeTab, setActiveTabRaw] = useState(initialRoute.tab)
   const [searchQuery, setSearchQuery] = useState('')
   const globalSearchInputRef = useRef(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [selectedEnquiryIdForModal, setSelectedEnquiryIdForModal] = useState(() => {
-    const path = window.location.pathname;
-    const match = path.match(/^\/enquiries\/([\w-]+)$/);
-    return match ? match[1] : null;
-  })
+  const [selectedEnquiryIdForModal, setSelectedEnquiryIdForModal] = useState(initialRoute.enquiryId)
   const isPopstateRef = useRef(false)
 
   // Global Keyboard Shortcuts (⌘K / Ctrl+K for search, Esc to clear search / close dropdowns)
@@ -96,7 +145,7 @@ function App() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown)
   }, [searchQuery])
 
-  // Wrap setActiveTab to push browser history entries and ping activity
+  // Wrap setActiveTab to push clean browser history entries and ping activity
   const setActiveTab = (tab) => {
     if (!VALID_TABS.includes(tab)) return
     setActiveTabRaw(tab)
@@ -105,33 +154,31 @@ function App() {
       fetch(`${API_URL}/api/auth/heartbeat`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } }).catch(() => {})
     }
     if (!isPopstateRef.current) {
-      window.history.pushState({ tab }, '', `#${tab}`)
+      const cleanPath = TAB_PATH_MAP[tab] || `/${tab}`
+      window.history.pushState({ tab, enquiryId: null }, '', cleanPath)
     }
     isPopstateRef.current = false
   }
 
   // Listen for browser back/forward
   useEffect(() => {
-    // Set initial history entry
-    const path = window.location.pathname;
-    const match = path.match(/^\/enquiries\/([\w-]+)$/);
-    if (match) {
-      window.history.replaceState({ tab: 'dashboard', enquiryId: match[1] }, '', `/enquiries/${match[1]}`)
-    } else {
-      window.history.replaceState({ tab: getTabFromHash() }, '', `#${getTabFromHash()}`)
-    }
+    const currentRoute = getInitialRoute()
+    const targetPath = currentRoute.enquiryId 
+      ? `/enquiries/${currentRoute.enquiryId}`
+      : (TAB_PATH_MAP[currentRoute.tab] || `/${currentRoute.tab}`)
+
+    window.history.replaceState({ tab: currentRoute.tab, enquiryId: currentRoute.enquiryId }, '', targetPath)
 
     const handlePopState = (e) => {
-      const tab = e.state?.tab || getTabFromHash()
+      const route = getInitialRoute()
+      const tab = e.state?.tab || route.tab
+      const enquiryId = e.state?.enquiryId !== undefined ? e.state.enquiryId : route.enquiryId
+
       if (VALID_TABS.includes(tab)) {
         isPopstateRef.current = true
-        setActiveTab(tab)
+        setActiveTabRaw(tab)
       }
-      if (e.state?.enquiryId) {
-        setSelectedEnquiryIdForModal(e.state.enquiryId)
-      } else {
-        setSelectedEnquiryIdForModal(null)
-      }
+      setSelectedEnquiryIdForModal(enquiryId || null)
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
@@ -142,10 +189,10 @@ function App() {
   const [token, setToken] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   
-  const authHeaders = () => ({
+  const authHeaders = useCallback(() => ({
     'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-  })
+  }), [token])
 
   // Interactive Feature States
   const [showNotifications, setShowNotifications] = useState(false)
@@ -799,7 +846,7 @@ function App() {
     }
   }
 
-  function addNotification(text, type = 'system', link) {
+  const addNotification = useCallback((text, type = 'system', link) => {
     if (type === 'error' || type === 'warning') {
       const id = `t-${Date.now()}-${Math.random()}`
       setToasts(prev => [...prev, { id, text, type }])
@@ -826,7 +873,7 @@ function App() {
       headers: authHeaders(),
       body: JSON.stringify({ message: text, type, link }),
     }).catch(() => {})
-  }
+  }, [authHeaders])
 
   // Dynamic Dashboard Stats Calculations — Indian Tier-2 travel agency
   const parseAmt = (b) => Number(b.amount) || 0
@@ -2184,7 +2231,7 @@ function App() {
         isOpen={!!selectedEnquiryIdForModal}
         onClose={() => {
           setSelectedEnquiryIdForModal(null)
-          window.history.pushState({ tab: activeTab }, '', `#${activeTab}`)
+          window.history.pushState({ tab: activeTab, enquiryId: null }, '', TAB_PATH_MAP[activeTab] || '/enquiries')
         }}
         token={token}
         addNotification={addNotification}

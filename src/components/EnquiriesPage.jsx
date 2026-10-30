@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import * as XLSX from 'xlsx'
+import { validateEmail, validatePhone, validateName } from '../utils/validation'
 
 const STATUS_ORDER = ['logged', 'reviewing', 'proposing', 'finalized', 'converted']
 
@@ -59,27 +60,38 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [showAddForm])
 
-  const fetchEnquiries = useCallback(async () => {
-    setLoading(true)
+  const authHeadersRef = useRef(authHeaders)
+  const addNotificationRef = useRef(addNotification)
+  useEffect(() => {
+    authHeadersRef.current = authHeaders
+    addNotificationRef.current = addNotification
+  }, [authHeaders, addNotification])
+
+  const fetchEnquiries = useCallback(async (isSilent = false) => {
+    if (!isSilent) {
+      setLoading(true)
+    }
     try {
-      const res = await fetch(`${API_URL}/api/enquiries`, { headers: authHeaders() })
+      const headers = authHeadersRef.current ? authHeadersRef.current() : {}
+      const res = await fetch(`${API_URL}/api/enquiries`, { headers })
       const json = await res.json()
       if (res.ok) {
         setEnquiries(json.data || [])
       } else {
-        if (addNotification) addNotification(json.message || 'Failed to load enquiries', 'error')
+        if (!isSilent && addNotificationRef.current) addNotificationRef.current(json.message || 'Failed to load enquiries', 'error')
       }
     } catch (fetchErr) {
       console.error('Error loading enquiries:', fetchErr)
-      if (addNotification) addNotification('Network error loading enquiries', 'error')
+      if (!isSilent && addNotificationRef.current) addNotificationRef.current('Network error loading enquiries', 'error')
     } finally {
-      setLoading(false)
+      if (!isSilent) {
+        setLoading(false)
+      }
     }
-  }, [API_URL, authHeaders, addNotification])
+  }, [API_URL])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchEnquiries()
+    fetchEnquiries(false)
   }, [fetchEnquiries])
 
   const updateStatus = async (id, newStatus) => {
@@ -160,13 +172,26 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
       clientEmail = c.email
       clientPhone = c.phone || '+1 555-0100'
     } else {
-      if (!newClientName.trim() || !newClientEmail.trim()) {
-        if (addNotification) addNotification('Please enter Client Name and Email', 'warning')
+      const nameCheck = validateName(newClientName)
+      if (!nameCheck.isValid) {
+        if (addNotification) addNotification(nameCheck.error, 'warning')
         return
       }
-      clientName = newClientName.trim()
-      clientEmail = newClientEmail.trim()
-      clientPhone = newClientPhone.trim() || '+1 555-0100'
+      const emailCheck = validateEmail(newClientEmail)
+      if (!emailCheck.isValid) {
+        if (addNotification) addNotification(emailCheck.error, 'warning')
+        return
+      }
+      if (newClientPhone.trim()) {
+        const phoneCheck = validatePhone(newClientPhone)
+        if (!phoneCheck.isValid) {
+          if (addNotification) addNotification(phoneCheck.error, 'warning')
+          return
+        }
+      }
+      clientName = nameCheck.normalized
+      clientEmail = emailCheck.normalized
+      clientPhone = newClientPhone.trim() || '+91 9876543210'
 
       // Create new client profile
       const newClientId = `CLI-${crypto.randomUUID()}`
@@ -601,6 +626,19 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
               </button>
             )}
           </div>
+
+          {/* Refresh Button */}
+          <button
+            type="button"
+            onClick={() => fetchEnquiries(false)}
+            disabled={loading}
+            className="p-2 border border-stone-200 bg-white hover:bg-stone-50 text-stone-600 rounded-xl text-xs font-semibold shadow-xs active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+            title="Refresh enquiries"
+          >
+            <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-amber-600' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
 
           {/* Export to Excel Button */}
           <button
