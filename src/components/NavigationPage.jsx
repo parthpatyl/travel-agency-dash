@@ -476,6 +476,96 @@ export default function NavigationPage({ token, addNotification, user }) {
     setNewTopItem({ label: '', type: 'megamenu', page: 'destinations', isSplit: true })
   }
 
+  const handleSwitchTopItemType = (itemId, newType) => {
+    updateMenu(prev => prev.map(item => {
+      if (item.id !== itemId) return item
+      if (item.type === newType) return item
+
+      const updated = { ...item, type: newType }
+
+      if (newType === 'dropdown') {
+        // Switching to dropdown: ensure tourHighlights and columns exist with rich presets for corporate, gallery, etc.
+        if (!Array.isArray(updated.tourHighlights) || updated.tourHighlights.length === 0) {
+          if (item.id === 'corporate' || item.label?.toLowerCase().includes('corporate')) {
+            updated.tourHighlights = [
+              { id: 'corp-1', title: 'Leadership & Executive Offsites', region: 'India', destination: 'Goa', active: true },
+              { id: 'corp-2', title: 'Global Sales Kickoffs & MICE', region: 'Middle East', destination: 'Dubai', active: true },
+              { id: 'corp-3', title: 'Team Building Mountain Retreats', region: 'India', destination: 'Himachal', active: true },
+              { id: 'corp-4', title: 'Annual Conferences & Luxury Cruises', region: 'Asia', destination: 'Singapore', active: true }
+            ]
+          } else if (item.id === 'gallery' || item.label?.toLowerCase().includes('stor') || item.label?.toLowerCase().includes('gallery')) {
+            updated.tourHighlights = [
+              { id: 'gal-1', title: 'Guest Travel Stories & Testimonials', region: 'Europe', destination: 'Stories', active: true },
+              { id: 'gal-2', title: 'High-Altitude Himalayan Diaries', region: 'India', destination: 'Kashmir', active: true },
+              { id: 'gal-3', title: 'Mediterranean & Amalfi Photo Logs', region: 'Europe', destination: 'Italy', active: true },
+              { id: 'gal-4', title: 'Serengeti Wildlife Safari Moments', region: 'Africa', destination: 'Safari', active: true }
+            ]
+          } else {
+            updated.tourHighlights = [
+              { id: `th-${Date.now()}-1`, title: `${item.label} Featured 1`, region: 'Europe', destination: 'Featured', active: true },
+              { id: `th-${Date.now()}-2`, title: `${item.label} Featured 2`, region: 'Asia', destination: 'Featured', active: true }
+            ]
+          }
+        }
+
+        const defaultHeading = (Array.isArray(updated.columns) && updated.columns[0]?.heading)
+          ? updated.columns[0].heading
+          : (item.id === 'corporate'
+              ? 'Corporate Travel Services'
+              : item.id === 'gallery'
+              ? 'Stories & Visual Diaries'
+              : `${item.label} Options`)
+
+        const targetPage = item.page || (item.id === 'corporate' ? 'corporate' : item.id === 'gallery' ? 'gallery' : 'destinations')
+
+        updated.columns = [
+          {
+            heading: defaultHeading,
+            links: updated.tourHighlights.map(h => ({
+              label: h.title,
+              page: targetPage,
+              region: h.region || 'All',
+              search: h.destination || h.title
+            }))
+          }
+        ]
+      } else if (newType === 'megamenu') {
+        if (!Array.isArray(updated.continents) || updated.continents.length === 0) {
+          updated.isSplit = true
+          updated.continents = [
+            {
+              id: `${item.id}-featured`,
+              name: 'Featured',
+              visible: true,
+              allLink: { label: `All of ${item.label}`, region: 'All', search: item.label },
+              countries: [
+                {
+                  name: 'Popular Highlights',
+                  visible: true,
+                  cities: [
+                    { label: `${item.label} Tour 1`, search: item.label },
+                    { label: `${item.label} Tour 2`, search: item.label }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      } else if (newType === 'link') {
+        if (!updated.page) {
+          updated.page = item.id === 'corporate' ? 'corporate' : item.id === 'gallery' ? 'gallery' : 'destinations'
+        }
+      }
+
+      return updated
+    }))
+
+    addNotification?.({
+      type: 'info',
+      message: `Switched "${selectedTopItem?.label || 'Tab'}" type to ${newType === 'link' ? 'Direct Link' : newType === 'dropdown' ? 'Dropdown Menu' : 'Mega Menu'}`
+    })
+  }
+
   // ── Tour Highlights Mutators ──
   const getHighlights = (item) => {
     if (!item) return []
@@ -488,6 +578,22 @@ export default function NavigationPage({ token, addNotification, user }) {
         destination: l.search || l.label,
         active: true
       }))
+    }
+    if (item.id === 'corporate' || item.label?.toLowerCase().includes('corporate')) {
+      return [
+        { id: 'corp-1', title: 'Leadership & Executive Offsites', region: 'India', destination: 'Goa', active: true },
+        { id: 'corp-2', title: 'Global Sales Kickoffs & MICE', region: 'Middle East', destination: 'Dubai', active: true },
+        { id: 'corp-3', title: 'Team Building Mountain Retreats', region: 'India', destination: 'Himachal', active: true },
+        { id: 'corp-4', title: 'Annual Conferences & Luxury Cruises', region: 'Asia', destination: 'Singapore', active: true }
+      ]
+    }
+    if (item.id === 'gallery' || item.label?.toLowerCase().includes('stor') || item.label?.toLowerCase().includes('gallery')) {
+      return [
+        { id: 'gal-1', title: 'Guest Travel Stories & Testimonials', region: 'Europe', destination: 'Stories', active: true },
+        { id: 'gal-2', title: 'High-Altitude Himalayan Diaries', region: 'India', destination: 'Kashmir', active: true },
+        { id: 'gal-3', title: 'Mediterranean & Amalfi Photo Logs', region: 'Europe', destination: 'Italy', active: true },
+        { id: 'gal-4', title: 'Serengeti Wildlife Safari Moments', region: 'Africa', destination: 'Safari', active: true }
+      ]
     }
     if (item.id === 'group_tours') {
       return [
@@ -899,9 +1005,18 @@ export default function NavigationPage({ token, addNotification, user }) {
                     <span className={`w-2 h-2 rounded-full shrink-0 ${isVis ? 'bg-emerald-500' : 'bg-stone-300'}`} />
                     <div className="truncate">
                       <div className="font-semibold text-stone-800 text-sm truncate">{item.label}</div>
-                      <div className="text-[11px] text-stone-400 flex items-center gap-1.5 capitalize">
-                        <span>{item.type || 'megamenu'}</span>
+                      <div className="text-[11px] text-stone-400 flex items-center gap-1.5 mt-0.5">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          item.type === 'link'
+                            ? 'bg-sky-100 text-sky-800 border border-sky-200'
+                            : item.type === 'dropdown'
+                            ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                            : 'bg-amber-100 text-amber-800 border border-amber-200'
+                        }`}>
+                          {item.type === 'link' ? '🔗 Link' : item.type === 'dropdown' ? '📋 Dropdown' : '🗺️ Mega Menu'}
+                        </span>
                         {item.type === 'megamenu' && <span>• {item.continents?.length || 0} regions</span>}
+                        {item.type === 'dropdown' && <span>• {getHighlights(item).length} options</span>}
                       </div>
                     </div>
                   </div>
@@ -985,6 +1100,53 @@ export default function NavigationPage({ token, addNotification, user }) {
               </button>
             )}
           </div>
+
+          {/* ── TAB TYPE SWITCHER (Switch between Direct Link, Dropdown, Mega Menu) ── */}
+          {selectedTopItem && (
+            <div className="bg-stone-50 p-2.5 rounded-xl border border-stone-200/80 space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-stone-600 block">
+                Tab Menu Type
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'link')}
+                  className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition-all text-center cursor-pointer ${
+                    selectedTopItem.type === 'link'
+                      ? 'bg-amber-500 text-stone-950 border-amber-600 font-bold shadow-xs'
+                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
+                  }`}
+                  title="Direct single-click navigation link (e.g. /corporate or /gallery)"
+                >
+                  🔗 Link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'dropdown')}
+                  className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition-all text-center cursor-pointer ${
+                    selectedTopItem.type === 'dropdown'
+                      ? 'bg-amber-500 text-stone-950 border-amber-600 font-bold shadow-xs'
+                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
+                  }`}
+                  title="Floating dropdown menu with customizable options / highlights"
+                >
+                  📋 Dropdown
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'megamenu')}
+                  className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition-all text-center cursor-pointer ${
+                    selectedTopItem.type === 'megamenu'
+                      ? 'bg-amber-500 text-stone-950 border-amber-600 font-bold shadow-xs'
+                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
+                  }`}
+                  title="Multi-continent split mega menu with continents and countries grid"
+                >
+                  🗺️ Mega Menu
+                </button>
+              </div>
+            </div>
+          )}
 
           {selectedTopItem?.type === 'megamenu' ? (
             <div className="space-y-2">
@@ -1090,6 +1252,18 @@ export default function NavigationPage({ token, addNotification, user }) {
                   placeholder="e.g. corporate, gallery, giftcards"
                   className="w-full mt-1 px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm"
                 />
+              </div>
+              <div className="pt-3 border-t border-stone-200/80">
+                <p className="text-[11px] text-stone-500 leading-relaxed mb-2">
+                  Want to provide dropdown options for travelers when they hover or click &quot;{selectedTopItem.label}&quot;?
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'dropdown')}
+                  className="w-full py-2 px-3 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold rounded-xl text-xs transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <span>📋 Switch to Dropdown with Options</span>
+                </button>
               </div>
             </div>
           ) : (
@@ -1236,12 +1410,16 @@ export default function NavigationPage({ token, addNotification, user }) {
               <h2 className="text-sm font-bold text-stone-900 uppercase tracking-wider">
                 {selectedTopItem?.type === 'megamenu'
                   ? (selectedRegion ? `Destinations in ${selectedRegion.name}` : 'Destination Columns')
-                  : 'Tour Highlights & Featured Expeditions'}
+                  : selectedTopItem?.type === 'dropdown'
+                  ? `${selectedTopItem.label} Dropdown Options`
+                  : 'Direct Link Route'}
               </h2>
               <span className="text-xs text-stone-400">
                 {selectedTopItem?.type === 'megamenu'
                   ? 'Filter by search keywords or configure individual city cards'
-                  : 'Configure active tour highlights and popular expeditions for dropdown navigation'}
+                  : selectedTopItem?.type === 'dropdown'
+                  ? 'Configure active options, services, and itineraries for this dropdown'
+                  : 'Single-click route without dropdown menu'}
               </span>
             </div>
 
@@ -1257,7 +1435,7 @@ export default function NavigationPage({ token, addNotification, user }) {
               </button>
             )}
 
-            {selectedTopItem?.type !== 'megamenu' && (
+            {selectedTopItem?.type === 'dropdown' && (
               <button
                 type="button"
                 onClick={() => {
@@ -1270,18 +1448,37 @@ export default function NavigationPage({ token, addNotification, user }) {
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Add Tour Highlight
+                + Add Option
               </button>
             )}
           </div>
 
-          {selectedTopItem?.type !== 'megamenu' ? (
+          {selectedTopItem?.type === 'link' ? (
+            <div className="p-8 text-center bg-stone-50 rounded-2xl border border-stone-200/80 my-auto">
+              <div className="w-14 h-14 rounded-full bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center text-2xl mx-auto mb-3 shadow-xs">
+                🔗
+              </div>
+              <h3 className="font-bold text-stone-900 text-base">{selectedTopItem.label} is currently a Direct Link</h3>
+              <p className="text-xs text-stone-500 max-w-md mx-auto mt-1 leading-relaxed">
+                Travelers clicking this tab are routed directly to <code className="bg-white px-2 py-0.5 rounded font-mono text-sky-700 font-semibold border border-stone-200">/{selectedTopItem.page || selectedTopItem.id}</code>.
+              </p>
+              <div className="mt-5">
+                <button
+                  type="button"
+                  onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'dropdown')}
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer inline-flex items-center gap-2 transition-all hover:scale-102"
+                >
+                  <span>📋 Switch to Dropdown Menu &amp; Add Options</span>
+                </button>
+              </div>
+            </div>
+          ) : selectedTopItem?.type === 'dropdown' ? (
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-200/80 flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-amber-950">Active Tour Highlights CMS</h3>
+                  <h3 className="text-sm font-bold text-amber-950">{selectedTopItem.label} Dropdown Options CMS</h3>
                   <p className="text-xs text-amber-700 font-light mt-0.5">
-                    Tour highlights and featured itineraries configured here persist via Navigation API and reflect dynamically across the customer site.
+                    Options and tour highlights configured here persist via Navigation API and reflect dynamically across the customer site.
                   </p>
                 </div>
               </div>
@@ -2044,16 +2241,16 @@ export default function NavigationPage({ token, addNotification, user }) {
                                 <div className="flex items-center gap-1.5">
                                   <GlobeIcon className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                                   <span className="text-[12px] font-bold text-stone-800 uppercase tracking-wider">
-                                    {item.label} Destinations
+                                    {item.label}
                                   </span>
                                 </div>
-                                <span className="text-[11px] text-stone-400 font-medium">Explore Destinations</span>
+                                <span className="text-[11px] text-stone-400 font-medium">Explore</span>
                               </div>
 
                               {/* Column Heading */}
                               <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-indigo-600 mb-2 flex items-center gap-1">
                                 <MapPinIcon className="w-3 h-3 text-indigo-600 shrink-0" />
-                                <span>{item.columns?.[0]?.heading || 'POPULAR GROUP EXPEDITIONS'}</span>
+                                <span>{item.columns?.[0]?.heading || (item.id === 'group_tours' ? 'POPULAR GROUP EXPEDITIONS' : 'FEATURED OPTIONS')}</span>
                               </div>
 
                               {/* Tours List */}
@@ -2064,7 +2261,7 @@ export default function NavigationPage({ token, addNotification, user }) {
                                         .filter(h => h.active !== false)
                                         .map(h => ({
                                           label: h.title,
-                                          page: 'destinations',
+                                          page: item.page || (item.id === 'group_tours' ? 'destinations' : item.id),
                                           region: h.region || 'All',
                                           search: h.destination || h.title
                                         }))
@@ -2079,7 +2276,7 @@ export default function NavigationPage({ token, addNotification, user }) {
                                         onClick={() => {
                                           addNotification?.({
                                             type: 'info',
-                                            message: `Preview Click: Opens Expedition "${tour.label}" details`
+                                            message: `Preview Click: Routes to /${tour.page || item.page || item.id} (${tour.label})`
                                           })
                                         }}
                                         className="text-[13px] text-stone-700 hover:text-indigo-600 hover:bg-indigo-50/80 transition-all py-1.5 px-2 rounded-lg block w-full text-left font-normal hover:font-medium leading-snug whitespace-normal break-words cursor-pointer"
@@ -2527,24 +2724,27 @@ export default function NavigationPage({ token, addNotification, user }) {
         document.body
       )}
 
-      {/* ── MODAL: Add / Edit Tour Highlight ── */}
+      {/* ── MODAL: Add / Edit Dropdown Option or Tour Highlight ── */}
       {highlightModalOpen && typeof document !== 'undefined' && createPortal(
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150"
           onClick={(e) => { if (e.target === e.currentTarget) setHighlightModalOpen(false) }}
         >
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200 animate-in zoom-in-95 duration-150">
-            <h3 className="text-lg font-bold text-stone-900 mb-4">
-              {editingHighlight ? 'Edit Tour Highlight' : 'Add New Tour Highlight'}
+            <h3 className="text-lg font-bold text-stone-900 mb-1">
+              {editingHighlight ? 'Edit Option' : `Add Option to ${selectedTopItem?.label || 'Dropdown'}`}
             </h3>
+            <p className="text-xs text-stone-500 mb-4">
+              Configure the dropdown item name and destination/filter tag.
+            </p>
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-stone-700">Tour Title *</label>
+                <label className="text-xs font-semibold text-stone-700">Option Title / Name *</label>
                 <input
                   type="text"
                   value={highlightForm.title}
                   onChange={e => setHighlightForm({ ...highlightForm, title: e.target.value })}
-                  placeholder="e.g. Santorini Sunset Cruise"
+                  placeholder="e.g. Executive Leadership Retreats, Honeymoons, Santorini Sunset Cruise"
                   className="w-full mt-1 px-3 py-2 border border-stone-200 rounded-xl text-sm"
                   autoFocus
                 />
@@ -2552,7 +2752,7 @@ export default function NavigationPage({ token, addNotification, user }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-stone-700">Region</label>
+                  <label className="text-xs font-semibold text-stone-700">Category / Region</label>
                   <select
                     value={highlightForm.region}
                     onChange={e => setHighlightForm({ ...highlightForm, region: e.target.value })}
@@ -2566,16 +2766,17 @@ export default function NavigationPage({ token, addNotification, user }) {
                     <option value="America">America</option>
                     <option value="Australia">Australia</option>
                     <option value="Antarctica">Antarctica</option>
+                    <option value="Global">Global / General</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-stone-700">Destination</label>
+                  <label className="text-xs font-semibold text-stone-700">Destination / Filter Keyword</label>
                   <input
                     type="text"
                     value={highlightForm.destination}
                     onChange={e => setHighlightForm({ ...highlightForm, destination: e.target.value })}
-                    placeholder="e.g. Greece, Switzerland"
+                    placeholder="e.g. Goa, Greece, Corporate, Honeymoon"
                     className="w-full mt-1 px-3 py-2 border border-stone-200 rounded-xl text-sm"
                   />
                 </div>
@@ -2589,7 +2790,7 @@ export default function NavigationPage({ token, addNotification, user }) {
                     onChange={e => setHighlightForm({ ...highlightForm, active: e.target.checked })}
                     className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
                   />
-                  <span>Display as Live Active Highlight</span>
+                  <span>Display as Live Active Option</span>
                 </label>
               </div>
             </div>
@@ -2608,7 +2809,7 @@ export default function NavigationPage({ token, addNotification, user }) {
                 disabled={!highlightForm.title.trim()}
                 className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 cursor-pointer"
               >
-                {editingHighlight ? 'Save Changes' : 'Add Highlight'}
+                {editingHighlight ? 'Save Changes' : 'Add Option'}
               </button>
             </div>
           </div>
