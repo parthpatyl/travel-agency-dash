@@ -57,6 +57,15 @@ export default function BookingsPage({
   const [pendingApprovalBookings, setPendingApprovalBookings] = useState(new Set())
   const [showContactAccordion, setShowContactAccordion] = useState(true)
 
+  // Cancellation Reason Prompt State
+  const [cancellationModal, setCancellationModal] = useState({
+    isOpen: false,
+    booking: null,
+    reason: 'Price too high / Budget constraints',
+    customReason: ''
+  })
+  const [editCancellationReason, setEditCancellationReason] = useState('')
+
   const canWriteBooking = roleHas(user?.role, 'write:bookings')
 
   const [editClient, setEditClient] = useState('')
@@ -334,6 +343,10 @@ export default function BookingsPage({
       ? { ...currentProgress, depositPaid: true, finalPayment: true }
       : { ...currentProgress, finalPayment: false }
 
+    const finalReason = editStatus === 'Cancelled'
+      ? (editCancellationReason.trim() || 'Budget constraints')
+      : null
+
     const updatedBooking = {
       ...editBookingObj,
       client: editClient,
@@ -344,30 +357,64 @@ export default function BookingsPage({
       status: editStatus,
       guests: parseInt(editGuests) || 1,
       specialDirectives: parsedDirectives,
-      progress: updatedProgress
+      progress: updatedProgress,
+      ...(finalReason ? { cancellationReason: finalReason } : {})
     }
 
     setBookings(bookings.map(b => b.id === editBookingObj.id ? updatedBooking : b))
     setSelectedBooking(updatedBooking)
     setShowEditModal(false)
 
-    setClients(clients.map(c => {
-      if (c.name === editClient) {
-        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16)
-        return {
-          ...c,
-          lastContact: timestamp.split(' ')[0],
-          logs: [
-            {
-              time: timestamp,
-              text: `System: Updated booking details for ${editBookingObj.id} (Package: ${editPackage}, Departure: ${formattedDate}, Status: ${editStatus})`
-            },
-            ...c.logs
-          ]
+    if (setClients) {
+      setClients(clients.map(c => {
+        if ((c.name || '').toLowerCase() === (editClient || '').toLowerCase()) {
+          const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16)
+          const otherActive = bookings.filter(b =>
+            b.id !== editBookingObj.id &&
+            (b.client || '').toLowerCase() === (editClient || '').toLowerCase() &&
+            (b.status || '').toLowerCase() !== 'cancelled'
+          )
+          const newClientStatus = editStatus === 'Cancelled' && otherActive.length === 0 ? 'Cancelled' : c.status
+          return {
+            ...c,
+            status: newClientStatus,
+            lastContact: timestamp.split(' ')[0],
+            logs: [
+              {
+                time: timestamp,
+                text: `System: Updated booking details for ${editBookingObj.id} (Package: ${editPackage}, Departure: ${formattedDate}, Status: ${editStatus})${editStatus === 'Cancelled' && finalReason ? `. Reason: ${finalReason}` : ''}`
+              },
+              ...(c.logs || [])
+            ]
+          }
         }
-      }
-      return c
-    }))
+        return c
+      }))
+    }
+
+    try {
+      const token = localStorage.getItem('kraft_token')
+      await fetch(`${API_URL}/api/bookings/${editBookingObj.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          client: editClient,
+          package: editPackage,
+          amount: parseFloat(editAmount) || 0,
+          discountValue: editDiscount ? parseFloat(editDiscount) : 0,
+          date: formattedDate,
+          status: editStatus,
+          guests: parseInt(editGuests) || 1,
+          specialDirectives: parsedDirectives,
+          cancellationReason: finalReason || editBookingObj.cancellationReason
+        })
+      })
+    } catch {
+      // offline sync
+    }
 
     if (addNotification) {
       addNotification(`Booking ${editBookingObj.id} successfully updated`, 'success')
@@ -447,6 +494,21 @@ export default function BookingsPage({
       if (addNotification) addNotification('You do not have permission to modify bookings', 'error')
       return
     }
+
+    if (newStatus === 'Cancelled') {
+      setCancellationModal({
+        isOpen: true,
+        booking,
+        reason: 'Price too high / Budget constraints',
+        customReason: ''
+      })
+      return
+    }
+
+    await applyBookingStatusChange(booking, newStatus)
+  }
+
+  const applyBookingStatusChange = async (booking, newStatus, cancellationReason = null) => {
     const currentProgress = booking.progress || defaultProgress
     const updatedProgress = newStatus === 'Paid'
       ? { ...currentProgress, depositPaid: true, finalPayment: true }
@@ -455,12 +517,38 @@ export default function BookingsPage({
     const updatedBooking = {
       ...booking,
       status: newStatus,
-      progress: updatedProgress
+      progress: updatedProgress,
+      ...(cancellationReason ? { cancellationReason } : {})
     }
 
     setBookings(bookings.map(b => b.id === booking.id ? updatedBooking : b))
     if (selectedBooking?.id === booking.id) {
       setSelectedBooking(updatedBooking)
+    }
+
+    // R6: When booking is marked as cancelled, immediately synchronize the client profile in frontend state
+    if (newStatus === 'Cancelled' && setClients) {
+      setClients(prevClients => prevClients.map(c => {
+        if ((c.name || '').toLowerCase() === (booking.client || '').toLowerCase()) {
+          const otherActive = bookings.filter(b =>
+            b.id !== booking.id &&
+            (b.client || '').toLowerCase() === (booking.client || '').toLowerCase() &&
+            (b.status || '').toLowerCase() !== 'cancelled'
+          )
+          const newClientStatus = otherActive.length === 0 ? 'Cancelled' : c.status
+          const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 16)
+          const cancellationLog = {
+            time: timestamp,
+            text: `System: Booking ${booking.id} cancelled.${cancellationReason ? ` Reason: ${cancellationReason}` : ''}`
+          }
+          return {
+            ...c,
+            status: newClientStatus,
+            logs: [cancellationLog, ...(c.logs || [])]
+          }
+        }
+        return c
+      }))
     }
 
     try {
@@ -479,7 +567,8 @@ export default function BookingsPage({
           date: booking.date,
           status: newStatus,
           guests: booking.guests || 1,
-          specialDirectives: booking.specialDirectives || []
+          specialDirectives: booking.specialDirectives || [],
+          cancellationReason: cancellationReason || booking.cancellationReason
         })
       })
     } catch {
@@ -807,7 +896,16 @@ export default function BookingsPage({
                           {b.id}
                           {b.guests > 1 && <span className="ml-1.5 text-[9px] text-stone-400">· {b.guests} guests</span>}
                         </td>
-                        <td className="py-3.5 px-6 font-semibold text-stone-900">{b.client}</td>
+                        <td className="py-3.5 px-6 font-semibold text-stone-900">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span>{b.client}</span>
+                            {(b.leadSource === 'Itinerary Download' || b.isItineraryDownload || b.source === 'itinerary_download') && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+                                Itinerary Download
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3.5 px-6 text-stone-600">{b.package}</td>
                         <td className="py-3.5 px-6 font-bold text-stone-800">
                           ₹{Number(b.amount).toLocaleString('en-IN')}
@@ -875,7 +973,14 @@ export default function BookingsPage({
               <div className="flex justify-between items-start">
                 <div>
                   <span className="text-[10px] font-mono text-stone-400">{selectedBooking.id}</span>
-                  <h3 className="text-base font-bold text-stone-900 tracking-tight">{selectedBooking.client}</h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-bold text-stone-900 tracking-tight">{selectedBooking.client}</h3>
+                    {(selectedBooking.leadSource === 'Itinerary Download' || selectedBooking.isItineraryDownload || selectedBooking.source === 'itinerary_download') && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+                        Itinerary Download
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-stone-500">{selectedBooking.package}</p>
                 </div>
                 <button 
@@ -887,6 +992,16 @@ export default function BookingsPage({
                   </svg>
                 </button>
               </div>
+
+              {/* Cancelled Booking Reason Display */}
+              {selectedBooking.status === 'Cancelled' && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
+                  <span className="text-[10px] font-bold text-rose-700 uppercase tracking-wider block">Cancellation Reason</span>
+                  <p className="text-xs font-semibold text-rose-900">
+                    {selectedBooking.cancellationReason || 'Budget constraints / Not specified'}
+                  </p>
+                </div>
+              )}
 
               {/* Expandable Client Contact Details Accordion */}
               {(() => {
@@ -1356,6 +1471,7 @@ export default function BookingsPage({
                     setEditDate(parseDateToInputFormat(selectedBooking.date))
                     setEditGuests(String(selectedBooking.guests || 1))
                     setEditStatus(selectedBooking.status)
+                    setEditCancellationReason(selectedBooking.cancellationReason || 'Price too high / Budget constraints')
                     setEditDirectives((selectedBooking.specialDirectives || []).join(', '))
                     setShowEditModal(true)
                   }}
@@ -1744,8 +1860,8 @@ export default function BookingsPage({
 
               <div>
                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Status</label>
-                <div className="flex gap-4">
-                  {['Pending', 'Paid'].map(status => (
+                <div className="flex flex-wrap gap-4">
+                  {['Pending', 'Confirmed', 'Paid', 'Cancelled'].map(status => (
                     <label key={status} className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
                       <input
                         type="radio"
@@ -1759,6 +1875,28 @@ export default function BookingsPage({
                   ))}
                 </div>
               </div>
+
+              {editStatus === 'Cancelled' && (
+                <div className="space-y-1 animate-in fade-in duration-150">
+                  <label className="block text-[10px] font-bold text-rose-600 uppercase tracking-wider mb-1">
+                    Cancellation Reason *
+                  </label>
+                  <select
+                    value={editCancellationReason}
+                    onChange={(e) => setEditCancellationReason(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-rose-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
+                  >
+                    <option value="Price too high / Budget constraints">Price too high / Budget constraints</option>
+                    <option value="Dates / Schedule mismatch">Dates / Schedule mismatch</option>
+                    <option value="Found alternative provider / Competitor">Found alternative provider / Competitor</option>
+                    <option value="Personal emergency / Health reasons">Personal emergency / Health reasons</option>
+                    <option value="Visa / Documentation rejection">Visa / Documentation rejection</option>
+                    <option value="Destination weather / Safety concern">Destination weather / Safety concern</option>
+                    <option value="Lost contact / Unresponsive">Lost contact / Unresponsive</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">Special Directives (comma-separated)</label>
@@ -1833,6 +1971,92 @@ export default function BookingsPage({
                 }`}
               >
                 {user && roleHas(user.role, 'write:bookings') && !roleHas(user.role, 'delete:bookings') ? 'Request Approval' : 'Delete Booking'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Reason Modal Dialog */}
+      {cancellationModal.isOpen && (
+        <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" role="dialog" aria-modal="true">
+          <div className="bg-white border border-stone-200 rounded-2xl shadow-xl w-full max-w-md p-6 animate-in zoom-in duration-200 space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center border border-rose-200">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-stone-900">Cancel Booking #{cancellationModal.booking?.id}</h3>
+                <p className="text-[11px] text-stone-500">Client: {cancellationModal.booking?.client}</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-600 leading-normal">
+              Please specify the reason for cancelling this booking. This reason will be recorded for conversion analysis and lost lead reporting in Executive Reports.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">
+                  Cancellation Reason
+                </label>
+                <select
+                  value={cancellationModal.reason}
+                  onChange={(e) => setCancellationModal(prev => ({ ...prev, reason: e.target.value }))}
+                  className="w-full bg-stone-50 border border-stone-200 focus:border-rose-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
+                >
+                  <option value="Price too high / Budget constraints">Price too high / Budget constraints</option>
+                  <option value="Dates / Schedule mismatch">Dates / Schedule mismatch</option>
+                  <option value="Found alternative provider / Competitor">Found alternative provider / Competitor</option>
+                  <option value="Personal emergency / Health reasons">Personal emergency / Health reasons</option>
+                  <option value="Visa / Documentation rejection">Visa / Documentation rejection</option>
+                  <option value="Destination weather / Safety concern">Destination weather / Safety concern</option>
+                  <option value="Lost contact / Unresponsive">Lost contact / Unresponsive</option>
+                  <option value="Other">Other (specify below)</option>
+                </select>
+              </div>
+
+              {cancellationModal.reason === 'Other' && (
+                <div>
+                  <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1.5">
+                    Custom Reason Details
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter reason..."
+                    value={cancellationModal.customReason}
+                    onChange={(e) => setCancellationModal(prev => ({ ...prev, customReason: e.target.value }))}
+                    className="w-full bg-stone-50 border border-stone-200 focus:border-rose-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none transition-all"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCancellationModal({ isOpen: false, booking: null, reason: 'Price too high / Budget constraints', customReason: '' })}
+                className="px-4 py-2 border border-stone-200 rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-50 active:scale-95 transition-all cursor-pointer"
+              >
+                Keep Booking
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const finalReason = cancellationModal.reason === 'Other'
+                    ? (cancellationModal.customReason.trim() || 'Other / Not specified')
+                    : cancellationModal.reason
+                  const targetBooking = cancellationModal.booking
+                  setCancellationModal({ isOpen: false, booking: null, reason: 'Price too high / Budget constraints', customReason: '' })
+                  if (targetBooking) {
+                    await applyBookingStatusChange(targetBooking, 'Cancelled', finalReason)
+                  }
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold shadow active:scale-95 transition-all cursor-pointer"
+              >
+                Confirm Cancellation
               </button>
             </div>
           </div>

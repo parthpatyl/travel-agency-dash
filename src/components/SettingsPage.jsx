@@ -1,8 +1,8 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { roleHas } from '../utils/permissions'
-import ReadOnlyBanner from './ReadOnlyBanner'
 import SpecialityCategoriesAdmin from './SpecialityCategoriesAdmin'
 import SaveConfirmationModal from './SaveConfirmationModal'
+import NavigationPage from './NavigationPage'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
@@ -19,7 +19,8 @@ export default function SettingsPage({
   setTestimonials,
   addNotification,
   user,
-  packages = []
+  packages = [],
+  token
 }) {
   const [activeSubTab, setActiveSubTab] = useState('homepage')
   const [saving, setSaving] = useState(null)
@@ -35,7 +36,6 @@ export default function SettingsPage({
   }, [settings, baselineSettings])
 
   const canWriteSettings = roleHas(user?.role, 'write:settings')
-  const canWriteTestimonials = roleHas(user?.role, 'write:testimonials')
 
   // ─────────────────────────────────────────────
   // 1. HOMEPAGE & SPECIAL OFFERS STATE
@@ -805,6 +805,15 @@ export default function SettingsPage({
       icon: (
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      )
+    },
+    {
+      id: 'navigation',
+      label: 'Tour Highlights & Navigation',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16m-7 6h7" />
         </svg>
       )
     }
@@ -2152,6 +2161,24 @@ export default function SettingsPage({
           </section>
         </div>
       )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 6. NAVIGATION & TOUR HIGHLIGHTS CMS SUB-TAB */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {activeSubTab === 'navigation' && (
+        <div className="space-y-4">
+          <div className="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-4 text-xs text-amber-900 flex items-center justify-between gap-3">
+            <div>
+              <span className="font-bold text-sm">Tour Highlights & Navigation CMS</span>
+              <p className="text-amber-700 font-light mt-0.5">
+                Configure top-level destination mega-menus, dropdown tour highlights, and navigation links. Changes reflect live on the public site.
+              </p>
+            </div>
+          </div>
+          <NavigationPage token={token} addNotification={addNotification} user={user} />
+        </div>
+      )}
+
       {/* HTML Save Confirmation Modal */}
       <SaveConfirmationModal
         isOpen={confirmModal.isOpen}

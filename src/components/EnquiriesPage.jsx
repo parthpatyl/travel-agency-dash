@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import * as XLSX from 'xlsx'
 
 const STATUS_ORDER = ['logged', 'reviewing', 'proposing', 'finalized', 'converted']
 
@@ -26,6 +27,8 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
   const [search, setSearch] = useState('')
   const [updatingId, setUpdatingId] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all') // 'all' | 'active' | 'converted'
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
 
   // Modal states for Create Enquiry
   const [showAddForm, setShowAddForm] = useState(false)
@@ -41,11 +44,15 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
   const [guests, setGuests] = useState('2')
   const [accommodations, setAccommodations] = useState('5-Star Luxury')
   const [notes, setNotes] = useState('')
+  const [leadSource, setLeadSource] = useState('Instagram')
+  const [referralName, setReferralName] = useState('')
 
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && showAddForm) {
         setShowAddForm(false)
+        setLeadSource('Instagram')
+        setReferralName('')
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -201,7 +208,9 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
       travelDate,
       guests: parseInt(guests) || 1,
       notes,
-      preferences: { accommodations }
+      preferences: { accommodations },
+      leadSource: leadSource || 'Instagram',
+      referralName: leadSource === 'Referral' ? referralName.trim() : null
     }
 
     try {
@@ -225,6 +234,8 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
         setGuests('2')
         setAccommodations('5-Star Luxury')
         setNotes('')
+        setLeadSource('Instagram')
+        setReferralName('')
       } else {
         if (addNotification) addNotification(json.message || 'Failed to create enquiry', 'error')
       }
@@ -237,15 +248,49 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
   const filtered = enquiries.filter((e) => {
     if (statusFilter === 'active' && e.status === 'converted') return false
     if (statusFilter === 'converted' && e.status !== 'converted') return false
+    if (fromDate) {
+      const itemDate = (e.submittedAt || e.travelDate || '').substring(0, 10)
+      if (itemDate && itemDate < fromDate) return false
+    }
+    if (toDate) {
+      const itemDate = (e.submittedAt || e.travelDate || '').substring(0, 10)
+      if (itemDate && itemDate > toDate) return false
+    }
     if (!search) return true
     const q = search.toLowerCase()
     return (
       (e.id || '').toLowerCase().includes(q) ||
       (e.name || '').toLowerCase().includes(q) ||
       (e.destination || '').toLowerCase().includes(q) ||
-      (e.email || '').toLowerCase().includes(q)
+      (e.email || '').toLowerCase().includes(q) ||
+      (e.leadSource || '').toLowerCase().includes(q) ||
+      (e.referralName || '').toLowerCase().includes(q)
     )
   })
+
+  const handleExportExcel = () => {
+    const exportData = filtered.map(e => ({
+      'Enquiry ID': e.id,
+      'Customer Name': e.name,
+      'Email': e.email,
+      'Phone': e.phone || '—',
+      'Destination': e.destination,
+      'Travel Date': e.travelDate,
+      'Guests': e.guests,
+      'Status': STATUS_LABELS[e.status] || e.status,
+      'Lead Source': e.leadSource || (e.isItineraryDownload ? 'Itinerary Download' : 'Direct/Other'),
+      'Referral Name': e.referralName || '—',
+      'Notes': e.notes || '',
+      'Submitted At': e.submittedAt || ''
+    }))
+    const worksheet = XLSX.utils.json_to_sheet(exportData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Enquiries')
+    XLSX.writeFile(workbook, 'kraft_enquiries_report.xlsx')
+    if (addNotification) {
+      addNotification(`Exported ${exportData.length} enquiries to Excel`, 'success')
+    }
+  }
 
   const formatDate = (d) => {
     if (!d) return '—'
@@ -267,70 +312,6 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-stone-900 tracking-tight">Enquiries</h2>
-          <p className="text-xs text-stone-500 font-light mt-0.5">
-            {filtered.length} {filtered.length === 1 ? 'enquiry' : 'enquiries'}
-            {search ? ' matched' : ' total'}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3 items-center">
-          {/* Status Filter Tabs */}
-          <div className="inline-flex rounded-xl bg-stone-100 p-1 border border-stone-200 text-xs font-semibold">
-            {[
-              { id: 'all', label: `All (${enquiries.length})` },
-              { id: 'active', label: `Active (${enquiries.filter(e => e.status !== 'converted').length})` },
-              { id: 'converted', label: `Converted (${enquiries.filter(e => e.status === 'converted').length})` }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setStatusFilter(tab.id)}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  statusFilter === tab.id
-                    ? 'bg-white text-stone-900 shadow-xs'
-                    : 'text-stone-500 hover:text-stone-800'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search enquiries..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-56 pl-9 pr-3 py-2 border border-stone-200 rounded-xl text-xs font-medium placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 bg-white"
-            />
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="py-2 px-3.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Create Enquiry
-          </button>
-          <button
-            onClick={fetchEnquiries}
-            className="p-2 border border-stone-200 rounded-xl hover:bg-stone-50 text-stone-500 transition-colors"
-            title="Refresh"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 0021.21 7.89M21 3v5h-5.182" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
       {/* Create Enquiry Overlay Modal */}
       {showAddForm && (
         <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-md flex items-center justify-center z-[100] p-3 sm:p-6 pt-20 sm:pt-24 pb-8 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="enquiry-modal-title">
@@ -343,7 +324,11 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
               </div>
               <button
                 type="button"
-                onClick={() => setShowAddForm(false)}
+                onClick={() => {
+                  setShowAddForm(false)
+                  setLeadSource('Instagram')
+                  setReferralName('')
+                }}
                 className="p-1.5 rounded-lg hover:bg-stone-200/70 text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
                 title="Close (Esc)"
               >
@@ -477,6 +462,34 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
                 </div>
 
                 <div>
+                  <label htmlFor="lead-source-select" className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">Lead Acquisition Source *</label>
+                  <select
+                    id="lead-source-select"
+                    value={leadSource}
+                    onChange={(e) => setLeadSource(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-855 outline-none transition-all"
+                  >
+                    {['Instagram', 'Facebook', 'LinkedIn', 'Google/Search', 'Referral', 'Walk-in', 'Direct/Other'].map(src => (
+                      <option key={src} value={src}>{src}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {leadSource === 'Referral' && (
+                  <div className="animate-in fade-in duration-150">
+                    <label className="block text-xs font-bold text-amber-800 uppercase tracking-wider mb-1.5">Referral Name *</label>
+                    <input
+                      type="text"
+                      required={leadSource === 'Referral'}
+                      placeholder="Name of referrer (client, partner, or agent)"
+                      value={referralName}
+                      onChange={(e) => setReferralName(e.target.value)}
+                      className="w-full bg-amber-50/50 border border-amber-300 focus:border-amber-500 rounded-lg p-3 text-sm text-stone-855 outline-none transition-all"
+                    />
+                  </div>
+                )}
+
+                <div>
                   <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">Special Directives / Notes</label>
                   <textarea
                     rows="3"
@@ -492,7 +505,11 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
               <div className="px-6 py-4 border-t border-stone-100 flex justify-end gap-3 shrink-0 bg-stone-50/60 rounded-b-2xl">
                 <button
                   type="button"
-                  onClick={() => setShowAddForm(false)}
+                  onClick={() => {
+                    setShowAddForm(false)
+                    setLeadSource('Instagram')
+                    setReferralName('')
+                  }}
                   className="px-5 py-2.5 border border-stone-200 rounded-xl text-xs sm:text-sm font-semibold text-stone-600 hover:bg-stone-100 active:scale-95 transition-all cursor-pointer"
                 >
                   Cancel
@@ -509,6 +526,116 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
         </div>
       )}
 
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold text-stone-900 tracking-tight">Enquiries</h2>
+          <p className="text-xs text-stone-500 font-light mt-0.5">
+            {filtered.length} {filtered.length === 1 ? 'enquiry' : 'enquiries'}
+            {search ? ' matched' : ' total'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3 items-center">
+          {/* Status Filter Tabs */}
+          <div className="inline-flex rounded-xl bg-stone-100 p-1 border border-stone-200 text-xs font-semibold">
+            {[
+              { id: 'all', label: `All (${enquiries.length})` },
+              { id: 'active', label: `Active (${enquiries.filter(e => e.status !== 'converted').length})` },
+              { id: 'converted', label: `Converted (${enquiries.filter(e => e.status === 'converted').length})` }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setStatusFilter(tab.id)}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  statusFilter === tab.id
+                    ? 'bg-white text-stone-900 shadow-xs'
+                    : 'text-stone-500 hover:text-stone-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search enquiries..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-48 pl-9 pr-3 py-2 border border-stone-200 rounded-xl text-xs font-medium placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 bg-white"
+            />
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+
+          {/* Customizable Date Range Filtering */}
+          <div className="flex items-center gap-1.5 bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-1 text-xs">
+            <span className="text-[10px] font-bold text-stone-400 uppercase">From:</span>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="bg-transparent text-stone-700 outline-none text-xs cursor-pointer"
+              title="Filter from date"
+              aria-label="Filter from date"
+            />
+            <span className="text-[10px] font-bold text-stone-400 uppercase ml-1">To:</span>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="bg-transparent text-stone-700 outline-none text-xs cursor-pointer"
+              title="Filter to date"
+              aria-label="Filter to date"
+            />
+            {(fromDate || toDate) && (
+              <button
+                type="button"
+                onClick={() => { setFromDate(''); setToDate(''); }}
+                className="text-stone-400 hover:text-stone-600 text-xs px-1 cursor-pointer font-bold"
+                title="Clear date range"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Export to Excel Button */}
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="py-2 px-3 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+            title="Export filtered enquiries to Excel (.xlsx)"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export to Excel
+          </button>
+
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="py-2 px-3.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Create Enquiry
+          </button>
+          <button
+            onClick={fetchEnquiries}
+            className="p-2 border border-stone-200 rounded-xl hover:bg-stone-50 text-stone-500 transition-colors"
+            title="Refresh"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 0021.21 7.89M21 3v5h-5.182" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
       {filtered.length === 0 ? (
         <div className="bg-white border border-stone-200 rounded-2xl p-12 text-center">
           <p className="text-sm text-stone-500 font-light">
@@ -523,6 +650,7 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
                 <tr className="bg-stone-50 border-b border-stone-200">
                   <th className="text-left px-4 py-3 font-bold text-stone-500 uppercase tracking-wider">ID</th>
                   <th className="text-left px-4 py-3 font-bold text-stone-500 uppercase tracking-wider">Customer</th>
+                  <th className="text-left px-4 py-3 font-bold text-stone-500 uppercase tracking-wider">Lead Source</th>
                   <th className="text-left px-4 py-3 font-bold text-stone-500 uppercase tracking-wider">Destination</th>
                   <th className="text-left px-4 py-3 font-bold text-stone-500 uppercase tracking-wider">Travel Date</th>
                   <th className="text-center px-4 py-3 font-bold text-stone-500 uppercase tracking-wider">Guests</th>
@@ -532,8 +660,6 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
               </thead>
               <tbody className="divide-y divide-stone-100">
                 {filtered.map((enq) => {
-                  const next = nextStatus(enq.status)
-                  const prev = prevStatus(enq.status)
                   const isUpdating = updatingId === enq.id
 
                   return (
@@ -547,8 +673,27 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
                       </td>
                       <td className="px-4 py-3">
                         <div>
-                          <span className="font-semibold text-stone-800">{enq.name}</span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-stone-800">{enq.name}</span>
+                            {(enq.leadSource === 'Itinerary Download' || enq.isItineraryDownload || enq.source === 'itinerary_download') && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+                                Itinerary Download
+                              </span>
+                            )}
+                          </div>
                           <span className="block text-[10px] text-stone-400 mt-0.5">{enq.email}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-stone-700">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-xs text-stone-800">
+                            {enq.leadSource || (enq.isItineraryDownload ? 'Itinerary Download' : 'Direct/Other')}
+                          </span>
+                          {enq.leadSource === 'Referral' && enq.referralName && (
+                            <span className="text-[10px] text-amber-700 font-medium">
+                              via {enq.referralName}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-stone-700 font-medium">{enq.destination}</td>

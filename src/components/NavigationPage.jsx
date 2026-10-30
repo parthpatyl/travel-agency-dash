@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
@@ -30,6 +30,11 @@ export default function NavigationPage({ token, addNotification, user }) {
   const [activeCountryIndex, setActiveCountryIndex] = useState(null)
   const [newCity, setNewCity] = useState({ label: '', search: '' })
 
+  // Tour Highlights Management states
+  const [highlightModalOpen, setHighlightModalOpen] = useState(false)
+  const [editingHighlight, setEditingHighlight] = useState(null)
+  const [highlightForm, setHighlightForm] = useState({ title: '', region: 'Europe', destination: '', active: true })
+
   // Fetch navigation data
   const fetchNavigation = async () => {
     setLoading(true)
@@ -37,12 +42,13 @@ export default function NavigationPage({ token, addNotification, user }) {
       const res = await fetch(`${API_URL}/api/navigation`)
       if (!res.ok) throw new Error('Failed to load navigation menu')
       const data = await res.json()
-      setMenu(data)
-      setBaselineMenu(JSON.parse(JSON.stringify(data)))
-      if (data.length > 0) {
-        setSelectedTopItemId(data[0].id)
-        if (data[0].continents && data[0].continents.length > 0) {
-          setSelectedRegionId(data[0].continents[0].id)
+      const menuArray = Array.isArray(data) ? data : (Array.isArray(data?.menu) ? data.menu : [])
+      setMenu(menuArray)
+      setBaselineMenu(JSON.parse(JSON.stringify(menuArray)))
+      if (menuArray.length > 0) {
+        setSelectedTopItemId(menuArray[0].id)
+        if (menuArray[0].continents && menuArray[0].continents.length > 0) {
+          setSelectedRegionId(menuArray[0].continents[0].id)
         }
       }
     } catch (err) {
@@ -57,7 +63,7 @@ export default function NavigationPage({ token, addNotification, user }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle ESC key and body scroll locking when any modal is open
-  const isAnyModalOpen = showPreview || showResetConfirm || addTopModalOpen || addRegionModalOpen || addColumnModalOpen || addCityModalOpen
+  const isAnyModalOpen = showPreview || showResetConfirm || addTopModalOpen || addRegionModalOpen || addColumnModalOpen || addCityModalOpen || highlightModalOpen
 
   useEffect(() => {
     if (!isAnyModalOpen) return
@@ -69,6 +75,7 @@ export default function NavigationPage({ token, addNotification, user }) {
         setAddRegionModalOpen(false)
         setAddColumnModalOpen(false)
         setAddCityModalOpen(false)
+        setHighlightModalOpen(false)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -151,13 +158,14 @@ export default function NavigationPage({ token, addNotification, user }) {
   }
 
   // Selected entities
-  const selectedTopItem = menu.find(item => item.id === selectedTopItemId) || menu[0]
+  const safeMenu = Array.isArray(menu) ? menu : []
+  const selectedTopItem = safeMenu.find(item => item.id === selectedTopItemId) || safeMenu[0]
   const selectedRegion = selectedTopItem?.continents?.find(r => r.id === selectedRegionId) || selectedTopItem?.continents?.[0]
 
   // Update selected region when selected top item changes
   const handleSelectTopItem = (id) => {
     setSelectedTopItemId(id)
-    const item = menu.find(i => i.id === id)
+    const item = safeMenu.find(i => i.id === id)
     if (item && item.continents && item.continents.length > 0) {
       setSelectedRegionId(item.continents[0].id)
     } else {
@@ -222,6 +230,89 @@ export default function NavigationPage({ token, addNotification, user }) {
     setSelectedRegionId(null)
     setAddTopModalOpen(false)
     setNewTopItem({ label: '', type: 'megamenu', page: 'destinations', isSplit: true })
+  }
+
+  // ── Tour Highlights Mutators ──
+  const getHighlights = (item) => {
+    if (!item) return []
+    if (Array.isArray(item.tourHighlights)) return item.tourHighlights
+    if (item.columns?.[0]?.links) {
+      return item.columns[0].links.map((l, i) => ({
+        id: `th-${i + 1}`,
+        title: l.label,
+        region: l.region || 'Europe',
+        destination: l.search || l.label,
+        active: true
+      }))
+    }
+    return [
+      { id: 'th-1', title: 'Santorini Sunset Cruise', region: 'Europe', destination: 'Greece', active: true },
+      { id: 'th-2', title: 'Glacier Express Scenic Rail', region: 'Europe', destination: 'Switzerland', active: true },
+      { id: 'th-3', title: 'Pangong Lake Luxury Camp', region: 'India', destination: 'Ladakh', active: true }
+    ]
+  }
+
+  const setTopItemHighlights = (newHighlights) => {
+    if (!selectedTopItem) return
+    updateMenu(prev => prev.map(item => {
+      if (item.id !== selectedTopItem.id) return item
+      const updatedLinks = newHighlights
+        .filter(h => h.active)
+        .map(h => ({
+          label: h.title,
+          page: 'destinations',
+          region: h.region,
+          search: h.destination
+        }))
+      return {
+        ...item,
+        tourHighlights: newHighlights,
+        columns: item.columns ? [{ ...item.columns[0], links: updatedLinks }] : [{ heading: 'Popular Group Expeditions', links: updatedLinks }]
+      }
+    }))
+  }
+
+  const toggleHighlightActive = (highlightId) => {
+    const current = getHighlights(selectedTopItem)
+    const next = current.map(h => h.id === highlightId ? { ...h, active: !h.active } : h)
+    setTopItemHighlights(next)
+  }
+
+  const moveHighlight = (index, dir) => {
+    const current = getHighlights(selectedTopItem)
+    const targetIdx = index + dir
+    if (targetIdx < 0 || targetIdx >= current.length) return
+    const next = [...current]
+    const temp = next[index]
+    next[index] = next[targetIdx]
+    next[targetIdx] = temp
+    setTopItemHighlights(next)
+  }
+
+  const deleteHighlight = (highlightId) => {
+    const current = getHighlights(selectedTopItem)
+    const next = current.filter(h => h.id !== highlightId)
+    setTopItemHighlights(next)
+  }
+
+  const handleSaveHighlight = () => {
+    if (!highlightForm.title.trim()) return
+    const current = getHighlights(selectedTopItem)
+    if (editingHighlight?.id) {
+      const next = current.map(h => h.id === editingHighlight.id ? { ...h, ...highlightForm } : h)
+      setTopItemHighlights(next)
+    } else {
+      const newH = {
+        id: `th-${Date.now()}`,
+        title: highlightForm.title.trim(),
+        region: highlightForm.region || 'Europe',
+        destination: highlightForm.destination.trim() || highlightForm.title.trim(),
+        active: highlightForm.active !== false
+      }
+      setTopItemHighlights([...current, newH])
+    }
+    setHighlightModalOpen(false)
+    setEditingHighlight(null)
   }
 
   // Region Mutators
@@ -597,6 +688,16 @@ export default function NavigationPage({ token, addNotification, user }) {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteTopItem(item.id)}
+                      className="p-1 rounded text-rose-400 hover:text-rose-600 hover:bg-rose-50"
+                      title="Delete Navbar Item"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               )
@@ -736,8 +837,119 @@ export default function NavigationPage({ token, addNotification, user }) {
               </div>
             </div>
           ) : (
-            <div className="p-4 rounded-xl bg-stone-50 border border-stone-200 text-xs text-stone-500">
-              Dropdown menu links are automatically populated with active packages and group departures.
+            <div className="space-y-4 p-4 rounded-xl bg-stone-50 border border-stone-200">
+              <div>
+                <label className="text-xs font-semibold text-stone-700">Dropdown Menu Title</label>
+                <input
+                  type="text"
+                  value={selectedTopItem.label || ''}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    updateMenu(prev => prev.map(item => item.id === selectedTopItem.id ? { ...item, label: val } : item))
+                  }}
+                  className="w-full mt-1 px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm"
+                />
+              </div>
+
+              <div className="pt-2 border-t border-stone-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-stone-800">
+                    Tour Highlights ({getHighlights(selectedTopItem).length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingHighlight(null)
+                      setHighlightForm({ title: '', region: 'Europe', destination: '', active: true })
+                      setHighlightModalOpen(true)
+                    }}
+                    className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-[11px] font-bold cursor-pointer"
+                  >
+                    + Add Highlight
+                  </button>
+                </div>
+                <p className="text-[11px] text-stone-500 mb-3">
+                  Administrators can view, edit, add, remove, and reorder tour highlights for active packages/dropdowns.
+                </p>
+
+                <div className="space-y-2 max-h-[360px] overflow-y-auto">
+                  {getHighlights(selectedTopItem).length === 0 ? (
+                    <div className="p-3 text-center text-xs text-stone-400 border border-dashed rounded-lg">
+                      No tour highlights configured. Click &quot;+ Add Highlight&quot; to create one.
+                    </div>
+                  ) : (
+                    getHighlights(selectedTopItem).map((h, hIdx) => (
+                      <div
+                        key={h.id || hIdx}
+                        className={`p-2.5 rounded-lg border flex items-center justify-between gap-2 text-xs transition-all ${
+                          h.active ? 'bg-white border-stone-200 shadow-xs' : 'bg-stone-100 border-stone-200 opacity-60'
+                        }`}
+                      >
+                        <div className="truncate flex-1">
+                          <div className="font-semibold text-stone-800 truncate">{h.title}</div>
+                          <div className="text-[10px] text-stone-400 truncate">{h.region} • {h.destination}</div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => toggleHighlightActive(h.id)}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold cursor-pointer ${
+                              h.active ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
+                            }`}
+                            title={h.active ? 'Click to deactivate' : 'Click to activate'}
+                          >
+                            {h.active ? 'Active' : 'Hidden'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={hIdx === 0}
+                            onClick={() => moveHighlight(hIdx, -1)}
+                            className="p-1 rounded text-stone-400 hover:text-stone-700 disabled:opacity-20 cursor-pointer"
+                            title="Move Up"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            disabled={hIdx === getHighlights(selectedTopItem).length - 1}
+                            onClick={() => moveHighlight(hIdx, 1)}
+                            className="p-1 rounded text-stone-400 hover:text-stone-700 disabled:opacity-20 cursor-pointer"
+                            title="Move Down"
+                          >
+                            ▼
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingHighlight(h)
+                              setHighlightForm({
+                                title: h.title || '',
+                                region: h.region || 'Europe',
+                                destination: h.destination || '',
+                                active: h.active !== false
+                              })
+                              setHighlightModalOpen(true)
+                            }}
+                            className="p-1 rounded text-stone-400 hover:text-amber-700 cursor-pointer"
+                            title="Edit"
+                          >
+                            ✎
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteHighlight(h.id)}
+                            className="p-1 rounded text-rose-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                            title="Delete"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -747,17 +959,21 @@ export default function NavigationPage({ token, addNotification, user }) {
           <div className="flex items-center justify-between pb-3 border-b border-stone-100">
             <div>
               <h2 className="text-sm font-bold text-stone-900 uppercase tracking-wider">
-                {selectedRegion ? `Destinations in ${selectedRegion.name}` : 'Destination Columns'}
+                {selectedTopItem?.type === 'megamenu'
+                  ? (selectedRegion ? `Destinations in ${selectedRegion.name}` : 'Destination Columns')
+                  : 'Tour Highlights & Featured Expeditions'}
               </h2>
               <span className="text-xs text-stone-400">
-                Filter by search keywords or configure individual city cards
+                {selectedTopItem?.type === 'megamenu'
+                  ? 'Filter by search keywords or configure individual city cards'
+                  : 'Configure active tour highlights and popular expeditions for dropdown navigation'}
               </span>
             </div>
 
-            {selectedRegion && (
+            {selectedTopItem?.type === 'megamenu' && selectedRegion && (
               <button
                 onClick={() => setAddColumnModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold transition-colors cursor-pointer"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -765,9 +981,120 @@ export default function NavigationPage({ token, addNotification, user }) {
                 Add State / Column
               </button>
             )}
+
+            {selectedTopItem?.type !== 'megamenu' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingHighlight(null)
+                  setHighlightForm({ title: '', region: 'Europe', destination: '', active: true })
+                  setHighlightModalOpen(true)
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Tour Highlight
+              </button>
+            )}
           </div>
 
-          {!selectedRegion ? (
+          {selectedTopItem?.type !== 'megamenu' ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-200/80 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-amber-950">Active Tour Highlights CMS</h3>
+                  <p className="text-xs text-amber-700 font-light mt-0.5">
+                    Tour highlights and featured itineraries configured here persist via Navigation API and reflect dynamically across the customer site.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {getHighlights(selectedTopItem).map((h, hIdx) => (
+                  <div
+                    key={h.id || hIdx}
+                    className={`rounded-xl border p-4 flex flex-col justify-between gap-3 transition-all ${
+                      h.active ? 'bg-white border-stone-200 shadow-xs' : 'bg-stone-50 border-stone-200 opacity-60'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          h.active ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
+                        }`}>
+                          {h.active ? 'Live / Active' : 'Hidden'}
+                        </span>
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                          {h.region}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-stone-900 text-sm mt-2">{h.title}</h4>
+                      <p className="text-xs text-stone-500 mt-1">Destination: <strong className="text-stone-700">{h.destination}</strong></p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-stone-100">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={hIdx === 0}
+                          onClick={() => moveHighlight(hIdx, -1)}
+                          className="px-2 py-1 rounded bg-stone-100 text-stone-600 hover:bg-stone-200 disabled:opacity-30 text-xs font-bold cursor-pointer"
+                          title="Move Up"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          disabled={hIdx === getHighlights(selectedTopItem).length - 1}
+                          onClick={() => moveHighlight(hIdx, 1)}
+                          className="px-2 py-1 rounded bg-stone-100 text-stone-600 hover:bg-stone-200 disabled:opacity-30 text-xs font-bold cursor-pointer"
+                          title="Move Down"
+                        >
+                          ▼
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleHighlightActive(h.id)}
+                          className="px-2.5 py-1 text-xs font-medium rounded-lg text-stone-600 hover:bg-stone-100 border border-stone-200 cursor-pointer"
+                        >
+                          {h.active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingHighlight(h)
+                            setHighlightForm({
+                              title: h.title || '',
+                              region: h.region || 'Europe',
+                              destination: h.destination || '',
+                              active: h.active !== false
+                            })
+                            setHighlightModalOpen(true)
+                          }}
+                          className="px-2.5 py-1 text-xs font-bold rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteHighlight(h.id)}
+                          className="px-2 py-1 text-xs font-bold rounded-lg text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Remove Highlight"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : !selectedRegion ? (
             <div className="p-8 text-center text-stone-400 text-sm">
               Select a region on the left to edit its states and city destinations.
             </div>
@@ -1289,6 +1616,95 @@ export default function NavigationPage({ token, addNotification, user }) {
                 </div>
               </div>
             )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── MODAL: Add / Edit Tour Highlight ── */}
+      {highlightModalOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+          onClick={(e) => { if (e.target === e.currentTarget) setHighlightModalOpen(false) }}
+        >
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200 animate-in zoom-in-95 duration-150">
+            <h3 className="text-lg font-bold text-stone-900 mb-4">
+              {editingHighlight ? 'Edit Tour Highlight' : 'Add New Tour Highlight'}
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-stone-700">Tour Title *</label>
+                <input
+                  type="text"
+                  value={highlightForm.title}
+                  onChange={e => setHighlightForm({ ...highlightForm, title: e.target.value })}
+                  placeholder="e.g. Santorini Sunset Cruise"
+                  className="w-full mt-1 px-3 py-2 border border-stone-200 rounded-xl text-sm"
+                  autoFocus
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-stone-700">Region</label>
+                  <select
+                    value={highlightForm.region}
+                    onChange={e => setHighlightForm({ ...highlightForm, region: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border border-stone-200 rounded-xl text-sm bg-white"
+                  >
+                    <option value="Europe">Europe</option>
+                    <option value="Asia">Asia</option>
+                    <option value="India">India</option>
+                    <option value="Middle East">Middle East</option>
+                    <option value="Africa">Africa</option>
+                    <option value="America">America</option>
+                    <option value="Australia">Australia</option>
+                    <option value="Antarctica">Antarctica</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-stone-700">Destination</label>
+                  <input
+                    type="text"
+                    value={highlightForm.destination}
+                    onChange={e => setHighlightForm({ ...highlightForm, destination: e.target.value })}
+                    placeholder="e.g. Greece, Switzerland"
+                    className="w-full mt-1 px-3 py-2 border border-stone-200 rounded-xl text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <label className="flex items-center gap-2 text-xs font-semibold text-stone-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={highlightForm.active}
+                    onChange={e => setHighlightForm({ ...highlightForm, active: e.target.checked })}
+                    className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <span>Display as Live Active Highlight</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 mt-6">
+              <button
+                type="button"
+                onClick={() => setHighlightModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-stone-600 hover:bg-stone-100 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveHighlight}
+                disabled={!highlightForm.title.trim()}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 cursor-pointer"
+              >
+                {editingHighlight ? 'Save Changes' : 'Add Highlight'}
+              </button>
+            </div>
           </div>
         </div>,
         document.body

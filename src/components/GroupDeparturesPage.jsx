@@ -6,6 +6,29 @@ import ReadOnlyBanner from './ReadOnlyBanner'
 
 const API_URL_DEFAULT = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
+function parseDurationDays(duration) {
+  if (!duration) return null
+  const str = String(duration)
+  const dayMatch = str.match(/(\d+)\s*Days?/i)
+  if (dayMatch) return parseInt(dayMatch[1], 10)
+  const nightMatch = str.match(/(\d+)\s*Nights?/i)
+  if (nightMatch) return parseInt(nightMatch[1], 10) + 1
+  const num = parseInt(str, 10)
+  return !isNaN(num) ? num : null
+}
+
+function calculateEndDate(startDate, durationDays) {
+  if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) return ''
+  const days = durationDays || 1
+  const [y, m, d] = startDate.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  date.setDate(date.getDate() + Math.max(0, days - 1))
+  const ry = date.getFullYear()
+  const rm = String(date.getMonth() + 1).padStart(2, '0')
+  const rd = String(date.getDate()).padStart(2, '0')
+  return `${ry}-${rm}-${rd}`
+}
+
 export default function GroupDeparturesPage({ groupDepartures, setGroupDepartures, packages = [], setPackages, addNotification, user }) {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -120,9 +143,11 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
   const handleSelectBasePackage = (pkgId) => {
     const selectedPkg = packages.find(p => p.id === pkgId)
     if (selectedPkg) {
+      const durDays = parseDurationDays(selectedPkg.duration)
       setForm(prev => ({
         ...prev,
         packageId: pkgId,
+        returnDate: (prev.departureDate && durDays) ? calculateEndDate(prev.departureDate, durDays) : prev.returnDate,
         title: prev.title || selectedPkg.name || '',
         costPrice: selectedPkg.costPrice != null ? selectedPkg.costPrice : (selectedPkg.basePrice || prev.costPrice),
         inclusions: Array.isArray(selectedPkg.inclusions) ? selectedPkg.inclusions.join(', ') : (selectedPkg.inclusions || ''),
@@ -603,7 +628,14 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
                                 min="1"
                                 required={pkgMode === 'new'}
                                 value={newPkgDuration}
-                                onChange={(e) => setNewPkgDuration(e.target.value)}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                  setNewPkgDuration(val)
+                                  const durDays = parseInt(val, 10)
+                                  if (form.departureDate && durDays) {
+                                    setForm(prev => ({ ...prev, returnDate: calculateEndDate(prev.departureDate, durDays) }))
+                                  }
+                                }}
                                 className="w-full bg-white border border-stone-300 focus:border-amber-500 rounded-lg p-3 text-sm text-stone-800 outline-none"
                               />
                             </div>
@@ -662,7 +694,18 @@ export default function GroupDeparturesPage({ groupDepartures, setGroupDeparture
                           type="date"
                           required
                           value={form.departureDate}
-                          onChange={(e) => setForm({ ...form, departureDate: e.target.value })}
+                          onChange={(e) => {
+                            const newDepDate = e.target.value
+                            let autoReturn = form.returnDate
+                            const currentPkg = packages.find(p => p.id === form.packageId)
+                            const durDays = pkgMode === 'new'
+                              ? parseInt(newPkgDuration, 10)
+                              : (currentPkg ? parseDurationDays(currentPkg.duration) : null)
+                            if (newDepDate && durDays) {
+                              autoReturn = calculateEndDate(newDepDate, durDays)
+                            }
+                            setForm({ ...form, departureDate: newDepDate, returnDate: autoReturn })
+                          }}
                           className="w-full bg-stone-50 border border-stone-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-lg p-3 text-sm text-stone-855 outline-none transition-all"
                         />
                       </div>

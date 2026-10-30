@@ -2093,6 +2093,9 @@ function App() {
               clients={clients}
               settings={settings}
               user={user}
+              token={token}
+              API_URL={API_URL}
+              addNotification={addNotification}
             />
           )}
 
@@ -2115,6 +2118,7 @@ function App() {
               addNotification={addNotification}
               packages={packages}
               user={user}
+              token={token}
             />
           )}
 

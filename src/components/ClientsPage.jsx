@@ -152,11 +152,12 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
 
   const getClientStats = (clientName) => {
     const clientBookings = bookings.filter(b => (b.client || '').toLowerCase() === (clientName || '').toLowerCase())
+    const activeBookings = clientBookings.filter(b => (b.status || '').toLowerCase() !== 'cancelled')
     const currentCount = clientBookings.length
     const currentVolume = clientBookings.reduce((sum, b) => sum + (Number(b.amount) || 0), 0)
     
     let nextTrip = 'None scheduled'
-    const futureBookings = [...clientBookings].sort((a, b) => new Date(a.date) - new Date(b.date))
+    const futureBookings = [...activeBookings].sort((a, b) => new Date(a.date) - new Date(b.date))
     if (futureBookings.length > 0) {
       nextTrip = `${futureBookings[0].package} (${futureBookings[0].date})`
     }
@@ -164,7 +165,9 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
     return {
       count: currentCount,
       volume: currentVolume,
-      nextTrip
+      nextTrip,
+      hasBookings: clientBookings.length > 0,
+      activeCount: activeBookings.length
     }
   }
 
@@ -174,8 +177,18 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
     const totalLtv = (client.historicalLtv ?? 0) + stats.volume
     const currentPassport = client.passport ?? { number: 'Pending', expires: 'Pending', status: 'Valid' }
     const dynamicPassportStatus = calculatePassportStatus(currentPassport.expires)
+
+    // R6: when a client has bookings and all of their bookings are marked as Cancelled, derive client status = 'Cancelled'
+    let derivedStatus = client.status || 'Active'
+    if (stats.hasBookings && stats.activeCount === 0) {
+      derivedStatus = 'Cancelled'
+    } else if (stats.activeCount > 0 && (client.status || '').toLowerCase() === 'cancelled') {
+      derivedStatus = 'Active'
+    }
+
     return {
       ...client,
+      status: derivedStatus,
       bookingsCount: totalCount,
       ltv: `₹${totalLtv.toLocaleString('en-IN')}`,
       nextTrip: stats.nextTrip,
@@ -544,6 +557,10 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
     }
   }
 
+  const activeSelectedClient = selectedClient
+    ? (clientsWithStats.find(c => c.id === selectedClient.id || (c.name || '').toLowerCase() === (selectedClient.name || '').toLowerCase()) || selectedClient)
+    : null
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -593,9 +610,9 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-stone-400 mt-0.5">
-                    <span className="font-mono text-[11px] font-semibold">{selectedClient.id}</span>
+                    <span className="font-mono text-[11px] font-semibold">{activeSelectedClient.id}</span>
                     <span>•</span>
-                    <span>Status: <strong className="text-emerald-700">{selectedClient.status}</strong></span>
+                    <span>Status: <strong className={activeSelectedClient.status === 'Cancelled' ? 'text-rose-600' : 'text-emerald-700'}>{activeSelectedClient.status}</strong></span>
                   </div>
                 </div>
               </div>
@@ -984,7 +1001,7 @@ export default function ClientsPage({ clients = [], setClients, bookings = [], i
                   </div>
                   <div>
                     <span className="text-[9px] font-bold text-stone-400 block uppercase">Status</span>
-                    <span className="text-xs font-extrabold text-emerald-600">{client.status}</span>
+                    <span className={`text-xs font-extrabold ${client.status === 'Cancelled' ? 'text-rose-600' : 'text-emerald-600'}`}>{client.status}</span>
                   </div>
                 </div>
 
