@@ -1013,7 +1013,7 @@ export default function NavigationPage({ token, addNotification, user }) {
                             ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
                             : 'bg-amber-100 text-amber-800 border border-amber-200'
                         }`}>
-                          {item.type === 'link' ? '🔗 Link' : item.type === 'dropdown' ? '📋 Dropdown' : '🗺️ Mega Menu'}
+                          {item.type === 'link' ? 'Link' : item.type === 'dropdown' ? 'Dropdown' : 'Mega Menu'}
                         </span>
                         {item.type === 'megamenu' && <span>• {item.continents?.length || 0} regions</span>}
                         {item.type === 'dropdown' && <span>• {getHighlights(item).length} options</span>}
@@ -1111,38 +1111,38 @@ export default function NavigationPage({ token, addNotification, user }) {
                 <button
                   type="button"
                   onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'link')}
-                  className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition-all text-center cursor-pointer ${
+                  className={`h-9 px-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center text-center whitespace-nowrap cursor-pointer ${
                     selectedTopItem.type === 'link'
-                      ? 'bg-amber-500 text-stone-950 border-amber-600 font-bold shadow-xs'
-                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
+                      ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
+                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100 hover:text-stone-900'
                   }`}
                   title="Direct single-click navigation link (e.g. /corporate or /gallery)"
                 >
-                  🔗 Link
+                  Link
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'dropdown')}
-                  className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition-all text-center cursor-pointer ${
+                  className={`h-9 px-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center text-center whitespace-nowrap cursor-pointer ${
                     selectedTopItem.type === 'dropdown'
-                      ? 'bg-amber-500 text-stone-950 border-amber-600 font-bold shadow-xs'
-                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
+                      ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
+                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100 hover:text-stone-900'
                   }`}
                   title="Floating dropdown menu with customizable options / highlights"
                 >
-                  📋 Dropdown
+                  Dropdown
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'megamenu')}
-                  className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition-all text-center cursor-pointer ${
+                  className={`h-9 px-2 rounded-lg text-xs font-semibold border transition-all flex items-center justify-center text-center whitespace-nowrap cursor-pointer ${
                     selectedTopItem.type === 'megamenu'
-                      ? 'bg-amber-500 text-stone-950 border-amber-600 font-bold shadow-xs'
-                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100'
+                      ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
+                      : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-100 hover:text-stone-900'
                   }`}
                   title="Multi-continent split mega menu with continents and countries grid"
                 >
-                  🗺️ Mega Menu
+                  Mega Menu
                 </button>
               </div>
             </div>
@@ -1260,9 +1260,9 @@ export default function NavigationPage({ token, addNotification, user }) {
                 <button
                   type="button"
                   onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'dropdown')}
-                  className="w-full py-2 px-3 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold rounded-xl text-xs transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                  className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-xl text-xs transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  <span>📋 Switch to Dropdown with Options</span>
+                  <span>Switch to Dropdown with Options</span>
                 </button>
               </div>
             </div>
@@ -1455,8 +1455,10 @@ export default function NavigationPage({ token, addNotification, user }) {
 
           {selectedTopItem?.type === 'link' ? (
             <div className="p-8 text-center bg-stone-50 rounded-2xl border border-stone-200/80 my-auto">
-              <div className="w-14 h-14 rounded-full bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center text-2xl mx-auto mb-3 shadow-xs">
-                🔗
+              <div className="w-14 h-14 rounded-full bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center mx-auto mb-3 shadow-xs">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
               </div>
               <h3 className="font-bold text-stone-900 text-base">{selectedTopItem.label} is currently a Direct Link</h3>
               <p className="text-xs text-stone-500 max-w-md mx-auto mt-1 leading-relaxed">
@@ -1466,9 +1468,9 @@ export default function NavigationPage({ token, addNotification, user }) {
                 <button
                   type="button"
                   onClick={() => handleSwitchTopItemType(selectedTopItem.id, 'dropdown')}
-                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer inline-flex items-center gap-2 transition-all hover:scale-102"
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer inline-flex items-center gap-2 transition-all hover:scale-102"
                 >
-                  <span>📋 Switch to Dropdown Menu &amp; Add Options</span>
+                  <span>Switch to Dropdown Menu &amp; Add Options</span>
                 </button>
               </div>
             </div>
@@ -2432,8 +2434,10 @@ export default function NavigationPage({ token, addNotification, user }) {
 
                     return (
                       <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center text-stone-900 shadow-xl border border-stone-200 animate-in zoom-in-95 duration-150 my-auto">
-                        <div className="w-12 h-12 rounded-full bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto mb-3 text-xl shadow-xs">
-                          🔗
+                        <div className="w-12 h-12 rounded-full bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto mb-3 shadow-xs">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
                         </div>
                         <h4 className="font-bold text-base text-stone-900">{activeItem.label}</h4>
                         <p className="text-xs text-stone-500 mt-1">
@@ -2449,7 +2453,11 @@ export default function NavigationPage({ token, addNotification, user }) {
                   {/* Empty/Neutral Canvas Prompt when Group Tours dropdown is open or no split megamenu is active */}
                   {(!previewOpenNavId || menu.find(i => i.id === previewOpenNavId)?.type === 'dropdown') && (
                     <div className="my-auto text-center p-8 bg-white/5 rounded-2xl border border-white/10 max-w-md">
-                      <div className="text-amber-400 text-2xl mb-2">✨</div>
+                      <div className="w-8 h-8 rounded-full bg-amber-400/10 border border-amber-400/20 text-amber-400 flex items-center justify-center mx-auto mb-2">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                        </svg>
+                      </div>
                       <h4 className="text-sm font-bold text-white tracking-wide">
                         {previewOpenNavId === 'group_tours' ? 'Group Tours Dropdown Active Above' : 'Interactive Navbar Ready'}
                       </h4>
