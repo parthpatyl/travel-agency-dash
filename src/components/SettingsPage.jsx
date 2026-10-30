@@ -1362,7 +1362,7 @@ export default function SettingsPage({
           </section>
 
           {/* Speciality Categories */}
-          <SpecialityCategoriesAdmin />
+          <SpecialityCategoriesAdmin token={token} addNotification={addNotification} />
         </div>
       )}
 

@@ -1,7 +1,21 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { cropAndCompressImage, formatFileSize } from '../utils/imageCompressor'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
+const DEFAULT_CAROUSEL_ITEMS = [
+  { id: 'switzerland', name: 'Switzerland', region: 'Europe', search: 'Switzerland', image: '/assets/unsplash-swiss-alps.jpg', tourCount: '2 tours', isActive: true },
+  { id: 'japan', name: 'Japan', region: 'Asia', search: 'Japan', image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=400&q=80', tourCount: '3 tours', isActive: true },
+  { id: 'dubai', name: 'Dubai & UAE', region: 'Middle East', search: 'Dubai', image: '/assets/unsplash-dubai.jpg', tourCount: 'Coming soon', isActive: true },
+  { id: 'bali', name: 'Bali & Indo', region: 'Asia', search: 'Bali', image: '/assets/unsplash-bali.jpg', tourCount: '3 tours', isActive: true },
+  { id: 'greece', name: 'Greece', region: 'Europe', search: 'Greece', image: '/assets/unsplash-greece.jpg', tourCount: '2 tours', isActive: true },
+  { id: 'italy', name: 'Italy & Amalfi', region: 'Europe', search: 'Italy', image: '/assets/unsplash-amalfi.jpg', tourCount: '2 tours', isActive: true },
+  { id: 'iceland', name: 'Iceland', region: 'Europe', search: 'Iceland', image: 'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=400&q=80', tourCount: '2 tours', isActive: true },
+  { id: 'kashmir', name: 'Kashmir, India', region: 'India', search: 'Kashmir', image: '/assets/unsplash-kashmir.png', tourCount: '1 tour', isActive: true },
+  { id: 'africa', name: 'Serengeti Safari', region: 'Africa', search: 'Safari', image: '/assets/unsplash-african-safari.jpg', tourCount: '1 tour', isActive: true },
+  { id: 'vietnam', name: 'Vietnam', region: 'Asia', search: 'Vietnam', image: '/assets/unsplash-pkg-card.jpg', tourCount: '3 tours', isActive: true }
+]
 
 export default function NavigationPage({ token, addNotification, user }) {
   const [menu, setMenu] = useState([])
@@ -11,6 +25,7 @@ export default function NavigationPage({ token, addNotification, user }) {
   const [resetting, setResetting] = useState(false)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
+  const [previewSubTab, setPreviewSubTab] = useState('nav') // 'nav' | 'highlights' | 'carousel'
 
   // Selection states for hierarchical drill-down
   const [selectedTopItemId, setSelectedTopItemId] = useState(null)
@@ -35,11 +50,25 @@ export default function NavigationPage({ token, addNotification, user }) {
   const [editingHighlight, setEditingHighlight] = useState(null)
   const [highlightForm, setHighlightForm] = useState({ title: '', region: 'Europe', destination: '', active: true })
 
-  // Fetch navigation data
+  // Explore Destinations Carousel states
+  const [carouselItems, setCarouselItems] = useState(DEFAULT_CAROUSEL_ITEMS)
+  const [baselineCarousel, setBaselineCarousel] = useState(null)
+  const [carouselModalOpen, setCarouselModalOpen] = useState(false)
+  const [editingCarouselItem, setEditingCarouselItem] = useState(null)
+  const [carouselForm, setCarouselForm] = useState({ name: '', region: 'Europe', search: '', tourCount: '', image: '', isActive: true })
+  const [carouselUploading, setCarouselUploading] = useState(false)
+  const [carouselCompressionInfo, setCarouselCompressionInfo] = useState(null)
+  const carouselFileInputRef = useRef(null)
+
+  // Fetch navigation & destination carousel data
   const fetchNavigation = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`${API_URL}/api/navigation`)
+      const [res, carRes] = await Promise.all([
+        fetch(`${API_URL}/api/navigation`),
+        fetch(`${API_URL}/api/navigation/carousel`).catch(() => null)
+      ])
+
       if (!res.ok) throw new Error('Failed to load navigation menu')
       const data = await res.json()
       const menuArray = Array.isArray(data) ? data : (Array.isArray(data?.menu) ? data.menu : [])
@@ -50,6 +79,18 @@ export default function NavigationPage({ token, addNotification, user }) {
         if (menuArray[0].continents && menuArray[0].continents.length > 0) {
           setSelectedRegionId(menuArray[0].continents[0].id)
         }
+      }
+
+      if (carRes && carRes.ok) {
+        const carData = await carRes.json()
+        if (Array.isArray(carData) && carData.length > 0) {
+          setCarouselItems(carData)
+          setBaselineCarousel(JSON.parse(JSON.stringify(carData)))
+        } else {
+          setBaselineCarousel(JSON.parse(JSON.stringify(DEFAULT_CAROUSEL_ITEMS)))
+        }
+      } else {
+        setBaselineCarousel(JSON.parse(JSON.stringify(DEFAULT_CAROUSEL_ITEMS)))
       }
     } catch (err) {
       addNotification?.({ type: 'error', message: 'Error loading navigation menu: ' + err.message })
@@ -63,7 +104,7 @@ export default function NavigationPage({ token, addNotification, user }) {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle ESC key and body scroll locking when any modal is open
-  const isAnyModalOpen = showPreview || showResetConfirm || addTopModalOpen || addRegionModalOpen || addColumnModalOpen || addCityModalOpen || highlightModalOpen
+  const isAnyModalOpen = showPreview || showResetConfirm || addTopModalOpen || addRegionModalOpen || addColumnModalOpen || addCityModalOpen || highlightModalOpen || carouselModalOpen
 
   useEffect(() => {
     if (!isAnyModalOpen) return
@@ -76,6 +117,7 @@ export default function NavigationPage({ token, addNotification, user }) {
         setAddColumnModalOpen(false)
         setAddCityModalOpen(false)
         setHighlightModalOpen(false)
+        setCarouselModalOpen(false)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -87,24 +129,35 @@ export default function NavigationPage({ token, addNotification, user }) {
     }
   }, [isAnyModalOpen])
 
-  // Dirty state tracking
+  // Dirty state tracking across menu & carousel
   const isDirty = useMemo(() => {
-    if (!baselineMenu) return false
-    return JSON.stringify(menu) !== JSON.stringify(baselineMenu)
-  }, [menu, baselineMenu])
+    const menuChanged = baselineMenu && JSON.stringify(menu) !== JSON.stringify(baselineMenu)
+    const carouselChanged = baselineCarousel && JSON.stringify(carouselItems) !== JSON.stringify(baselineCarousel)
+    return Boolean(menuChanged || carouselChanged)
+  }, [menu, baselineMenu, carouselItems, baselineCarousel])
 
   // Save changes to backend
   const handleSave = async () => {
     setSaving(true)
     try {
-      const res = await fetch(`${API_URL}/api/navigation`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify(menu)
-      })
+      const [res, carRes] = await Promise.all([
+        fetch(`${API_URL}/api/navigation`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(menu)
+        }),
+        fetch(`${API_URL}/api/navigation/carousel`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(carouselItems)
+        })
+      ])
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
@@ -114,7 +167,14 @@ export default function NavigationPage({ token, addNotification, user }) {
       const updated = await res.json()
       setMenu(updated)
       setBaselineMenu(JSON.parse(JSON.stringify(updated)))
-      addNotification?.({ type: 'success', message: 'Navigation menu successfully published live!' })
+
+      if (carRes && carRes.ok) {
+        const carUpdated = await carRes.json()
+        setCarouselItems(carUpdated)
+        setBaselineCarousel(JSON.parse(JSON.stringify(carUpdated)))
+      }
+
+      addNotification?.({ type: 'success', message: 'Navigation menu & destination carousel successfully published live!' })
     } catch (err) {
       addNotification?.({ type: 'error', message: err.message })
     } finally {
@@ -142,18 +202,148 @@ export default function NavigationPage({ token, addNotification, user }) {
       const defaults = await res.json()
       setMenu(defaults)
       setBaselineMenu(JSON.parse(JSON.stringify(defaults)))
+
+      setCarouselItems(DEFAULT_CAROUSEL_ITEMS)
+      setBaselineCarousel(JSON.parse(JSON.stringify(DEFAULT_CAROUSEL_ITEMS)))
+
       if (defaults.length > 0) {
         setSelectedTopItemId(defaults[0].id)
         if (defaults[0].continents && defaults[0].continents.length > 0) {
           setSelectedRegionId(defaults[0].continents[0].id)
         }
       }
-      setShowResetConfirm(false)
-      addNotification?.({ type: 'success', message: 'Navigation menu reset to factory default configuration.' })
+      addNotification?.({ type: 'info', message: 'Navigation & carousel reset to original defaults' })
     } catch (err) {
       addNotification?.({ type: 'error', message: err.message })
     } finally {
       setResetting(false)
+      setShowResetConfirm(false)
+    }
+  }
+
+  // Destination Carousel management handlers
+  const handleOpenAddCarousel = () => {
+    setEditingCarouselItem(null)
+    setCarouselForm({
+      name: '',
+      region: 'Europe',
+      search: '',
+      tourCount: '',
+      image: '',
+      isActive: true
+    })
+    setCarouselCompressionInfo(null)
+    setCarouselModalOpen(true)
+  }
+
+  const handleOpenEditCarousel = (item) => {
+    setEditingCarouselItem(item)
+    setCarouselForm({
+      name: item.name || '',
+      region: item.region || 'Europe',
+      search: item.search || item.name || '',
+      tourCount: item.tourCount || '',
+      image: item.image || '',
+      isActive: item.isActive !== false
+    })
+    setCarouselCompressionInfo(null)
+    setCarouselModalOpen(true)
+  }
+
+  const handleSaveCarouselItem = (e) => {
+    e.preventDefault()
+    if (!carouselForm.name.trim()) return
+
+    const newItem = {
+      id: editingCarouselItem?.id || carouselForm.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      name: carouselForm.name.trim(),
+      region: carouselForm.region.trim() || 'Europe',
+      search: carouselForm.search.trim() || carouselForm.name.trim(),
+      tourCount: carouselForm.tourCount.trim(),
+      image: carouselForm.image.trim(),
+      isActive: carouselForm.isActive !== false
+    }
+
+    if (editingCarouselItem) {
+      setCarouselItems(prev => prev.map(item => item.id === editingCarouselItem.id ? newItem : item))
+      addNotification?.({ type: 'success', message: `Updated "${newItem.name}" carousel item` })
+    } else {
+      setCarouselItems(prev => [...prev, newItem])
+      addNotification?.({ type: 'success', message: `Added "${newItem.name}" to destination carousel` })
+    }
+    setCarouselModalOpen(false)
+  }
+
+  const handleDeleteCarouselItem = (id) => {
+    if (!window.confirm('Are you sure you want to delete this destination from the carousel?')) return
+    setCarouselItems(prev => prev.filter(item => item.id !== id))
+    addNotification?.({ type: 'info', message: 'Removed destination from carousel' })
+  }
+
+  const handleToggleCarouselActive = (id) => {
+    setCarouselItems(prev => prev.map(item => item.id === id ? { ...item, isActive: !item.isActive } : item))
+  }
+
+  const handleMoveCarouselItem = (index, dir) => {
+    const target = index + dir
+    if (target < 0 || target >= carouselItems.length) return
+    const updated = [...carouselItems]
+    const temp = updated[index]
+    updated[index] = updated[target]
+    updated[target] = temp
+    setCarouselItems(updated)
+  }
+
+  const handleCarouselImageSelect = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      setCarouselUploading(true)
+      const originalSize = file.size
+
+      // 1:1 circular bubble center crop & WebP compression (400x400 max, <80KB)
+      const compressedFile = await cropAndCompressImage(file, {
+        aspectRatio: 1,
+        maxWidth: 400,
+        maxHeight: 400,
+        quality: 0.82,
+        format: 'image/webp'
+      })
+
+      const compressedSize = compressedFile.size
+      setCarouselCompressionInfo({
+        original: formatFileSize(originalSize),
+        compressed: formatFileSize(compressedSize),
+        savings: Math.max(0, Math.round(((originalSize - compressedSize) / originalSize) * 100))
+      })
+
+      const formData = new FormData()
+      formData.append('image', compressedFile)
+
+      const headers = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+
+      const res = await fetch(`${API_URL}/api/upload`, {
+        method: 'POST',
+        headers,
+        body: formData
+      })
+
+      if (!res.ok) throw new Error('Upload failed')
+
+      const data = await res.json()
+      const uploadedUrl = data.imageUrl?.startsWith('http')
+        ? data.imageUrl
+        : `${API_URL}${data.imageUrl}`
+
+      setCarouselForm(prev => ({ ...prev, image: uploadedUrl }))
+      addNotification?.({ type: 'success', message: 'Image center-cropped to 1:1 circle & compressed to WebP' })
+    } catch (err) {
+      addNotification?.({ type: 'error', message: 'Failed to process image: ' + err.message })
+    } finally {
+      setCarouselUploading(false)
+      if (carouselFileInputRef.current) carouselFileInputRef.current.value = ''
     }
   }
 
@@ -1223,6 +1413,135 @@ export default function NavigationPage({ token, addNotification, user }) {
         </div>
       </div>
 
+      {/* ── SECTION: Explore Destinations Carousel CMS (Circular Bubbles) ── */}
+      <div className="bg-white rounded-2xl border border-stone-200/80 shadow-xs p-5 flex flex-col gap-4 mt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+              <h2 className="text-sm font-bold text-stone-900 uppercase tracking-wider">
+                Explore Destinations Carousel (Circular Bubbles)
+              </h2>
+            </div>
+            <p className="text-xs text-stone-400 mt-0.5">
+              Manage circular destination bubbles shown under &quot;Explore destinations&quot; on the customer homepage. Images are automatically cropped 1:1 and compressed to WebP.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenAddCarousel}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Destination Bubble
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5 gap-4 pt-2">
+          {carouselItems.map((item, idx) => {
+            const itemImg = item.image?.startsWith('http')
+              ? item.image
+              : (item.image ? `${API_URL}${item.image.startsWith('/') ? '' : '/'}${item.image}` : 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80')
+
+            return (
+              <div
+                key={item.id || idx}
+                className={`p-3.5 rounded-2xl border flex flex-col items-center text-center justify-between transition-all group ${
+                  item.isActive ? 'bg-[#FDFCF7] border-stone-200 shadow-xs' : 'bg-stone-100/60 border-stone-200 opacity-60'
+                }`}
+              >
+                <div className="flex flex-col items-center w-full">
+                  {/* Active status pill */}
+                  <div className="w-full flex justify-end mb-1">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleCarouselActive(item.id)}
+                      className={`text-[9px] font-bold px-2 py-0.5 rounded-full cursor-pointer ${
+                        item.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
+                      }`}
+                    >
+                      {item.isActive ? 'Active' : 'Hidden'}
+                    </button>
+                  </div>
+
+                  {/* Circular image preview */}
+                  <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-stone-100 ring-2 ring-stone-200/80 shadow-md my-1 group-hover:scale-105 transition-transform">
+                    <img
+                      src={itemImg}
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80'
+                      }}
+                    />
+                  </div>
+
+                  {/* Name & Region */}
+                  <h4 className="font-bold text-xs text-stone-900 mt-2 truncate w-full">{item.name}</h4>
+                  <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60 mt-1">
+                    {item.region}
+                  </span>
+
+                  <span className="text-[10px] text-stone-400 font-mono mt-1">
+                    {item.tourCount || 'Dynamic count'}
+                  </span>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="w-full pt-2 mt-2 border-t border-stone-200/60 flex items-center justify-between">
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      disabled={idx === 0}
+                      onClick={() => handleMoveCarouselItem(idx, -1)}
+                      className="p-1 rounded text-stone-400 hover:text-stone-800 disabled:opacity-20 cursor-pointer"
+                      title="Move Left"
+                    >
+                      ◀
+                    </button>
+                    <button
+                      type="button"
+                      disabled={idx === carouselItems.length - 1}
+                      onClick={() => handleMoveCarouselItem(idx, 1)}
+                      className="p-1 rounded text-stone-400 hover:text-stone-800 disabled:opacity-20 cursor-pointer"
+                      title="Move Right"
+                    >
+                      ▶
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditCarousel(item)}
+                      className="p-1.5 rounded-lg text-stone-600 hover:text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer"
+                      title="Edit Item"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCarouselItem(item.id)}
+                      className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
+                      title="Delete Item"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
       {/* ── MODAL: Add Top Item ── */}
       {addTopModalOpen && typeof document !== 'undefined' && createPortal(
         <div
@@ -1487,7 +1806,7 @@ export default function NavigationPage({ token, addNotification, user }) {
         document.body
       )}
 
-      {/* ── DRAWER / MODAL: Live Preview of Mega Menu ── */}
+      {/* ── DRAWER / MODAL: Live Preview of Mega Menu, Tour Highlights & Destination Carousel ── */}
       {showPreview && typeof document !== 'undefined' && createPortal(
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/80 backdrop-blur-sm p-4 sm:p-6 overflow-y-auto animate-in fade-in duration-200"
@@ -1499,14 +1818,46 @@ export default function NavigationPage({ token, addNotification, user }) {
             className="bg-stone-900 text-white rounded-3xl max-w-5xl w-full p-6 shadow-2xl border border-stone-800 my-auto max-h-[92vh] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-4 border-b border-stone-800 shrink-0">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-stone-800 gap-3 shrink-0">
+              <div className="flex items-center gap-3">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <h3 className="text-base font-bold text-white tracking-wide">Live Mega Menu Simulation</h3>
+                <h3 className="text-base font-bold text-white tracking-wide">Live Website Simulation</h3>
+                
+                {/* Mode Selector Tabs */}
+                <div className="flex items-center gap-1 bg-stone-800/90 p-1 rounded-xl text-xs ml-1 sm:ml-3">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewSubTab('nav')}
+                    className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                      previewSubTab === 'nav' ? 'bg-amber-600 text-white shadow-xs' : 'text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    Navigation Bar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewSubTab('highlights')}
+                    className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                      previewSubTab === 'highlights' ? 'bg-amber-600 text-white shadow-xs' : 'text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    Tour Highlights ({getHighlights(selectedTopItem).length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewSubTab('carousel')}
+                    className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                      previewSubTab === 'carousel' ? 'bg-amber-600 text-white shadow-xs' : 'text-stone-400 hover:text-white'
+                    }`}
+                  >
+                    Destination Carousel ({carouselItems.length})
+                  </button>
+                </div>
               </div>
+
               <button
                 onClick={() => setShowPreview(false)}
-                className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-stone-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer self-end sm:self-auto"
                 title="Close (Esc)"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1515,110 +1866,416 @@ export default function NavigationPage({ token, addNotification, user }) {
               </button>
             </div>
 
-            {/* Simulating Customer Navbar */}
-            <div className="py-4 border-b border-stone-800/80 flex items-center justify-center gap-2 flex-wrap shrink-0">
-              {menu.filter(item => item.visible !== false).map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleSelectTopItem(item.id)}
-                  className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                    selectedTopItemId === item.id
-                      ? 'text-amber-400 bg-white/10 font-semibold'
-                      : 'text-stone-300 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+            {/* PREVIEW SUB-TAB 1: Navigation Bar & Menus */}
+            {previewSubTab === 'nav' && (
+              <div className="flex flex-col flex-1 min-h-0">
+                {/* Simulating Customer Navbar */}
+                <div className="py-4 border-b border-stone-800/80 flex items-center justify-center gap-2 flex-wrap shrink-0">
+                  {menu.filter(item => item.visible !== false).map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleSelectTopItem(item.id)}
+                      className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                        selectedTopItemId === item.id
+                          ? 'text-amber-400 bg-white/10 font-semibold'
+                          : 'text-stone-300 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
 
-            {/* Simulating Mega Menu Dropdown */}
-            {selectedTopItem?.type === 'megamenu' && (
-              <div className="mt-4 bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col text-stone-900 flex-1 min-h-[380px] max-h-[550px]">
-                <div className="flex items-center justify-between px-5 py-2.5 bg-stone-50 border-b border-stone-200 shrink-0">
-                  <span className="text-xs font-bold text-stone-800 uppercase tracking-wider">
-                    {selectedTopItem.label} Destinations
-                  </span>
-                  <span className="text-[11px] text-stone-400 font-semibold">
-                    Hover/Click continent to explore
+                {/* Mega Menu View */}
+                {selectedTopItem?.type === 'megamenu' && (
+                  <div className="mt-4 bg-white rounded-2xl overflow-hidden shadow-2xl flex flex-col text-stone-900 flex-1 min-h-[380px] max-h-[550px]">
+                    <div className="flex items-center justify-between px-5 py-2.5 bg-stone-50 border-b border-stone-200 shrink-0">
+                      <span className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                        {selectedTopItem.label} Destinations
+                      </span>
+                      <span className="text-[11px] text-stone-400 font-semibold">
+                        Hover/Click continent to explore
+                      </span>
+                    </div>
+
+                    <div className="flex flex-1 min-h-0 overflow-hidden">
+                      {/* Sidebar */}
+                      <div className="w-56 bg-stone-100 border-r border-stone-200 py-2 flex flex-col overflow-y-auto shrink-0">
+                        {selectedTopItem.continents?.filter(r => r.visible !== false).map((cont) => {
+                          const isActive = cont.id === selectedRegionId
+                          return (
+                            <button
+                              key={cont.id}
+                              onClick={() => setSelectedRegionId(cont.id)}
+                              className={`w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
+                                isActive
+                                  ? 'bg-amber-600 text-white font-bold'
+                                  : 'text-stone-600 hover:bg-stone-200/70 hover:text-stone-900'
+                              }`}
+                            >
+                              <span>{cont.name}</span>
+                              <span className="text-[10px] opacity-70">&rarr;</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {/* Destination Grid */}
+                      <div className="flex-1 p-5 overflow-y-auto bg-white min-h-0">
+                        {selectedRegion ? (
+                          <div>
+                            <div className="flex items-center justify-between pb-3 border-b border-stone-100 mb-4">
+                              <h4 className="text-sm font-bold text-stone-900">{selectedRegion.name}</h4>
+                              <span className="text-xs text-amber-600 font-semibold">
+                                {selectedRegion.allLink?.label || `All of ${selectedRegion.name}`} &rarr;
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
+                              {selectedRegion.countries?.filter(c => c.visible !== false).map((country) => (
+                                <div key={country.name} className="space-y-1.5">
+                                  <h5 className="text-xs font-bold uppercase tracking-wider text-stone-700">
+                                    {country.name}
+                                  </h5>
+                                  <div className="space-y-1">
+                                    {country.cities?.filter(ct => (typeof ct === 'object' ? ct.visible !== false : true)).map((city, idx) => {
+                                      const cLabel = typeof city === 'object' ? city.label : city
+                                      const cSearch = typeof city === 'object' ? (city.search || city.label) : city
+                                      return (
+                                        <button
+                                          key={cLabel + idx}
+                                          onClick={() => {
+                                            addNotification?.({
+                                              type: 'info',
+                                              message: `Preview Click: Filters Destinations page by "${cSearch}"`
+                                            })
+                                          }}
+                                          className="block text-left text-xs text-stone-500 hover:text-amber-600 transition-colors py-0.5 cursor-pointer"
+                                        >
+                                          {cLabel}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-8 text-center text-stone-400 text-xs">
+                            Select a region from the sidebar
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Dropdown Menu View */}
+                {selectedTopItem?.type === 'dropdown' && (
+                  <div className="mt-4 bg-white rounded-2xl overflow-hidden shadow-2xl p-6 text-stone-900 flex-1 min-h-[380px] max-h-[550px] overflow-y-auto">
+                    <div className="border-b border-stone-200 pb-3 mb-4 flex items-center justify-between">
+                      <span className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                        Dropdown Menu Simulation: {selectedTopItem.label}
+                      </span>
+                      <span className="text-xs text-stone-400">Renders as floating dropdown with tour highlights</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {getHighlights(selectedTopItem).map((h, idx) => (
+                        <div key={h.id || idx} className="p-4 rounded-xl border border-stone-200 bg-stone-50/80 flex flex-col justify-between">
+                          <div>
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded uppercase">
+                              {h.region}
+                            </span>
+                            <h4 className="font-bold text-sm text-stone-900 mt-2">{h.title}</h4>
+                            <p className="text-xs text-stone-500 mt-0.5">Destination: {h.destination}</p>
+                          </div>
+                          <span className="text-xs text-amber-600 font-semibold mt-3 flex items-center gap-1">
+                            Explore Tour &rarr;
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Link View */}
+                {selectedTopItem?.type === 'link' && (
+                  <div className="mt-4 bg-white rounded-2xl overflow-hidden shadow-2xl p-8 text-stone-900 flex-1 min-h-[380px] max-h-[550px] flex flex-col items-center justify-center text-center">
+                    <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-2xl text-amber-600 mb-3 shadow-sm">
+                      🔗
+                    </div>
+                    <h4 className="font-display font-bold text-lg text-stone-900">{selectedTopItem.label}</h4>
+                    <p className="text-xs text-stone-500 mt-1 max-w-sm">
+                      Direct Route Link: <code className="bg-stone-100 text-amber-700 px-2 py-0.5 rounded font-mono font-semibold">/{selectedTopItem.page || selectedTopItem.route || 'corporate'}</code>
+                    </p>
+                    <div className="mt-5 p-4 bg-stone-50 rounded-2xl border border-stone-200/80 text-xs text-stone-600 max-w-md text-left space-y-1">
+                      <p className="font-semibold text-stone-800">Customer Site Behavior:</p>
+                      <p>Clicking <strong>&quot;{selectedTopItem.label}&quot;</strong> directly routes visitors to the {selectedTopItem.label} surface with full page details.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* PREVIEW SUB-TAB 2: Tour Highlights Grid */}
+            {previewSubTab === 'highlights' && (
+              <div className="mt-4 bg-white rounded-2xl overflow-hidden shadow-2xl p-6 text-stone-900 flex-1 min-h-[380px] max-h-[550px] overflow-y-auto">
+                <div className="border-b border-stone-200 pb-3 mb-4 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold text-stone-900 uppercase tracking-wider">Active Tour Highlights Preview</h4>
+                    <p className="text-xs text-stone-400 mt-0.5">These featured cards appear in navigation dropdowns and curated homepage highlights.</p>
+                  </div>
+                  <span className="text-xs font-semibold bg-amber-50 text-amber-700 px-2.5 py-1 rounded-lg border border-amber-200">
+                    {getHighlights(selectedTopItem).filter(h => h.active !== false).length} Active Highlights
                   </span>
                 </div>
 
-                <div className="flex flex-1 min-h-0 overflow-hidden">
-                  {/* Sidebar */}
-                  <div className="w-56 bg-stone-100 border-r border-stone-200 py-2 flex flex-col overflow-y-auto shrink-0">
-                    {selectedTopItem.continents?.filter(r => r.visible !== false).map((cont) => {
-                      const isActive = cont.id === selectedRegionId
-                      return (
-                        <button
-                          key={cont.id}
-                          onClick={() => setSelectedRegionId(cont.id)}
-                          className={`w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer ${
-                            isActive
-                              ? 'bg-amber-600 text-white font-bold'
-                              : 'text-stone-600 hover:bg-stone-200/70 hover:text-stone-900'
-                          }`}
-                        >
-                          <span>{cont.name}</span>
-                          <span className="text-[10px] opacity-70">&rarr;</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  {/* Destination Grid */}
-                  <div className="flex-1 p-5 overflow-y-auto bg-white min-h-0">
-                    {selectedRegion ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {getHighlights(selectedTopItem).map((h, idx) => (
+                    <div
+                      key={h.id || idx}
+                      className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${
+                        h.active ? 'bg-[#FAF9F5] border-stone-200 shadow-xs' : 'bg-stone-100 border-stone-200 opacity-50'
+                      }`}
+                    >
                       <div>
-                        <div className="flex items-center justify-between pb-3 border-b border-stone-100 mb-4">
-                          <h4 className="text-sm font-bold text-stone-900">{selectedRegion.name}</h4>
-                          <span className="text-xs text-amber-600 font-semibold">
-                            {selectedRegion.allLink?.label || `All of ${selectedRegion.name}`} &rarr;
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded uppercase">
+                            {h.region}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${h.active ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'}`}>
+                            {h.active ? 'Live' : 'Hidden'}
                           </span>
                         </div>
+                        <h5 className="font-bold text-sm text-stone-900">{h.title}</h5>
+                        <p className="text-xs text-stone-500 mt-1">Destination: <strong className="text-stone-700">{h.destination}</strong></p>
+                      </div>
+                      <span className="text-xs text-amber-600 font-semibold mt-4 flex items-center gap-1">
+                        View Itinerary &rarr;
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
-                          {selectedRegion.countries?.filter(c => c.visible !== false).map((country) => (
-                            <div key={country.name} className="space-y-1.5">
-                              <h5 className="text-xs font-bold uppercase tracking-wider text-stone-700">
-                                {country.name}
-                              </h5>
-                              <div className="space-y-1">
-                                {country.cities?.filter(ct => (typeof ct === 'object' ? ct.visible !== false : true)).map((city, idx) => {
-                                  const cLabel = typeof city === 'object' ? city.label : city
-                                  const cSearch = typeof city === 'object' ? (city.search || city.label) : city
-                                  return (
-                                    <button
-                                      key={cLabel + idx}
-                                      onClick={() => {
-                                        addNotification?.({
-                                          type: 'info',
-                                          message: `Preview Click: Filters Destinations page by "${cSearch}"`
-                                        })
-                                      }}
-                                      className="block text-left text-xs text-stone-500 hover:text-amber-600 transition-colors py-0.5 cursor-pointer"
-                                    >
-                                      {cLabel}
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          ))}
+            {/* PREVIEW SUB-TAB 3: Destination Carousel */}
+            {previewSubTab === 'carousel' && (
+              <div className="mt-4 bg-[#FDFCF7] rounded-2xl overflow-hidden shadow-2xl p-6 text-stone-900 flex-1 min-h-[380px] max-h-[550px] overflow-y-auto">
+                <div className="text-center flex flex-col items-center max-w-md mx-auto mb-6">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-700 mb-1 block">
+                    Browse by Region
+                  </span>
+                  <h4 className="font-display text-xl font-bold text-stone-900 tracking-tight">
+                    Explore destinations
+                  </h4>
+                  <p className="text-xs text-stone-500 mt-1 font-light">
+                    Seven continents. One curator. Each region hand-picked for the discerning traveller.
+                  </p>
+                </div>
+
+                <div className="flex justify-start sm:justify-center gap-5 sm:gap-6 overflow-x-auto pb-4 pt-2 px-2 custom-scrollbar">
+                  {carouselItems.filter(item => item.isActive !== false).map((dest, idx) => {
+                    const img = dest.image?.startsWith('http')
+                      ? dest.image
+                      : (dest.image ? `${API_URL}${dest.image.startsWith('/') ? '' : '/'}${dest.image}` : 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80')
+
+                    return (
+                      <div key={dest.id || idx} className="group flex flex-col items-center gap-2 shrink-0 min-w-[85px] text-center">
+                        <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-stone-100 shadow-md ring-2 ring-stone-200/80 transition-transform group-hover:scale-105">
+                          <img
+                            src={img}
+                            alt={dest.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.onerror = null
+                              e.currentTarget.src = 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=400&q=80'
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-stone-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <span className="text-[10px] font-mono font-bold text-white bg-black/60 px-1.5 py-0.5 rounded">
+                              {dest.tourCount || '2 tours'}
+                            </span>
+                          </div>
                         </div>
+                        <span className="text-xs font-semibold text-stone-800 leading-tight">{dest.name}</span>
+                        <span className="text-[10px] text-stone-400 font-mono">{dest.tourCount || 'Explore'}</span>
                       </div>
-                    ) : (
-                      <div className="p-8 text-center text-stone-400 text-xs">
-                        Select a region from the sidebar
-                      </div>
-                    )}
-                  </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
           </div>
         </div>,
         document.body
+      )}
+
+      {/* ── MODAL: Add / Edit Destination Carousel Item ── */}
+      {carouselModalOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+          onClick={(e) => { if (e.target === e.currentTarget) setCarouselModalOpen(false) }}
+        >
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100 mb-4">
+              <div>
+                <h3 className="text-base font-bold text-stone-900">
+                  {editingCarouselItem ? 'Edit Destination Bubble' : 'Add Destination Bubble'}
+                </h3>
+                <p className="text-[11px] text-stone-400 mt-0.5">Images are center-cropped to 1:1 circle and compressed to WebP (&lt;80KB).</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCarouselModalOpen(false)}
+                className="p-1 text-stone-400 hover:text-stone-600 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCarouselItem} className="space-y-3.5">
+              {/* Circular Photo Preview & Upload */}
+              <div className="flex flex-col items-center">
+                <label className="text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-2">
+                  Circular Bubble Image (1:1 Ratio) *
+                </label>
+
+                <div
+                  onClick={() => carouselFileInputRef.current?.click()}
+                  className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-dashed border-stone-300 hover:border-amber-500 bg-[#FAF9F5] shadow-sm flex flex-col items-center justify-center cursor-pointer group transition-all"
+                >
+                  {carouselForm.image ? (
+                    <>
+                      <img
+                        src={carouselForm.image.startsWith('http') ? carouselForm.image : `${API_URL}${carouselForm.image.startsWith('/') ? '' : '/'}${carouselForm.image}`}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-stone-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[10px] text-white font-bold">
+                        Change
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center p-2">
+                      <svg className="w-6 h-6 text-stone-400 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-[10px] text-stone-600 font-semibold block leading-tight">Upload</span>
+                    </div>
+                  )}
+                </div>
+
+                <input
+                  ref={carouselFileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleCarouselImageSelect}
+                  className="hidden"
+                />
+
+                {carouselUploading && (
+                  <span className="text-[11px] text-amber-600 mt-1 flex items-center gap-1 font-medium">
+                    <span className="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+                    Cropping 1:1 & compressing...
+                  </span>
+                )}
+
+                {carouselCompressionInfo && (
+                  <span className="text-[10px] text-emerald-700 font-medium mt-1">
+                    Compressed: {carouselCompressionInfo.compressed} (-{carouselCompressionInfo.savings}%)
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-stone-700 uppercase tracking-wider">Destination Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={carouselForm.name}
+                  onChange={e => setCarouselForm({ ...carouselForm, name: e.target.value })}
+                  placeholder="e.g. Switzerland"
+                  className="w-full mt-1 px-3 py-2 border border-stone-200 rounded-xl text-xs outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-stone-700 uppercase tracking-wider">Region / Continent *</label>
+                  <select
+                    value={carouselForm.region}
+                    onChange={e => setCarouselForm({ ...carouselForm, region: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border border-stone-200 rounded-xl text-xs outline-none focus:border-amber-500"
+                  >
+                    <option value="Europe">Europe</option>
+                    <option value="Asia">Asia</option>
+                    <option value="Middle East">Middle East</option>
+                    <option value="India">India</option>
+                    <option value="Africa">Africa</option>
+                    <option value="North America">North America</option>
+                    <option value="South America">South America</option>
+                    <option value="Australia">Australia</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-stone-700 uppercase tracking-wider">Search Keyword</label>
+                  <input
+                    type="text"
+                    value={carouselForm.search}
+                    onChange={e => setCarouselForm({ ...carouselForm, search: e.target.value })}
+                    placeholder="e.g. Switzerland"
+                    className="w-full mt-1 px-3 py-2 border border-stone-200 rounded-xl text-xs outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-stone-700 uppercase tracking-wider">Tour Count / Status Badge</label>
+                <input
+                  type="text"
+                  value={carouselForm.tourCount}
+                  onChange={e => setCarouselForm({ ...carouselForm, tourCount: e.target.value })}
+                  placeholder="e.g. 2 tours or Coming soon (leave blank for auto)"
+                  className="w-full mt-1 px-3 py-2 border border-stone-200 rounded-xl text-xs outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="carouselIsActive"
+                  checked={carouselForm.isActive}
+                  onChange={e => setCarouselForm({ ...carouselForm, isActive: e.target.checked })}
+                  className="w-4 h-4 text-amber-600 rounded cursor-pointer accent-amber-600"
+                />
+                <label htmlFor="carouselIsActive" className="text-xs font-semibold text-stone-700 cursor-pointer">
+                  Visible in Carousel on Homepage
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setCarouselModalOpen(false)}
+                  className="px-3 py-1.5 text-stone-600 hover:bg-stone-100 rounded-xl text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={carouselUploading}
+                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  Save Bubble
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* ── MODAL: Add / Edit Tour Highlight ── */}
