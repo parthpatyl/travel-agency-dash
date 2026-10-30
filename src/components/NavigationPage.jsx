@@ -479,8 +479,8 @@ export default function NavigationPage({ token, addNotification, user }) {
   // ── Tour Highlights Mutators ──
   const getHighlights = (item) => {
     if (!item) return []
-    if (Array.isArray(item.tourHighlights)) return item.tourHighlights
-    if (item.columns?.[0]?.links) {
+    if (Array.isArray(item.tourHighlights) && item.tourHighlights.length > 0) return item.tourHighlights
+    if (Array.isArray(item.columns?.[0]?.links) && item.columns[0].links.length > 0) {
       return item.columns[0].links.map((l, i) => ({
         id: `th-${i + 1}`,
         title: l.label,
@@ -488,6 +488,18 @@ export default function NavigationPage({ token, addNotification, user }) {
         destination: l.search || l.label,
         active: true
       }))
+    }
+    if (item.id === 'group_tours') {
+      return [
+        { id: 'th-1', title: 'Vietnam Group tour', region: 'Asia', destination: 'Vietnam', active: true },
+        { id: 'th-2', title: 'Aegean Blue Santorini & Mykonos Cruise — Sep 2026', region: 'Europe', destination: 'Greece', active: true },
+        { id: 'th-3', title: 'Swiss Alps Autumn Panorama — Oct 2026 Batch', region: 'Europe', destination: 'Switzerland', active: true },
+        { id: 'th-4', title: 'Kashmir Autumn Houseboat & Snow Valley — Oct 2026', region: 'India', destination: 'Kashmir', active: true },
+        { id: 'th-5', title: 'Great Migration Safari Expedition — Nov 2026', region: 'Africa', destination: 'Safari', active: true },
+        { id: 'th-6', title: 'Vietnam Heritage & Ha Long Bay Cruise — Nov 2026 Batch', region: 'Asia', destination: 'Vietnam', active: true },
+        { id: 'th-7', title: 'Bali Tropical Escape & Nusa Penida', region: 'Asia', destination: 'Bali', active: true },
+        { id: 'th-8', title: 'Serengeti & Masai Mara Wildlife Safari', region: 'Africa', destination: 'Masai Mara', active: true }
+      ]
     }
     return [
       { id: 'th-1', title: 'Santorini Sunset Cruise', region: 'Europe', destination: 'Greece', active: true },
@@ -1091,6 +1103,25 @@ export default function NavigationPage({ token, addNotification, user }) {
                     const val = e.target.value
                     updateMenu(prev => prev.map(item => item.id === selectedTopItem.id ? { ...item, label: val } : item))
                   }}
+                  className="w-full mt-1 px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-stone-700">Section Subheading</label>
+                <input
+                  type="text"
+                  value={selectedTopItem.columns?.[0]?.heading || 'Popular Group Expeditions'}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    updateMenu(prev => prev.map(item => {
+                      if (item.id !== selectedTopItem.id) return item
+                      const cols = Array.isArray(item.columns) && item.columns.length > 0 ? [...item.columns] : [{ heading: 'Popular Group Expeditions', links: [] }]
+                      cols[0] = { ...cols[0], heading: val }
+                      return { ...item, columns: cols }
+                    }))
+                  }}
+                  placeholder="e.g. Popular Group Expeditions"
                   className="w-full mt-1 px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm"
                 />
               </div>
@@ -2027,23 +2058,38 @@ export default function NavigationPage({ token, addNotification, user }) {
 
                               {/* Tours List */}
                               <ul className="space-y-0.5 max-h-[320px] overflow-y-auto pr-1">
-                                {(popularExpeditions.length > 0 ? popularExpeditions : (item.columns?.[0]?.links || [])).map((tour, idx) => (
-                                  <li key={tour.label + idx}>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        addNotification?.({
-                                          type: 'info',
-                                          message: `Preview Click: Opens Expedition "${tour.label}" details`
-                                        })
-                                      }}
-                                      className="text-[13px] text-stone-700 hover:text-indigo-600 hover:bg-indigo-50/80 transition-all py-1.5 px-2 rounded-lg block w-full text-left font-normal hover:font-medium leading-snug whitespace-normal break-words cursor-pointer"
-                                      title={tour.label}
-                                    >
-                                      {tour.label}
-                                    </button>
-                                  </li>
-                                ))}
+                                {(() => {
+                                  const effectiveLinks = Array.isArray(item.tourHighlights) && item.tourHighlights.length > 0
+                                    ? item.tourHighlights
+                                        .filter(h => h.active !== false)
+                                        .map(h => ({
+                                          label: h.title,
+                                          page: 'destinations',
+                                          region: h.region || 'All',
+                                          search: h.destination || h.title
+                                        }))
+                                    : (Array.isArray(item.columns?.[0]?.links) && item.columns[0].links.length > 0
+                                        ? item.columns[0].links
+                                        : (popularExpeditions.length > 0 ? popularExpeditions : []))
+
+                                  return effectiveLinks.map((tour, idx) => (
+                                    <li key={tour.label + idx}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          addNotification?.({
+                                            type: 'info',
+                                            message: `Preview Click: Opens Expedition "${tour.label}" details`
+                                          })
+                                        }}
+                                        className="text-[13px] text-stone-700 hover:text-indigo-600 hover:bg-indigo-50/80 transition-all py-1.5 px-2 rounded-lg block w-full text-left font-normal hover:font-medium leading-snug whitespace-normal break-words cursor-pointer"
+                                        title={tour.label}
+                                      >
+                                        {tour.label}
+                                      </button>
+                                    </li>
+                                  ))
+                                })()}
                               </ul>
                             </div>
                           )}
