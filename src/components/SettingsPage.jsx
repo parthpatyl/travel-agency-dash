@@ -43,6 +43,7 @@ export default function SettingsPage({
   // ─────────────────────────────────────────────
   const [editingOfferId, setEditingOfferId] = useState(null)
   const [isOfferFormOpen, setIsOfferFormOpen] = useState(false)
+  const [carouselUrlInput, setCarouselUrlInput] = useState('')
   const [offerForm, setOfferForm] = useState({
     title: '',
     subtitle: '',
@@ -145,6 +146,61 @@ export default function SettingsPage({
     } catch (err) {
       if (addNotification) addNotification(err.message || 'Hero image upload failed', 'error')
     }
+  }
+
+  const handleAddCarouselSlideUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      if (addNotification) addNotification('File size exceeds the 5MB limit!', 'warning')
+      return
+    }
+    const formData = new FormData()
+    formData.append('image', file)
+    try {
+      if (addNotification) addNotification('Uploading carousel slide...', 'info')
+      const token = localStorage.getItem('kraft_token')
+      const response = await fetch(`${API_URL}/api/upload`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        method: 'POST',
+        body: formData
+      })
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || 'Failed to upload image')
+      }
+      const data = await response.json()
+      const currentSlides = Array.isArray(heroSection.bgImages) ? [...heroSection.bgImages] : (heroSection.bgImage ? [heroSection.bgImage] : [])
+      updateHeroField('bgImages', [...currentSlides, data.imageUrl])
+      if (addNotification) addNotification('Carousel slide added!', 'success')
+    } catch (err) {
+      if (addNotification) addNotification(err.message || 'Carousel slide upload failed', 'error')
+    }
+    e.target.value = ''
+  }
+
+  const handleRemoveCarouselSlide = (index) => {
+    const currentSlides = Array.isArray(heroSection.bgImages) ? [...heroSection.bgImages] : []
+    const updated = currentSlides.filter((_, idx) => idx !== index)
+    updateHeroField('bgImages', updated)
+    if (addNotification) addNotification('Carousel slide removed', 'info')
+  }
+
+  const handleMoveCarouselSlide = (fromIdx, toIdx) => {
+    const currentSlides = Array.isArray(heroSection.bgImages) ? [...heroSection.bgImages] : []
+    if (toIdx < 0 || toIdx >= currentSlides.length) return
+    const reordered = [...currentSlides]
+    const [moved] = reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, moved)
+    updateHeroField('bgImages', reordered)
+  }
+
+  const handleAddCarouselUrl = () => {
+    if (!carouselUrlInput.trim()) return
+    const currentSlides = Array.isArray(heroSection.bgImages) ? [...heroSection.bgImages] : (heroSection.bgImage ? [heroSection.bgImage] : [])
+    updateHeroField('bgImages', [...currentSlides, carouselUrlInput.trim()])
+    setCarouselUrlInput('')
+    if (addNotification) addNotification('Carousel slide added!', 'success')
   }
 
   const handleCtaBgUpload = async (e) => {
@@ -523,6 +579,9 @@ export default function SettingsPage({
     }
     if ((c.bgImage || '') !== (b.bgImage || '')) {
       diffs.push({ label: 'Hero Background Image', oldVal: b.bgImage, newVal: c.bgImage })
+    }
+    if (JSON.stringify(c.bgImages || []) !== JSON.stringify(b.bgImages || [])) {
+      diffs.push({ label: 'Hero Carousel Slides', oldVal: `${(b.bgImages || []).length} slides`, newVal: `${(c.bgImages || []).length} slides` })
     }
     const cStats = c.stats || []
     const bStats = b.stats || []
@@ -1021,6 +1080,104 @@ export default function SettingsPage({
                     <p className="text-[11px] text-stone-400">Stored directly in database. High-resolution landscape (JPG, PNG, WebP up to 5MB).</p>
                   </div>
                 </div>
+              </div>
+
+              {/* Carousel Slides Manager */}
+              <div className="pt-3 border-t border-stone-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700">Hero Carousel Slides</label>
+                    <p className="text-[11px] text-stone-400">Add multiple images to enable the auto-playing 5-second crossfade hero carousel on the customer website.</p>
+                  </div>
+                  <label className="inline-flex items-center px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors shrink-0">
+                    <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Upload Slide Image
+                    <input type="file" accept="image/*" onChange={handleAddCarouselSlideUpload} className="hidden" />
+                  </label>
+                </div>
+
+                {/* Direct URL input for Carousel */}
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="url"
+                    value={carouselUrlInput}
+                    onChange={(e) => setCarouselUrlInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleAddCarouselUrl()
+                      }
+                    }}
+                    placeholder="Or paste external image URL (e.g. https://images.unsplash.com/...)"
+                    className="flex-1 px-3 py-1.5 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCarouselUrl}
+                    className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg cursor-pointer transition-colors"
+                  >
+                    Add URL
+                  </button>
+                </div>
+
+                {/* Slides List */}
+                {Array.isArray(heroSection.bgImages) && heroSection.bgImages.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {heroSection.bgImages.map((img, idx) => {
+                      const url = typeof img === 'string' ? img : img?.url
+                      return (
+                        <div key={idx} className="relative group bg-stone-50 border border-stone-200 rounded-xl p-2 flex flex-col gap-2">
+                          <div className="h-28 rounded-lg overflow-hidden bg-stone-200 relative">
+                            <img
+                              src={imgUrl(url)}
+                              alt={`Slide ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.target.style.display = 'none' }}
+                            />
+                            <span className="absolute top-1.5 left-1.5 px-2 py-0.5 bg-stone-900/70 text-white rounded-md text-[10px] font-bold">
+                              Slide #{idx + 1}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs pt-0.5">
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => handleMoveCarouselSlide(idx, idx - 1)}
+                                className="px-1.5 py-0.5 bg-white border border-stone-200 text-stone-600 rounded text-[11px] font-bold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-stone-100 cursor-pointer"
+                                title="Move Left / Earlier"
+                              >
+                                &larr;
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === heroSection.bgImages.length - 1}
+                                onClick={() => handleMoveCarouselSlide(idx, idx + 1)}
+                                className="px-1.5 py-0.5 bg-white border border-stone-200 text-stone-600 rounded text-[11px] font-bold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-stone-100 cursor-pointer"
+                                title="Move Right / Later"
+                              >
+                                &rarr;
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCarouselSlide(idx)}
+                              className="px-2 py-1 text-rose-600 hover:bg-rose-50 rounded text-[11px] font-semibold cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-stone-400 italic bg-stone-50 rounded-lg p-3 border border-dashed border-stone-200">
+                    No custom carousel slides added yet. Customer site will automatically rotate curated luxury slides or the main hero image.
+                  </p>
+                )}
               </div>
 
               {/* Title Inputs */}

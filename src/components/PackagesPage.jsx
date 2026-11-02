@@ -2252,6 +2252,16 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                           type="text"
                           value={pkgInclusionInput}
                           onChange={(e) => setPkgInclusionInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              if (pkgInclusionInput.trim()) {
+                                const items = splitBulletedItems(pkgInclusionInput)
+                                setPkgInclusionsList([...pkgInclusionsList, ...items])
+                                setPkgInclusionInput('')
+                              }
+                            }
+                          }}
                           placeholder="e.g. 5-star hotel accommodation • Breakfast included"
                           className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
                         />
@@ -2287,6 +2297,16 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                           type="text"
                           value={pkgExclusionInput}
                           onChange={(e) => setPkgExclusionInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              if (pkgExclusionInput.trim()) {
+                                const items = splitBulletedItems(pkgExclusionInput)
+                                setPkgExclusions([...pkgExclusions, ...items])
+                                setPkgExclusionInput('')
+                              }
+                            }
+                          }}
                           placeholder="e.g. International flights • Personal expenses"
                           className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
                         />
@@ -3111,6 +3131,16 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                             type="text"
                             value={editPkgInclusionInput}
                             onChange={(e) => setEditPkgInclusionInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                if (editPkgInclusionInput.trim()) {
+                                  const items = splitBulletedItems(editPkgInclusionInput)
+                                  setEditPkgInclusionsList([...editPkgInclusionsList, ...items])
+                                  setEditPkgInclusionInput('')
+                                }
+                              }
+                            }}
                             placeholder="e.g. 5-star hotel accommodation • Breakfast included"
                             className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
                           />
@@ -3146,6 +3176,16 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                             type="text"
                             value={editPkgExclusionInput}
                             onChange={(e) => setEditPkgExclusionInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                if (editPkgExclusionInput.trim()) {
+                                  const items = splitBulletedItems(editPkgExclusionInput)
+                                  setEditPkgExclusions([...editPkgExclusions, ...items])
+                                  setEditPkgExclusionInput('')
+                                }
+                              }
+                            }}
                             placeholder="e.g. International flights • Personal expenses"
                             className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
                           />
