@@ -43,7 +43,6 @@ export default function SettingsPage({
   // ─────────────────────────────────────────────
   const [editingOfferId, setEditingOfferId] = useState(null)
   const [isOfferFormOpen, setIsOfferFormOpen] = useState(false)
-  const [carouselUrlInput, setCarouselUrlInput] = useState('')
   const [offerForm, setOfferForm] = useState({
     title: '',
     subtitle: '',
@@ -193,14 +192,6 @@ export default function SettingsPage({
     const [moved] = reordered.splice(fromIdx, 1)
     reordered.splice(toIdx, 0, moved)
     updateHeroField('bgImages', reordered)
-  }
-
-  const handleAddCarouselUrl = () => {
-    if (!carouselUrlInput.trim()) return
-    const currentSlides = Array.isArray(heroSection.bgImages) ? [...heroSection.bgImages] : (heroSection.bgImage ? [heroSection.bgImage] : [])
-    updateHeroField('bgImages', [...currentSlides, carouselUrlInput.trim()])
-    setCarouselUrlInput('')
-    if (addNotification) addNotification('Carousel slide added!', 'success')
   }
 
   const handleCtaBgUpload = async (e) => {
@@ -1096,30 +1087,6 @@ export default function SettingsPage({
                     Upload Slide Image
                     <input type="file" accept="image/*" onChange={handleAddCarouselSlideUpload} className="hidden" />
                   </label>
-                </div>
-
-                {/* Direct URL input for Carousel */}
-                <div className="flex gap-2 mb-3">
-                  <input
-                    type="url"
-                    value={carouselUrlInput}
-                    onChange={(e) => setCarouselUrlInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        handleAddCarouselUrl()
-                      }
-                    }}
-                    placeholder="Or paste external image URL (e.g. https://images.unsplash.com/...)"
-                    className="flex-1 px-3 py-1.5 text-xs border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddCarouselUrl}
-                    className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg cursor-pointer transition-colors"
-                  >
-                    Add URL
-                  </button>
                 </div>
 
                 {/* Slides List */}
