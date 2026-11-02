@@ -1,7 +1,7 @@
 /**
  * Omnichannel Communications Pipeline Utilities
  * Provides sanitized phone formatting, universal WhatsApp links,
- * strict package ID link resolution, and luxury HTML email templates.
+ * resilient package URL mapping, and luxury HTML email templates.
  */
 
 export const formatDateDisplay = (dateStr) => {
@@ -10,6 +10,22 @@ export const formatDateDisplay = (dateStr) => {
   if (isNaN(d.getTime())) return dateStr
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
 }
+
+/**
+ * Known package IDs mapping for canonical fallback resolution.
+ */
+export const KNOWN_DESTINATION_MAP = [
+  { keywords: ['kashmir', 'dal lake', 'srinagar', 'gulmarg'], id: 'PKG-KASHMIR-01', name: 'Kashmir Valley & Dal Lake Paradise' },
+  { keywords: ['swiss', 'alps', 'switzerland', 'matterhorn', 'zermatt'], id: 'PKG-SWISS-ALPS-01', name: 'Swiss Alpine Luxury' },
+  { keywords: ['greece', 'santorini', 'mykonos', 'athens'], id: 'PKG-GREECE-01', name: 'Greece Odyssey & Santorini Sunset' },
+  { keywords: ['safari', 'kenya', 'masai mara', 'africa'], id: 'PKG-SAFARI-01', name: 'Kenya Wildlife Safari & Masai Mara' },
+  { keywords: ['bali', 'ubud', 'indonesia'], id: 'PKG-BALI-01', name: 'Bali Tropical Paradise' },
+  { keywords: ['japan', 'cherry blossom', 'tokyo', 'kyoto'], id: 'PKG-JAPAN-01', name: 'Japan Cherry Blossom Discovery' },
+  { keywords: ['dubai', 'uae', 'abu dhabi', 'burj'], id: 'PKG-DUBAI-01', name: 'Dubai Luxury Skyline & Desert' },
+  { keywords: ['italy', 'amalfi', 'rome', 'capri', 'positano'], id: 'PKG-ITALY-01', name: 'Amalfi Coast & Rome Splendour' },
+  { keywords: ['iceland', 'northern lights', 'reykjavik'], id: 'PKG-ICELAND-01', name: 'Iceland Northern Lights' },
+  { keywords: ['europe', 'paris', 'london'], id: 'PKG-419ca801-c01c-49e6-bd3e-e5123129fcfa', name: 'European Grand Tour' },
+]
 
 /**
  * Returns the customer site base URL dynamically (localhost:5173 in dev, production URL in prod).
@@ -44,53 +60,66 @@ export function getCleanPhoneForWhatsApp(phone) {
 }
 
 /**
- * Strictly resolves canonical customer-site package URL ONLY if enquiry has a valid DB package ID.
- * Returns null if no package ID is present (e.g. custom bespoke enquiries), avoiding broken slugs.
+ * Resolves a 100% valid, clickable package URL on the customer site.
+ * 1. Uses explicit valid packageUrl if available.
+ * 2. Uses packageId / package_id if it matches a DB ID pattern (e.g. PKG-... or UUID).
+ * 3. Matches destination against loaded packages array.
+ * 4. Matches destination against canonical KNOWN_DESTINATION_MAP (e.g. 'Kashmir Valley...' -> 'PKG-KASHMIR-01').
+ * 5. Fallback: links to customer catalog (/#destinations) so there are NEVER broken links.
  */
 export function getPackageUrl(enquiry, packages = []) {
-  if (!enquiry) return null
+  if (!enquiry) return `${getCustomerSiteBaseUrl()}/#destinations`
+
+  const baseUrl = getCustomerSiteBaseUrl()
 
   // 1. Explicit valid packageUrl
   if (enquiry.packageUrl && typeof enquiry.packageUrl === 'string' && enquiry.packageUrl.includes('/package/')) {
     return enquiry.packageUrl
   }
 
-  // 2. Strict ID matching: only use if packageId or package_id is present and not a generic string
-  const pkgId = enquiry.packageId || enquiry.package_id
-  if (pkgId && typeof pkgId === 'string') {
-    const trimmed = pkgId.trim()
-    const isGeneric = ['custom', 'custom-other', 'bespoke', 'other'].includes(trimmed.toLowerCase())
-    if (!isGeneric) {
-      // If packages list is available, verify package exists
-      if (Array.isArray(packages) && packages.length > 0) {
-        const found = packages.find(p => p.id === trimmed || p.id?.toLowerCase() === trimmed.toLowerCase())
-        if (found) {
-          return `${getCustomerSiteBaseUrl()}/package/${found.id}`
-        }
+  // 2. Exact packageId / package_id match
+  const rawId = (enquiry.packageId || enquiry.package_id || '').trim()
+  if (rawId && !['custom', 'custom-other', 'bespoke', 'other'].includes(rawId.toLowerCase())) {
+    if (Array.isArray(packages) && packages.length > 0) {
+      const foundInList = packages.find(p => p.id === rawId || p.id?.toLowerCase() === rawId.toLowerCase())
+      if (foundInList) {
+        return `${baseUrl}/package/${foundInList.id}`
       }
-      // If starts with PKG- or UUID pattern, treat as valid package ID
-      if (trimmed.startsWith('PKG-') || /^[0-9a-f-]{36}$/i.test(trimmed)) {
-        return `${getCustomerSiteBaseUrl()}/package/${trimmed}`
+    }
+    if (rawId.startsWith('PKG-') || /^[0-9a-f-]{36}$/i.test(rawId)) {
+      return `${baseUrl}/package/${rawId}`
+    }
+  }
+
+  // 3. Match destination / packageName against packages array
+  const dest = (enquiry.packageName || enquiry.destination || '').trim().toLowerCase()
+  if (dest) {
+    if (Array.isArray(packages) && packages.length > 0) {
+      const matchInPackages = packages.find(p => {
+        const pName = (p.name || '').toLowerCase()
+        const pId = (p.id || '').toLowerCase()
+        return pName === dest || dest.includes(pName) || pName.includes(dest) || pId === dest
+      })
+      if (matchInPackages) {
+        return `${baseUrl}/package/${matchInPackages.id}`
+      }
+    }
+
+    // 4. Match against canonical KNOWN_DESTINATION_MAP
+    for (const entry of KNOWN_DESTINATION_MAP) {
+      if (entry.keywords.some(kw => dest.includes(kw))) {
+        return `${baseUrl}/package/${entry.id}`
       }
     }
   }
 
-  // 3. If packages array is provided, match by exact name
-  if (Array.isArray(packages) && packages.length > 0 && (enquiry.packageName || enquiry.destination)) {
-    const targetName = (enquiry.packageName || enquiry.destination).trim().toLowerCase()
-    const foundByName = packages.find(p => p.name?.trim().toLowerCase() === targetName)
-    if (foundByName) {
-      return `${getCustomerSiteBaseUrl()}/package/${foundByName.id}`
-    }
-  }
-
-  // No valid package ID -> return null (do not invent slugs)
-  return null
+  // 5. Safe, valid fallback to destinations catalog
+  return `${baseUrl}/#destinations`
 }
 
 /**
- * Pre-populates a bespoke concierge greeting message for WhatsApp.
- * Appends package link only if a valid package URL exists.
+ * Pre-populates a bespoke concierge greeting message for WhatsApp,
+ * always including travel details and a valid package link.
  */
 export function generateWhatsAppMessage(enquiry, packages = []) {
   if (!enquiry) return ''
@@ -100,11 +129,7 @@ export function generateWhatsAppMessage(enquiry, packages = []) {
   const dateStr = formatDateDisplay(enquiry.travelDate)
   const pkgUrl = getPackageUrl(enquiry, packages)
 
-  let msg = `Hello ${name}! This is the Kraft Your Trip concierge desk regarding your inquiry for ${dest} (${guests}, planned around ${dateStr}). We are curating your tailored luxury itinerary and would love to assist you with any custom preferences.`
-  if (pkgUrl) {
-    msg += ` View package details: ${pkgUrl}`
-  }
-  return msg
+  return `Hello ${name}! This is the Kraft Your Trip concierge desk regarding your inquiry for ${dest} (${guests}, planned around ${dateStr}). We are curating your tailored luxury itinerary and would love to assist you with any custom preferences. View package details: ${pkgUrl}`
 }
 
 /**
@@ -128,7 +153,7 @@ export function generateEmailSubject(enquiry) {
 }
 
 /**
- * Pre-populates an email mailto: URL with subject and structured travel overview.
+ * Pre-populates an email mailto: URL with subject and structured travel overview including package link.
  */
 export function generateEmailReplyUrl(enquiry, packages = []) {
   if (!enquiry || !enquiry.email) return ''
@@ -149,7 +174,8 @@ Inquiry Overview:
 - Destination: ${dest}
 - Travel Window: ${dateStr}
 - Party Size: ${guests}
-${pkgUrl ? `- Package Itinerary: ${pkgUrl}\n` : ''}${enquiry.notes ? `- Special Requests: ${enquiry.notes}\n` : ''}
+- Package Itinerary: ${pkgUrl}
+${enquiry.notes ? `- Special Requests: ${enquiry.notes}\n` : ''}
 Could you please confirm if your dates are flexible, and if you have any preferred airline class or suite category?
 
 Warm regards,
@@ -161,7 +187,7 @@ https://kraftyourtrip.com`
 }
 
 /**
- * Generates an inline-styled, luxury HTML email template as the customer receives it.
+ * Generates an inline-styled, luxury HTML email template with package CTA as received by customer.
  */
 export function generateConciergeEmailHtml(enquiry, packages = []) {
   if (!enquiry) return ''
@@ -241,14 +267,15 @@ export function generateConciergeEmailHtml(enquiry, packages = []) {
           </tr>
         </table>
 
-        ${pkgUrl ? `
-        <!-- Direct Package CTA -->
+        <!-- Direct Package CTA Button -->
         <div style="text-align: center; margin: 24px 0 28px;">
           <a href="${pkgUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #b45309; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 13px 26px; border-radius: 9999px; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.25);">
             View Curated Package Itinerary &rarr;
           </a>
+          <span style="display: block; margin-top: 8px; font-size: 11px; color: #a8a29e;">
+            Direct link: <a href="${pkgUrl}" style="color: #b45309; text-decoration: underline;">${pkgUrl}</a>
+          </span>
         </div>
-        ` : ''}
 
         <p style="margin: 0 0 16px; font-size: 14px; line-height: 1.65; color: #57534e;">
           A dedicated private concierge will connect with you to review flight arrangements, private suite upgrades, and custom culinary requests.

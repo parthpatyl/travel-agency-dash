@@ -68,14 +68,17 @@ describe('Omnichannel Comms: Strict Links, Sanitized WhatsApp & Minimalist 3-But
       )
       expect(matchedByName).toContain('/package/PKG-KASHMIR-01')
 
-      // Custom/bespoke or unmapped destination returns null instead of a broken slug
-      expect(getPackageUrl({ destination: 'Kashmir Valley & Dal Lake Paradise' })).toBeNull()
-      expect(getPackageUrl({ destination: 'Custom Trip' })).toBeNull()
-      expect(getPackageUrl({ packageId: 'custom-other' })).toBeNull()
-      expect(getPackageUrl(null)).toBeNull()
+      // Matched via known destination fallback even without packages catalog
+      const matchedByKnown = getPackageUrl({ destination: 'Kashmir Valley & Dal Lake Paradise' })
+      expect(matchedByKnown).toContain('/package/PKG-KASHMIR-01')
+
+      // Custom/bespoke or unmapped destination returns valid catalog link instead of broken 404 slug
+      expect(getPackageUrl({ destination: 'Custom Atlantis Deep Sea' })).toContain('/#destinations')
+      expect(getPackageUrl({ packageId: 'custom-other' })).toContain('/#destinations')
+      expect(getPackageUrl(null)).toContain('/#destinations')
     })
 
-    it('generates WhatsApp greeting message containing package link ONLY if a valid package exists', () => {
+    it('generates WhatsApp greeting message containing valid package link for all enquiries', () => {
       // With valid package
       const enqWithPkg = {
         name: 'Rohan Sharma',
@@ -89,17 +92,17 @@ describe('Omnichannel Comms: Strict Links, Sanitized WhatsApp & Minimalist 3-But
       expect(msg1).toContain('Swiss Alpine Luxury')
       expect(msg1).toContain('/package/PKG-SWISS-ALPS-01')
 
-      // Without valid package (custom/bespoke)
+      // Without explicit package (custom/bespoke) - provides valid destinations catalog link
       const enqWithoutPkg = {
         name: 'Anita Roy',
-        destination: 'Bespoke European Roadtrip',
+        destination: 'Bespoke Moon Expedition',
         guests: 2,
         travelDate: '2026-11-01'
       }
       const msg2 = generateWhatsAppMessage(enqWithoutPkg)
       expect(msg2).toContain('Anita Roy')
-      expect(msg2).not.toContain('/package/')
-      expect(msg2).not.toContain('View package details')
+      expect(msg2).toContain('View package details')
+      expect(msg2).toContain('/#destinations')
     })
 
     it('constructs universal WhatsApp URL with api.whatsapp.com', () => {
@@ -117,7 +120,7 @@ describe('Omnichannel Comms: Strict Links, Sanitized WhatsApp & Minimalist 3-But
       expect(url).toContain(encodeURIComponent('/package/PKG-KASHMIR-01'))
     })
 
-    it('constructs mailto: URL and luxury HTML email template strictly omitting package CTA when no valid package exists', () => {
+    it('constructs mailto: URL and luxury HTML email template with valid package CTA', () => {
       const enqWithoutPkg = {
         name: 'Pooja Nair',
         email: 'pooja@example.com',
@@ -127,12 +130,12 @@ describe('Omnichannel Comms: Strict Links, Sanitized WhatsApp & Minimalist 3-But
         notes: 'Interested in local sherpa guides.'
       }
       const mailto = generateEmailReplyUrl(enqWithoutPkg)
-      expect(mailto).not.toContain('Package Itinerary:')
+      expect(decodeURIComponent(mailto)).toContain('Package Itinerary:')
 
       const html = generateConciergeEmailHtml(enqWithoutPkg)
       expect(html).toContain('Dear Pooja Nair,')
       expect(html).toContain('Custom Himalayan Trek')
-      expect(html).not.toContain('View Curated Package Itinerary')
+      expect(html).toContain('View Curated Package Itinerary')
     })
   })
 
