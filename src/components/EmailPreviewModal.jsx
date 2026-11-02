@@ -1,8 +1,10 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import {
   generateConciergeEmailHtml,
   generateEmailSubject,
   generateEmailReplyUrl,
+  generateGmailWebComposeUrl,
+  generateEmailPlainText,
 } from '../utils/commsPipeline'
 
 const XIcon = ({ className = 'w-4 h-4' }) => (
@@ -24,12 +26,36 @@ export default function EmailPreviewModal({
   packages = []
 }) {
   const titleId = useId()
+  const [copied, setCopied] = useState(false)
 
   if (!isOpen || !enquiry) return null
 
   const htmlContent = generateConciergeEmailHtml(enquiry, packages)
   const subject = generateEmailSubject(enquiry)
   const mailtoUrl = generateEmailReplyUrl(enquiry, packages)
+  const gmailUrl = generateGmailWebComposeUrl(enquiry, packages)
+  const plainText = generateEmailPlainText(enquiry, packages)
+
+  const handleCopyBody = async () => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(plainText)
+      } else {
+        const textarea = document.createElement('textarea')
+        textarea.value = plainText
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+      }
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopied(false)
+    }
+  }
 
   return (
     <div
@@ -89,11 +115,46 @@ export default function EmailPreviewModal({
         </div>
 
         {/* Action Footer */}
-        <div className="px-5 py-3 border-t border-stone-200 bg-white flex items-center justify-between shrink-0">
+        <div className="px-5 py-3 border-t border-stone-200 bg-white flex flex-wrap items-center justify-between gap-2 shrink-0">
           <span className="text-[11px] text-stone-400">
             Rendered as received by customer
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopyBody}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                copied
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold'
+                  : 'border-stone-200 text-stone-700 hover:bg-stone-50'
+              }`}
+              title="Copy plain text email body to clipboard"
+            >
+              {copied ? '✓ Copied Text' : 'Copy Text'}
+            </button>
+
+            <a
+              href={gmailUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-800 bg-stone-100 hover:bg-stone-200 border border-stone-200 shadow-2xs transition-colors cursor-pointer"
+              title="Open draft directly in Gmail Web"
+            >
+              <svg className="w-3.5 h-3.5 text-red-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.263H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L12 9.545l8.073-6.052C21.69 2.28 24 3.434 24 5.457z"/>
+              </svg>
+              <span>Gmail Web</span>
+            </a>
+
+            <a
+              href={mailtoUrl}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 shadow-xs transition-colors cursor-pointer"
+              title="Launch desktop email client (Outlook / Apple Mail)"
+            >
+              <MailIcon className="w-3.5 h-3.5" />
+              <span>Send via Mail App</span>
+            </a>
+
             <button
               type="button"
               onClick={onClose}
@@ -101,14 +162,6 @@ export default function EmailPreviewModal({
             >
               Close
             </button>
-            <a
-              href={mailtoUrl}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 shadow-xs transition-colors cursor-pointer"
-              title="Launch email client"
-            >
-              <MailIcon className="w-3.5 h-3.5" />
-              <span>Send via Mail App</span>
-            </a>
           </div>
         </div>
       </div>

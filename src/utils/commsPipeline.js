@@ -153,18 +153,17 @@ export function generateEmailSubject(enquiry) {
 }
 
 /**
- * Pre-populates an email mailto: URL with subject and structured travel overview including package link.
+ * Generates the plain text email body for clipboard copy and external web compose.
  */
-export function generateEmailReplyUrl(enquiry, packages = []) {
-  if (!enquiry || !enquiry.email) return ''
+export function generateEmailPlainText(enquiry, packages = []) {
+  if (!enquiry) return ''
   const name = enquiry.name || 'Traveler'
   const dest = enquiry.destination || 'Luxury Tour'
   const guests = enquiry.guests ? `${enquiry.guests} traveler(s)` : 'your party'
   const dateStr = formatDateDisplay(enquiry.travelDate)
   const pkgUrl = getPackageUrl(enquiry, packages)
-  const subject = generateEmailSubject(enquiry)
 
-  const body = `Dear ${name},
+  return `Dear ${name},
 
 Thank you for reaching out to Kraft Your Trip regarding your upcoming journey to ${dest} (${guests}).
 
@@ -182,7 +181,25 @@ Warm regards,
 Kraft Your Trip Concierge Desk
 +91 7046704693 | contact@kraftyourtrip.com
 https://kraftyourtrip.com`
+}
 
+/**
+ * Generates a direct 1-click web compose URL for Gmail (works on all desktop browsers without needing OS mail apps).
+ */
+export function generateGmailWebComposeUrl(enquiry, packages = []) {
+  if (!enquiry || !enquiry.email) return ''
+  const subject = generateEmailSubject(enquiry)
+  const body = generateEmailPlainText(enquiry, packages)
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(enquiry.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+}
+
+/**
+ * Pre-populates an email mailto: URL with subject and structured travel overview including package link.
+ */
+export function generateEmailReplyUrl(enquiry, packages = []) {
+  if (!enquiry || !enquiry.email) return ''
+  const subject = generateEmailSubject(enquiry)
+  const body = generateEmailPlainText(enquiry, packages)
   return `mailto:${enquiry.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 }
 
