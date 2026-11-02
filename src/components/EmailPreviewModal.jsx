@@ -36,24 +36,43 @@ export default function EmailPreviewModal({
   const gmailUrl = generateGmailWebComposeUrl(enquiry, packages)
   const plainText = generateEmailPlainText(enquiry, packages)
 
-  const handleCopyBody = async () => {
+  const handleCopyStyledEmail = async () => {
+    try {
+      if (typeof window !== 'undefined' && navigator?.clipboard && window.ClipboardItem) {
+        const htmlBlob = new Blob([htmlContent], { type: 'text/html' })
+        const textBlob = new Blob([plainText], { type: 'text/plain' })
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/html': htmlBlob,
+            'text/plain': textBlob,
+          })
+        ])
+        setCopied('styled')
+        setTimeout(() => setCopied(null), 3000)
+      } else {
+        await navigator.clipboard.writeText(plainText)
+        setCopied('plain')
+        setTimeout(() => setCopied(null), 3000)
+      }
+    } catch {
+      // Fallback
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(plainText)
+      }
+      setCopied('plain')
+      setTimeout(() => setCopied(null), 3000)
+    }
+  }
+
+  const handleCopyPlainText = async () => {
     try {
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(plainText)
-      } else {
-        const textarea = document.createElement('textarea')
-        textarea.value = plainText
-        textarea.style.position = 'fixed'
-        textarea.style.opacity = '0'
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textarea)
       }
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setCopied('plain')
+      setTimeout(() => setCopied(null), 3000)
     } catch {
-      setCopied(false)
+      setCopied(null)
     }
   }
 
@@ -115,53 +134,71 @@ export default function EmailPreviewModal({
         </div>
 
         {/* Action Footer */}
-        <div className="px-5 py-3 border-t border-stone-200 bg-white flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <span className="text-[11px] text-stone-400">
-            Rendered as received by customer
-          </span>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleCopyBody}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                copied
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold'
-                  : 'border-stone-200 text-stone-700 hover:bg-stone-50'
-              }`}
-              title="Copy plain text email body to clipboard"
-            >
-              {copied ? '✓ Copied Text' : 'Copy Text'}
-            </button>
+        <div className="px-5 py-3 border-t border-stone-200 bg-white flex flex-col gap-2 shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] text-stone-500">
+              {copied === 'styled' ? (
+                <span className="text-emerald-700 font-bold">✓ Formatted email card copied! Paste (Ctrl+V) into Gmail to keep full styling & button.</span>
+              ) : copied === 'plain' ? (
+                <span className="text-emerald-700 font-bold">✓ Plain text copied to clipboard.</span>
+              ) : (
+                <span>To keep styling: Click <strong>Copy Styled Email</strong> and paste (<kbd className="font-mono px-1 py-0.5 bg-stone-100 border border-stone-300 rounded text-[10px]">Ctrl+V</kbd>) into Gmail.</span>
+              )}
+            </span>
 
-            <a
-              href={gmailUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-800 bg-stone-100 hover:bg-stone-200 border border-stone-200 shadow-2xs transition-colors cursor-pointer"
-              title="Open draft directly in Gmail Web"
-            >
-              <svg className="w-3.5 h-3.5 text-red-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.263H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L12 9.545l8.073-6.052C21.69 2.28 24 3.434 24 5.457z"/>
-              </svg>
-              <span>Gmail Web</span>
-            </a>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopyStyledEmail}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                  copied === 'styled'
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700 font-bold'
+                    : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 border-amber-500/30'
+                }`}
+                title="Copy rich HTML card with dark header, table, and gold button to clipboard"
+              >
+                {copied === 'styled' ? '✓ Copied Styled Card' : 'Copy Styled Email'}
+              </button>
 
-            <a
-              href={mailtoUrl}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 shadow-xs transition-colors cursor-pointer"
-              title="Launch desktop email client (Outlook / Apple Mail)"
-            >
-              <MailIcon className="w-3.5 h-3.5" />
-              <span>Send via Mail App</span>
-            </a>
+              <button
+                type="button"
+                onClick={handleCopyPlainText}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-stone-200 text-stone-600 hover:bg-stone-50 transition-all cursor-pointer"
+                title="Copy plain text fallback"
+              >
+                Copy Text
+              </button>
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3.5 py-1.5 border border-stone-200 text-stone-600 hover:bg-stone-50 rounded-lg text-xs font-semibold transition-all cursor-pointer"
-            >
-              Close
-            </button>
+              <a
+                href={gmailUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-800 bg-stone-100 hover:bg-stone-200 border border-stone-200 shadow-2xs transition-colors cursor-pointer"
+                title="Open draft directly in Gmail Web"
+              >
+                <svg className="w-3.5 h-3.5 text-red-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.263H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L12 9.545l8.073-6.052C21.69 2.28 24 3.434 24 5.457z"/>
+                </svg>
+                <span>Gmail Web</span>
+              </a>
+
+              <a
+                href={mailtoUrl}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 shadow-xs transition-colors cursor-pointer"
+                title="Launch desktop email client (Outlook / Apple Mail)"
+              >
+                <MailIcon className="w-3.5 h-3.5" />
+                <span>Send via Mail App</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3.5 py-1.5 border border-stone-200 text-stone-600 hover:bg-stone-50 rounded-lg text-xs font-semibold transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       </div>

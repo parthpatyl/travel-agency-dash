@@ -4,12 +4,6 @@ import { validateEmail, validatePhone, validateName } from '../utils/validation'
 import { generateWhatsAppUrl, getPackageUrl } from '../utils/commsPipeline'
 import EmailPreviewModal from './EmailPreviewModal'
 
-const SparklesIcon = ({ className = 'w-3.5 h-3.5' }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.286L13 21l-2.286-6.857L5 12l5.714-2.286L13 3z" />
-  </svg>
-)
-
 const MailIcon = ({ className = 'w-3.5 h-3.5' }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -68,45 +62,6 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
   const [leadSource, setLeadSource] = useState('Instagram')
   const [referralName, setReferralName] = useState('')
   const [previewEmailEnquiry, setPreviewEmailEnquiry] = useState(null)
-
-  const handleGenerateTempPreviewUser = () => {
-    const previewId = `ENQ-PREV-${Math.floor(1000 + Math.random() * 9000)}`
-    const previewUser = {
-      id: previewId,
-      name: 'Eleanor Vance',
-      email: 'eleanor.vance@vancemedia.com',
-      phone: '+91 98200 45678',
-      destination: 'Swiss Alpine Luxury',
-      packageId: 'PKG-SWISS-ALPS-01',
-      packageName: 'Swiss Alpine Luxury',
-      travelDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      guests: 2,
-      status: 'reviewing',
-      leadSource: 'Customer Site Preview',
-      isItineraryDownload: false,
-      notes: 'Prefers scenic glacier express seats, chalet upgrade, and welcome champagne.',
-      submittedAt: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
-
-    setEnquiries((prev) => [previewUser, ...prev.filter(e => e.id !== previewId)])
-
-    try {
-      const stored = JSON.parse(localStorage.getItem('kraft_preview_enquiries') || '[]')
-      localStorage.setItem('kraft_preview_enquiries', JSON.stringify([previewUser, ...stored.filter(e => e.id !== previewId)]))
-    } catch {}
-
-    if (addNotification) {
-      addNotification('Generated temporary preview enquiry for Eleanor Vance (Swiss Alpine Luxury)', 'success')
-    }
-
-    if (onSelectEnquiry) {
-      onSelectEnquiry(previewId)
-    } else {
-      setPreviewEmailEnquiry(previewUser)
-    }
-  }
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -711,17 +666,6 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             Export to Excel
-          </button>
-
-          {/* Generate Temp Preview Enquiry Button */}
-          <button
-            type="button"
-            onClick={handleGenerateTempPreviewUser}
-            className="py-2 px-3.5 bg-stone-900 hover:bg-stone-800 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold shadow-sm active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-            title="Generate a temporary preview enquiry with package link & styled email preview"
-          >
-            <SparklesIcon className="w-3.5 h-3.5 text-amber-400" />
-            <span>+ Temp Preview User</span>
           </button>
 
           <button

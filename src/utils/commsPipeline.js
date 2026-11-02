@@ -184,13 +184,18 @@ https://kraftyourtrip.com`
 }
 
 /**
- * Generates a direct 1-click web compose URL for Gmail (works on all desktop browsers without needing OS mail apps).
+ * Generates a direct 1-click web compose URL for Gmail.
+ * Defaults to leaving body empty so pasted rich-text / HTML templates preserve full card styling.
  */
-export function generateGmailWebComposeUrl(enquiry, packages = []) {
+export function generateGmailWebComposeUrl(enquiry, packages = [], includeBody = false) {
   if (!enquiry || !enquiry.email) return ''
   const subject = generateEmailSubject(enquiry)
-  const body = generateEmailPlainText(enquiry, packages)
-  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(enquiry.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  let url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(enquiry.email)}&su=${encodeURIComponent(subject)}`
+  if (includeBody) {
+    const body = generateEmailPlainText(enquiry, packages)
+    url += `&body=${encodeURIComponent(body)}`
+  }
+  return url
 }
 
 /**

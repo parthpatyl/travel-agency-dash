@@ -294,7 +294,7 @@ describe('Omnichannel Comms: Strict Links, Sanitized WhatsApp & Minimalist 3-But
     })
   })
 
-  describe('4. EnquiriesPage: Temp Preview User with Valid Package ID', () => {
+  describe('4. EnquiriesPage: Clean Toolbar Without Temp Button & Row Email Preview', () => {
     const mockEnquiries = [
       {
         id: 'ENQ-101',
@@ -323,7 +323,7 @@ describe('Omnichannel Comms: Strict Links, Sanitized WhatsApp & Minimalist 3-But
       })
     })
 
-    it('generates temporary preview user Eleanor Vance with valid package ID and opens preview', async () => {
+    it('renders clean toolbar without temporary preview buttons and opens email preview from table row', async () => {
       const onSelectEnquiry = vi.fn()
       const addNotification = vi.fn()
 
@@ -341,19 +341,18 @@ describe('Omnichannel Comms: Strict Links, Sanitized WhatsApp & Minimalist 3-But
         expect(screen.getByText('Sunita Rao')).toBeInTheDocument()
       })
 
-      const tempUserBtn = screen.getByRole('button', { name: /\+ Temp Preview User/i })
-      expect(tempUserBtn).toBeInTheDocument()
+      // Verify temp preview button is removed from top toolbar
+      expect(screen.queryByRole('button', { name: /\+ Temp Preview User/i })).not.toBeInTheDocument()
 
-      fireEvent.click(tempUserBtn)
+      // Verify Email Preview quick action button exists in table row
+      const emailPreviewRowBtn = screen.getByTitle(/Preview Concierge Email for Sunita Rao/i)
+      expect(emailPreviewRowBtn).toBeInTheDocument()
+
+      fireEvent.click(emailPreviewRowBtn)
 
       await waitFor(() => {
-        expect(screen.getByText('Eleanor Vance')).toBeInTheDocument()
-        expect(screen.getAllByText(/Swiss Alpine Luxury/i).length).toBeGreaterThanOrEqual(2)
-        expect(onSelectEnquiry).toHaveBeenCalledWith(expect.stringMatching(/^ENQ-PREV-\d+/))
-        expect(addNotification).toHaveBeenCalledWith(
-          expect.stringContaining('Eleanor Vance'),
-          'success'
-        )
+        expect(screen.getByText(/Customer Email Preview/i)).toBeInTheDocument()
+        expect(screen.getAllByText(/sunita@example.com/i).length).toBeGreaterThanOrEqual(2)
       })
     })
   })
