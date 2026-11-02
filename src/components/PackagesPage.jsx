@@ -190,6 +190,7 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
   const [pkgPrice, setPkgPrice] = useState('3000')
   const [pkgCostPrice, setPkgCostPrice] = useState('')
   const [pkgRegion, setPkgRegion] = useState('Asia')
+  const [pkgWeatherCity, setPkgWeatherCity] = useState('')
   const [pkgCategory, setPkgCategory] = useState('standard')
   const [pkgSlots, setPkgSlots] = useState('15')
   const [pkgCardImage, setPkgCardImage] = useState(`${API_URL}/assets/unsplash-pkg-card.jpg`)
@@ -230,6 +231,7 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
   const [editPkgCostPrice, setEditPkgCostPrice] = useState('')
   const [priceInUsd, setPriceInUsd] = useState(false)
   const [editPkgRegion, setEditPkgRegion] = useState('Asia')
+  const [editPkgWeatherCity, setEditPkgWeatherCity] = useState('')
   const [editPkgCategory, setEditPkgCategory] = useState('standard')
   const [editPkgSlots, setEditPkgSlots] = useState('15')
   const [editPkgCardImage, setEditPkgCardImage] = useState('')
@@ -476,6 +478,7 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
     setEditPkgExclusionInput('')
     setEditPkgIsBespoke(pkg.isBespoke || false)
     setEditPkgCategory(pkg.category || 'standard')
+    setEditPkgWeatherCity(pkg.weatherCity || '')
     setEditPkgCategoryIds(pkg.categoryIds || [])
     setEditPkgFormItinerary(pkg.itinerary || [])
     setEditPkgFormDayNum(((pkg.itinerary || []).length + 1).toString())
@@ -547,6 +550,7 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
       exclusions: editPkgExclusions,
       itinerary: editPkgFormItinerary,
       isBespoke: editPkgIsBespoke,
+      weatherCity: editPkgWeatherCity.trim(),
       categoryIds: editPkgCategoryIds
     }
 
@@ -681,6 +685,7 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
       inclusions: pkgInclusionsList,
       exclusions: pkgExclusions,
       isBespoke: bespokeMode,
+      weatherCity: pkgWeatherCity.trim(),
       categoryIds: pkgCategoryIds
     }
 
@@ -740,6 +745,7 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
     setPkgPrice('3000')
     setPkgCostPrice('')
     setPkgRegion('Asia')
+    setPkgWeatherCity('')
     setPkgCategory('standard')
     setPkgSlots('15')
     setPkgCategoryIds([])
@@ -1880,6 +1886,21 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                       )}
                     </div>
 
+                    {/* Destination / Weather City */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
+                        Weather City / Region (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={pkgWeatherCity}
+                        onChange={(e) => setPkgWeatherCity(e.target.value)}
+                        placeholder="e.g. Shillong, Srinagar, Leh, Bali, Kyoto (leave empty to auto-detect from package title)"
+                        className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                      />
+                      <p className="text-[10px] text-stone-400 mt-1">Controls the 12-month climate guide displayed on the customer site package page.</p>
+                    </div>
+
                     {/* Scheduled Departure Toggle & Dates */}
                     <div className="p-3 bg-amber-50/50 border border-amber-200/80 rounded-xl space-y-3">
                       <label className="flex items-center gap-2 text-xs font-bold text-stone-800 cursor-pointer">
@@ -2845,6 +2866,21 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                             </button>
                           </div>
                         </div>
+                      </div>
+
+                      {/* Destination / Weather City */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-1">
+                          Weather City / Region (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={editPkgWeatherCity}
+                          onChange={(e) => setEditPkgWeatherCity(e.target.value)}
+                          placeholder="e.g. Shillong, Srinagar, Leh, Bali, Kyoto (leave empty to auto-detect from package title)"
+                          className="w-full bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2.5 text-xs text-stone-800 outline-none"
+                        />
+                        <p className="text-[10px] text-stone-400 mt-1">Controls the 12-month climate guide displayed on the customer site package page.</p>
                       </div>
 
                       {specialityCategories.length > 0 && (

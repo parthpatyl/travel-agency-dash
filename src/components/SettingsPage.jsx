@@ -118,7 +118,7 @@ export default function SettingsPage({
     })
   }
 
-  const handleHeroBgUpload = async (e) => {
+  const handleAddCarouselSlideUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 5 * 1024 * 1024) {
@@ -140,40 +140,19 @@ export default function SettingsPage({
         throw new Error(errData.error || 'Failed to upload image')
       }
       const data = await response.json()
-      updateHeroField('bgImage', data.imageUrl)
-      if (addNotification) addNotification('Hero background image updated!', 'success')
+      const currentSlides = Array.isArray(heroSection.bgImages) ? [...heroSection.bgImages] : (heroSection.bgImage ? [heroSection.bgImage] : [])
+      const updatedSlides = [...currentSlides, data.imageUrl]
+      setSettings(prev => ({
+        ...prev,
+        heroSection: {
+          ...(prev?.heroSection || {}),
+          bgImage: updatedSlides[0] || data.imageUrl,
+          bgImages: updatedSlides
+        }
+      }))
+      if (addNotification) addNotification('Hero slide added!', 'success')
     } catch (err) {
       if (addNotification) addNotification(err.message || 'Hero image upload failed', 'error')
-    }
-  }
-
-  const handleAddCarouselSlideUpload = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (file.size > 5 * 1024 * 1024) {
-      if (addNotification) addNotification('File size exceeds the 5MB limit!', 'warning')
-      return
-    }
-    const formData = new FormData()
-    formData.append('image', file)
-    try {
-      if (addNotification) addNotification('Uploading carousel slide...', 'info')
-      const token = localStorage.getItem('kraft_token')
-      const response = await fetch(`${API_URL}/api/upload`, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        method: 'POST',
-        body: formData
-      })
-      if (!response.ok) {
-        const errData = await response.json()
-        throw new Error(errData.error || 'Failed to upload image')
-      }
-      const data = await response.json()
-      const currentSlides = Array.isArray(heroSection.bgImages) ? [...heroSection.bgImages] : (heroSection.bgImage ? [heroSection.bgImage] : [])
-      updateHeroField('bgImages', [...currentSlides, data.imageUrl])
-      if (addNotification) addNotification('Carousel slide added!', 'success')
-    } catch (err) {
-      if (addNotification) addNotification(err.message || 'Carousel slide upload failed', 'error')
     }
     e.target.value = ''
   }
@@ -181,8 +160,15 @@ export default function SettingsPage({
   const handleRemoveCarouselSlide = (index) => {
     const currentSlides = Array.isArray(heroSection.bgImages) ? [...heroSection.bgImages] : []
     const updated = currentSlides.filter((_, idx) => idx !== index)
-    updateHeroField('bgImages', updated)
-    if (addNotification) addNotification('Carousel slide removed', 'info')
+    setSettings(prev => ({
+      ...prev,
+      heroSection: {
+        ...(prev?.heroSection || {}),
+        bgImage: updated[0] || '',
+        bgImages: updated
+      }
+    }))
+    if (addNotification) addNotification('Hero slide removed', 'info')
   }
 
   const handleMoveCarouselSlide = (fromIdx, toIdx) => {
@@ -191,7 +177,14 @@ export default function SettingsPage({
     const reordered = [...currentSlides]
     const [moved] = reordered.splice(fromIdx, 1)
     reordered.splice(toIdx, 0, moved)
-    updateHeroField('bgImages', reordered)
+    setSettings(prev => ({
+      ...prev,
+      heroSection: {
+        ...(prev?.heroSection || {}),
+        bgImage: reordered[0] || '',
+        bgImages: reordered
+      }
+    }))
   }
 
   const handleCtaBgUpload = async (e) => {
@@ -1046,41 +1039,16 @@ export default function SettingsPage({
             </div>
 
             <div className="space-y-4">
-              {/* Background Image Upload */}
+              {/* Unified Hero Slides & Imagery Manager */}
               <div>
-                <label className="block text-xs font-bold text-stone-700 mb-2">Hero Background Image</label>
-                <div className="flex flex-col sm:flex-row items-center gap-4">
-                  <div className="w-full sm:w-48 h-24 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shrink-0">
-                    <img
-                      src={imgUrl(heroSection.bgImage)}
-                      alt="Hero Preview"
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.style.display = 'none'
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="inline-flex items-center px-3.5 py-2 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors">
-                      <svg className="w-4 h-4 mr-2 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                      </svg>
-                      Upload New Hero Image
-                      <input type="file" accept="image/*" onChange={handleHeroBgUpload} className="hidden" />
-                    </label>
-                    <p className="text-[11px] text-stone-400">Stored directly in database. High-resolution landscape (JPG, PNG, WebP up to 5MB).</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Carousel Slides Manager */}
-              <div className="pt-3 border-t border-stone-100">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                   <div>
-                    <label className="block text-xs font-bold text-stone-700">Hero Carousel Slides</label>
-                    <p className="text-[11px] text-stone-400">Add multiple images to enable the auto-playing 5-second crossfade hero carousel on the customer website.</p>
+                    <label className="block text-xs font-bold text-stone-700">Hero Slides & Background Imagery</label>
+                    <p className="text-[11px] text-stone-400">
+                      Upload images for your hero section. A single image displays as a static background; 2 or more images automatically crossfade as an auto-playing 5-second carousel.
+                    </p>
                   </div>
-                  <label className="inline-flex items-center px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors shrink-0">
+                  <label className="inline-flex items-center px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors shrink-0">
                     <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
                     </svg>
@@ -1104,7 +1072,7 @@ export default function SettingsPage({
                               onError={(e) => { e.target.style.display = 'none' }}
                             />
                             <span className="absolute top-1.5 left-1.5 px-2 py-0.5 bg-stone-900/70 text-white rounded-md text-[10px] font-bold">
-                              Slide #{idx + 1}
+                              {idx === 0 ? 'Primary Slide' : `Slide #${idx + 1}`}
                             </span>
                           </div>
                           <div className="flex items-center justify-between text-xs pt-0.5">
@@ -1141,9 +1109,16 @@ export default function SettingsPage({
                     })}
                   </div>
                 ) : (
-                  <p className="text-[11px] text-stone-400 italic bg-stone-50 rounded-lg p-3 border border-dashed border-stone-200">
-                    No custom carousel slides added yet. Customer site will automatically rotate curated luxury slides or the main hero image.
-                  </p>
+                  <div className="p-6 border-2 border-dashed border-stone-200 rounded-xl text-center bg-stone-50/50">
+                    <p className="text-xs text-stone-500 mb-2">No custom hero images uploaded yet. The default landscape will be displayed.</p>
+                    <label className="inline-flex items-center px-3.5 py-1.5 bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold rounded-lg shadow-xs cursor-pointer transition-colors">
+                      <svg className="w-3.5 h-3.5 mr-1.5 text-stone-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                      </svg>
+                      Upload First Hero Image
+                      <input type="file" accept="image/*" onChange={handleAddCarouselSlideUpload} className="hidden" />
+                    </label>
+                  </div>
                 )}
               </div>
 
