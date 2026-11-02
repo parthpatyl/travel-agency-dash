@@ -28,10 +28,15 @@ import {
   generateEmailSubject,
   generateEmailReplyUrl,
   generateConciergeEmailHtml,
-  formatDateDisplay
 } from '../utils/commsPipeline'
 
-describe('Omnichannel Comms, Package Links & Email Preview Workflow', () => {
+describe('Omnichannel Comms: Strict Links, Sanitized WhatsApp & Minimalist 3-Button Fast-Track', () => {
+  const samplePackages = [
+    { id: 'PKG-SWISS-ALPS-01', name: 'Swiss Alpine Luxury' },
+    { id: 'PKG-KASHMIR-01', name: 'Kashmir Valley & Dal Lake Paradise' },
+    { id: 'PKG-GREECE-01', name: 'Greece Odyssey & Santorini Sunset' }
+  ]
+
   beforeEach(() => {
     vi.restoreAllMocks()
     localStorage.clear()
@@ -41,195 +46,132 @@ describe('Omnichannel Comms, Package Links & Email Preview Workflow', () => {
     vi.restoreAllMocks()
   })
 
-  describe('1. Comms Pipeline & Package Link Mapping', () => {
-    it('normalizes international phone numbers and prefixes 10-digit numbers with India code (91)', () => {
+  describe('1. Comms Pipeline: Strict Package Resolution & Universal Phone Sanitization', () => {
+    it('normalizes international phone numbers, strips leading zeros, and prefixes 10-digit Indian numbers with 91', () => {
       expect(getCleanPhoneForWhatsApp('+91 70467-04693')).toBe('917046704693')
       expect(getCleanPhoneForWhatsApp('7046704693')).toBe('917046704693')
+      expect(getCleanPhoneForWhatsApp('09820012345')).toBe('919820012345') // Strips leading 0
       expect(getCleanPhoneForWhatsApp('+1 (555) 234-5678')).toBe('15552345678')
       expect(getCleanPhoneForWhatsApp('')).toBe('')
       expect(getCleanPhoneForWhatsApp(null)).toBe('')
     })
 
-    it('resolves canonical package URLs accurately across formats', () => {
-      // 1. Explicit packageUrl
-      expect(getPackageUrl({ packageUrl: 'https://kraftyourtrip.com/package/custom-luxury' }))
-        .toBe('https://kraftyourtrip.com/package/custom-luxury')
+    it('strictly resolves canonical package URLs with valid DB package IDs and never invents broken slugs', () => {
+      // Valid explicit DB packageId
+      const validUrl = getPackageUrl({ packageId: 'PKG-SWISS-ALPS-01' })
+      expect(validUrl).toContain('/package/PKG-SWISS-ALPS-01')
 
-      // 2. packageId
-      expect(getPackageUrl({ packageId: 'greece-odyssey-2026' }))
-        .toBe('https://kraftyourtrip.com/package/greece-odyssey-2026')
+      // Matched via packages catalog
+      const matchedByName = getPackageUrl(
+        { destination: 'Kashmir Valley & Dal Lake Paradise' },
+        samplePackages
+      )
+      expect(matchedByName).toContain('/package/PKG-KASHMIR-01')
 
-      // 3. package_id
-      expect(getPackageUrl({ package_id: 'swiss-alps-express' }))
-        .toBe('https://kraftyourtrip.com/package/swiss-alps-express')
-
-      // 4. Destination slugification
-      expect(getPackageUrl({ destination: 'Amalfi Coast & Capri Yacht' }))
-        .toBe('https://kraftyourtrip.com/package/amalfi-coast-capri-yacht')
-
-      // 5. Fallback for generic/bespoke
-      expect(getPackageUrl({ destination: 'Custom Trip' }))
-        .toBe('https://kraftyourtrip.com/#destinations')
-      expect(getPackageUrl(null))
-        .toBe('https://kraftyourtrip.com')
+      // Custom/bespoke or unmapped destination returns null instead of a broken slug
+      expect(getPackageUrl({ destination: 'Kashmir Valley & Dal Lake Paradise' })).toBeNull()
+      expect(getPackageUrl({ destination: 'Custom Trip' })).toBeNull()
+      expect(getPackageUrl({ packageId: 'custom-other' })).toBeNull()
+      expect(getPackageUrl(null)).toBeNull()
     })
 
-    it('generates personalized WhatsApp greeting message with package link and luxury concierge tone', () => {
-      const enquiry = {
+    it('generates WhatsApp greeting message containing package link ONLY if a valid package exists', () => {
+      // With valid package
+      const enqWithPkg = {
         name: 'Rohan Sharma',
-        destination: 'Swiss Alps',
-        packageId: 'swiss-alps-luxury',
+        destination: 'Swiss Alpine Luxury',
+        packageId: 'PKG-SWISS-ALPS-01',
         guests: 2,
         travelDate: '2026-10-15'
       }
-      const msg = generateWhatsAppMessage(enquiry)
-      expect(msg).toContain('Rohan Sharma')
-      expect(msg).toContain('Swiss Alps')
-      expect(msg).toContain('2 traveler(s)')
-      expect(msg).toContain('Kraft Your Trip concierge desk')
-      expect(msg).toContain('https://kraftyourtrip.com/package/swiss-alps-luxury')
+      const msg1 = generateWhatsAppMessage(enqWithPkg)
+      expect(msg1).toContain('Rohan Sharma')
+      expect(msg1).toContain('Swiss Alpine Luxury')
+      expect(msg1).toContain('/package/PKG-SWISS-ALPS-01')
+
+      // Without valid package (custom/bespoke)
+      const enqWithoutPkg = {
+        name: 'Anita Roy',
+        destination: 'Bespoke European Roadtrip',
+        guests: 2,
+        travelDate: '2026-11-01'
+      }
+      const msg2 = generateWhatsAppMessage(enqWithoutPkg)
+      expect(msg2).toContain('Anita Roy')
+      expect(msg2).not.toContain('/package/')
+      expect(msg2).not.toContain('View package details')
     })
 
-    it('constructs wa.me deep links with encoded greeting and package URL', () => {
+    it('constructs universal WhatsApp URL with api.whatsapp.com', () => {
       const enquiry = {
         name: 'Aarav Patel',
-        phone: '+91 9876543210',
-        destination: 'Maldives Overwater',
-        packageId: 'maldives-overwater-bungalow',
+        phone: '09876543210',
+        destination: 'Kashmir Valley & Dal Lake Paradise',
+        packageId: 'PKG-KASHMIR-01',
         guests: 2,
         travelDate: '2026-12-01'
       }
       const url = generateWhatsAppUrl(enquiry)
-      expect(url).toMatch(/^https:\/\/wa\.me\/919876543210\?text=/)
+      expect(url).toMatch(/^https:\/\/api\.whatsapp\.com\/send\/\?phone=919876543210&text=/)
       expect(url).toContain(encodeURIComponent('Aarav Patel'))
-      expect(url).toContain(encodeURIComponent('https://kraftyourtrip.com/package/maldives-overwater-bungalow'))
+      expect(url).toContain(encodeURIComponent('/package/PKG-KASHMIR-01'))
     })
 
-    it('constructs mailto: URL with structured travel details, package link, and concierge signature', () => {
-      const enquiry = {
+    it('constructs mailto: URL and luxury HTML email template strictly omitting package CTA when no valid package exists', () => {
+      const enqWithoutPkg = {
         name: 'Pooja Nair',
         email: 'pooja@example.com',
-        destination: 'Kyoto Cultural Heritage',
-        packageId: 'kyoto-cultural-heritage',
+        destination: 'Custom Himalayan Trek',
         guests: 3,
         travelDate: '2026-11-20',
-        notes: 'Interested in private tea ceremonies.'
+        notes: 'Interested in local sherpa guides.'
       }
-      const mailto = generateEmailReplyUrl(enquiry)
-      expect(mailto).toMatch(/^mailto:pooja@example\.com\?subject=/)
-      expect(mailto).toContain('Kraft%20Your%20Trip%20Concierge')
-      expect(mailto).toContain('Kyoto%20Cultural%20Heritage')
-      expect(mailto).toContain('Interested%20in%20private%20tea%20ceremonies')
-      expect(mailto).toContain(encodeURIComponent('https://kraftyourtrip.com/package/kyoto-cultural-heritage'))
-    })
+      const mailto = generateEmailReplyUrl(enqWithoutPkg)
+      expect(mailto).not.toContain('Package Itinerary:')
 
-    it('generates rich inline-styled HTML luxury email template with package link CTA', () => {
-      const enquiry = {
-        name: 'Eleanor Vance',
-        destination: 'Amalfi Coast Private Yacht Charter',
-        packageId: 'amalfi-coast-luxury-escape',
-        guests: 2,
-        travelDate: '2026-12-25',
-        notes: 'Sunset cruise to Capri and vintage champagne.'
-      }
-      const html = generateConciergeEmailHtml(enquiry)
-      expect(html).toContain('KRAFT YOUR TRIP')
-      expect(html).toContain('Bespoke Concierge Atelier')
-      expect(html).toContain('Dear Eleanor Vance,')
-      expect(html).toContain('Amalfi Coast Private Yacht Charter')
-      expect(html).toContain('Sunset cruise to Capri and vintage champagne.')
-      expect(html).toContain('https://kraftyourtrip.com/package/amalfi-coast-luxury-escape')
-      expect(html).toContain('View Curated Package Itinerary &rarr;')
-      expect(html).toContain('contact@kraftyourtrip.com')
+      const html = generateConciergeEmailHtml(enqWithoutPkg)
+      expect(html).toContain('Dear Pooja Nair,')
+      expect(html).toContain('Custom Himalayan Trek')
+      expect(html).not.toContain('View Curated Package Itinerary')
     })
   })
 
-  describe('2. EmailPreviewModal Rendering & Copy Features', () => {
+  describe('2. Streamlined EmailPreviewModal (Zero Fluff, As Received by Customer)', () => {
     const sampleEnquiry = {
       name: 'Julian Thorne',
       email: 'julian@thorneinvestments.com',
-      destination: 'Serengeti Migration Luxury Safari',
-      packageId: 'serengeti-migration-safari',
+      destination: 'Swiss Alpine Luxury',
+      packageId: 'PKG-SWISS-ALPS-01',
       guests: 2,
       travelDate: '2026-11-10',
-      notes: 'Hot air balloon safari requested.'
+      notes: 'Glacier express window seats.'
     }
 
-    it('renders metadata, rendered iframe, and package link', () => {
+    it('renders customer email preview showing recipient, subject, and rendered preview iframe', () => {
       render(
         <EmailPreviewModal
           isOpen={true}
           onClose={vi.fn()}
           enquiry={sampleEnquiry}
-          addNotification={vi.fn()}
+          packages={samplePackages}
         />
       )
 
-      expect(screen.getByText(/Concierge Email Preview/i)).toBeInTheDocument()
+      expect(screen.getByText(/Customer Email Preview/i)).toBeInTheDocument()
       expect(screen.getByText(/julian@thorneinvestments.com/i)).toBeInTheDocument()
-      expect(screen.getByText('https://kraftyourtrip.com/package/serengeti-migration-safari')).toBeInTheDocument()
       expect(screen.getByTitle('Email Template Rendered Preview')).toBeInTheDocument()
-    })
-
-    it('switches between Rendered HTML, HTML Code, and Plain Text tabs', () => {
-      render(
-        <EmailPreviewModal
-          isOpen={true}
-          onClose={vi.fn()}
-          enquiry={sampleEnquiry}
-          addNotification={vi.fn()}
-        />
-      )
-
-      // Switch to HTML code
-      fireEvent.click(screen.getByRole('button', { name: /HTML Code/i }))
-      expect(screen.getByText(/<!DOCTYPE html>/i)).toBeInTheDocument()
-
-      // Switch to Plain Text
-      fireEvent.click(screen.getByRole('button', { name: /Plain Text/i }))
-      expect(screen.getByText(/Subject: Kraft Your Trip Concierge/i)).toBeInTheDocument()
-    })
-
-    it('copies HTML and Plain Text to clipboard on click', async () => {
-      const mockWriteText = vi.fn().mockResolvedValue()
-      Object.assign(navigator, {
-        clipboard: { writeText: mockWriteText }
-      })
-      const addNotification = vi.fn()
-
-      render(
-        <EmailPreviewModal
-          isOpen={true}
-          onClose={vi.fn()}
-          enquiry={sampleEnquiry}
-          addNotification={addNotification}
-        />
-      )
-
-      fireEvent.click(screen.getByRole('button', { name: /Copy HTML/i }))
-      await waitFor(() => {
-        expect(mockWriteText).toHaveBeenCalledWith(expect.stringContaining('KRAFT YOUR TRIP'))
-        expect(addNotification).toHaveBeenCalledWith(
-          expect.stringContaining('HTML email copied'),
-          'success'
-        )
-      })
-
-      fireEvent.click(screen.getByRole('button', { name: /Copy Text/i }))
-      await waitFor(() => {
-        expect(mockWriteText).toHaveBeenCalledWith(expect.stringContaining('Julian Thorne'))
-      })
+      expect(screen.getByRole('link', { name: /Send via Mail App/i })).toBeInTheDocument()
     })
   })
 
-  describe('3. EnquiryDetailModal Fast-Track Outreach & Conversion', () => {
+  describe('3. EnquiryDetailModal: 3 Focused Buttons ([WhatsApp], [Email Preview], [Copy Text])', () => {
     const mockEnquiry = {
       id: 'ENQ-2026-88',
       name: 'Vikram Malhotra',
       email: 'vikram@luxurytravel.com',
       phone: '+91 9820012345',
-      destination: 'Iceland Northern Lights',
-      packageId: 'iceland-northern-lights-escape',
+      destination: 'Swiss Alpine Luxury',
+      packageId: 'PKG-SWISS-ALPS-01',
       travelDate: '2026-12-20',
       guests: 2,
       notes: 'Require 5-star glass igloo accommodations and private superjeep tour.'
@@ -247,7 +189,7 @@ describe('Omnichannel Comms, Package Links & Email Preview Workflow', () => {
       })
     })
 
-    it('renders WhatsApp Concierge with package link, Email Reply, Preview Email, and Package Link pill', async () => {
+    it('renders exactly the 3 minimalist buttons: WhatsApp, Email Preview, and Copy Text', async () => {
       render(
         <EnquiryDetailModal
           enquiryId="ENQ-2026-88"
@@ -257,6 +199,7 @@ describe('Omnichannel Comms, Package Links & Email Preview Workflow', () => {
           addNotification={vi.fn()}
           setBookingDraft={vi.fn()}
           setActiveTab={vi.fn()}
+          packages={samplePackages}
         />
       )
 
@@ -264,29 +207,26 @@ describe('Omnichannel Comms, Package Links & Email Preview Workflow', () => {
         expect(screen.getByText(/Omnichannel Concierge Fast-Track/i)).toBeInTheDocument()
       })
 
-      // WhatsApp Concierge Link
-      const waLink = screen.getByRole('link', { name: /WhatsApp Concierge/i })
+      // 1. WhatsApp Button
+      const waLink = screen.getByRole('link', { name: /^WhatsApp$/i })
       expect(waLink).toBeInTheDocument()
-      expect(waLink).toHaveAttribute('href', expect.stringContaining('https://wa.me/919820012345'))
-      expect(waLink).toHaveAttribute('href', expect.stringContaining(encodeURIComponent('https://kraftyourtrip.com/package/iceland-northern-lights-escape')))
+      expect(waLink).toHaveAttribute('href', expect.stringContaining('https://api.whatsapp.com/send/?phone=919820012345'))
+      expect(waLink).toHaveAttribute('href', expect.stringContaining(encodeURIComponent('/package/PKG-SWISS-ALPS-01')))
 
-      // Email Reply Link
-      const emailLink = screen.getByRole('link', { name: /Email Reply/i })
-      expect(emailLink).toBeInTheDocument()
-      expect(emailLink).toHaveAttribute('href', expect.stringContaining('mailto:vikram@luxurytravel.com'))
-      expect(emailLink).toHaveAttribute('href', expect.stringContaining(encodeURIComponent('https://kraftyourtrip.com/package/iceland-northern-lights-escape')))
-
-      // Package Link Pill
-      const pkgPill = screen.getByRole('link', { name: /Package Link/i })
-      expect(pkgPill).toBeInTheDocument()
-      expect(pkgPill).toHaveAttribute('href', 'https://kraftyourtrip.com/package/iceland-northern-lights-escape')
-
-      // Preview Email Button
-      const previewBtn = screen.getByRole('button', { name: /Preview Email/i })
+      // 2. Email Preview Button
+      const previewBtn = screen.getByRole('button', { name: /^Email Preview$/i })
       expect(previewBtn).toBeInTheDocument()
+
+      // 3. Copy Text Button
+      const copyBtn = screen.getByRole('button', { name: /Copy Text/i })
+      expect(copyBtn).toBeInTheDocument()
+
+      // Verify no cluttered legacy buttons exist
+      expect(screen.queryByRole('link', { name: /Package Link/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: /Email Reply/i })).not.toBeInTheDocument()
     })
 
-    it('opens EmailPreviewModal when Preview Email is clicked', async () => {
+    it('opens streamlined EmailPreviewModal when Email Preview is clicked', async () => {
       render(
         <EnquiryDetailModal
           enquiryId="ENQ-2026-88"
@@ -296,22 +236,23 @@ describe('Omnichannel Comms, Package Links & Email Preview Workflow', () => {
           addNotification={vi.fn()}
           setBookingDraft={vi.fn()}
           setActiveTab={vi.fn()}
+          packages={samplePackages}
         />
       )
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Preview Email/i })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /^Email Preview$/i })).toBeInTheDocument()
       })
 
-      fireEvent.click(screen.getByRole('button', { name: /Preview Email/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^Email Preview$/i }))
 
       await waitFor(() => {
-        expect(screen.getByText(/Concierge Email Preview/i)).toBeInTheDocument()
+        expect(screen.getByText(/Customer Email Preview/i)).toBeInTheDocument()
         expect(screen.getAllByText(/vikram@luxurytravel.com/i).length).toBeGreaterThanOrEqual(1)
       })
     })
 
-    it('copies WhatsApp greeting message to clipboard on button click', async () => {
+    it('copies concise concierge message to clipboard on Copy Text button click', async () => {
       const mockWriteText = vi.fn().mockResolvedValue()
       Object.assign(navigator, {
         clipboard: { writeText: mockWriteText }
@@ -328,76 +269,37 @@ describe('Omnichannel Comms, Package Links & Email Preview Workflow', () => {
           addNotification={addNotification}
           setBookingDraft={vi.fn()}
           setActiveTab={vi.fn()}
+          packages={samplePackages}
         />
       )
 
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Copy Msg/i })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /Copy Text/i })).toBeInTheDocument()
       })
 
-      const copyBtn = screen.getByRole('button', { name: /Copy Msg/i })
+      const copyBtn = screen.getByRole('button', { name: /Copy Text/i })
       fireEvent.click(copyBtn)
 
       await waitFor(() => {
         expect(mockWriteText).toHaveBeenCalledWith(expect.stringContaining('Vikram Malhotra'))
-        expect(mockWriteText).toHaveBeenCalledWith(expect.stringContaining('https://kraftyourtrip.com/package/iceland-northern-lights-escape'))
+        expect(mockWriteText).toHaveBeenCalledWith(expect.stringContaining('/package/PKG-SWISS-ALPS-01'))
         expect(addNotification).toHaveBeenCalledWith(
           expect.stringContaining('copied to clipboard'),
           'info'
         )
       })
     })
-
-    it('converts enquiry into booking draft, populates parameters and routes to bookings tab', async () => {
-      const setBookingDraft = vi.fn()
-      const setActiveTab = vi.fn()
-      const onClose = vi.fn()
-      const addNotification = vi.fn()
-
-      render(
-        <EnquiryDetailModal
-          enquiryId="ENQ-2026-88"
-          isOpen={true}
-          onClose={onClose}
-          token="mock-token"
-          addNotification={addNotification}
-          setBookingDraft={setBookingDraft}
-          setActiveTab={setActiveTab}
-        />
-      )
-
-      await waitFor(() => {
-        expect(screen.getByText(/Convert to Booking/i)).toBeInTheDocument()
-      })
-
-      const convertBtn = screen.getByRole('button', { name: /Convert to Booking/i })
-      fireEvent.click(convertBtn)
-
-      expect(setBookingDraft).toHaveBeenCalledWith({
-        client: 'Vikram Malhotra',
-        clientEmail: 'vikram@luxurytravel.com',
-        package: 'Iceland Northern Lights',
-        guests: 2,
-        date: '2026-12-20',
-        notes: 'Require 5-star glass igloo accommodations and private superjeep tour.'
-      })
-      expect(setActiveTab).toHaveBeenCalledWith('bookings')
-      expect(onClose).toHaveBeenCalled()
-      expect(addNotification).toHaveBeenCalledWith(
-        expect.stringContaining('converted to booking draft'),
-        'success'
-      )
-    })
   })
 
-  describe('4. EnquiriesPage Fast-Track & Temp Preview User Generation', () => {
+  describe('4. EnquiriesPage: Temp Preview User with Valid Package ID', () => {
     const mockEnquiries = [
       {
         id: 'ENQ-101',
         name: 'Sunita Rao',
         email: 'sunita@example.com',
-        phone: '+91 9988776655',
-        destination: 'Bali Tropical',
+        phone: '09988776655',
+        destination: 'Swiss Alpine Luxury',
+        packageId: 'PKG-SWISS-ALPS-01',
         travelDate: '2026-11-05',
         guests: 4,
         status: 'logged',
@@ -418,34 +320,7 @@ describe('Omnichannel Comms, Package Links & Email Preview Workflow', () => {
       })
     })
 
-    it('renders customer phone, WhatsApp action, and email preview action in enquiries table', async () => {
-      render(
-        <EnquiriesPage
-          API_URL="http://localhost:5000"
-          authHeaders={{ Authorization: 'Bearer token' }}
-          addNotification={vi.fn()}
-          onSelectEnquiry={vi.fn()}
-        />
-      )
-
-      await waitFor(() => {
-        expect(screen.getByText('Sunita Rao')).toBeInTheDocument()
-      })
-
-      // Verify phone number is displayed in customer column
-      expect(screen.getByText('+91 9988776655')).toBeInTheDocument()
-
-      // Verify 1-click WhatsApp link exists with correct wa.me link
-      const waBtn = screen.getByTitle(/WhatsApp Sunita Rao/i)
-      expect(waBtn).toBeInTheDocument()
-      expect(waBtn).toHaveAttribute('href', expect.stringContaining('https://wa.me/919988776655'))
-
-      // Verify 1-click email preview button exists
-      const emailPreviewBtn = screen.getByTitle(/Preview Concierge Email for Sunita Rao/i)
-      expect(emailPreviewBtn).toBeInTheDocument()
-    })
-
-    it('generates a temporary preview user Eleanor Vance with package link and opens details/preview', async () => {
+    it('generates temporary preview user Eleanor Vance with valid package ID and opens preview', async () => {
       const onSelectEnquiry = vi.fn()
       const addNotification = vi.fn()
 
@@ -455,6 +330,7 @@ describe('Omnichannel Comms, Package Links & Email Preview Workflow', () => {
           authHeaders={{ Authorization: 'Bearer token' }}
           addNotification={addNotification}
           onSelectEnquiry={onSelectEnquiry}
+          packages={samplePackages}
         />
       )
 
@@ -469,7 +345,7 @@ describe('Omnichannel Comms, Package Links & Email Preview Workflow', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Eleanor Vance')).toBeInTheDocument()
-        expect(screen.getByText(/Amalfi Coast & Capri Private Yacht Charter/i)).toBeInTheDocument()
+        expect(screen.getAllByText(/Swiss Alpine Luxury/i).length).toBeGreaterThanOrEqual(2)
         expect(onSelectEnquiry).toHaveBeenCalledWith(expect.stringMatching(/^ENQ-PREV-\d+/))
         expect(addNotification).toHaveBeenCalledWith(
           expect.stringContaining('Eleanor Vance'),

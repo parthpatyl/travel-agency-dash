@@ -2237,6 +2237,7 @@ function App() {
         addNotification={addNotification}
         setBookingDraft={setBookingDraft}
         setActiveTab={setActiveTab}
+        packages={packages}
       />
 
       {showAccountSettingsModal && (

@@ -42,7 +42,7 @@ const STATUS_COLORS = {
   converted: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 }
 
-export default function EnquiriesPage({ API_URL, authHeaders, addNotification, onSelectEnquiry, clients = [], setClients }) {
+export default function EnquiriesPage({ API_URL, authHeaders, addNotification, onSelectEnquiry, clients = [], setClients, packages = [] }) {
   const [enquiries, setEnquiries] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -76,16 +76,15 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
       name: 'Eleanor Vance',
       email: 'eleanor.vance@vancemedia.com',
       phone: '+91 98200 45678',
-      destination: 'Amalfi Coast & Capri Private Yacht Charter',
-      packageId: 'amalfi-coast-luxury-escape',
-      packageName: 'Amalfi Coast & Capri Private Yacht Charter',
-      packageUrl: 'https://kraftyourtrip.com/package/amalfi-coast-luxury-escape',
+      destination: 'Swiss Alpine Luxury',
+      packageId: 'PKG-SWISS-ALPS-01',
+      packageName: 'Swiss Alpine Luxury',
       travelDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       guests: 2,
       status: 'reviewing',
       leadSource: 'Customer Site Preview',
       isItineraryDownload: false,
-      notes: 'Prefers top-deck private dining, sunset yacht excursion to Capri, and vintage champagne on arrival.',
+      notes: 'Prefers scenic glacier express seats, chalet upgrade, and welcome champagne.',
       submittedAt: new Date().toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -99,7 +98,7 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
     } catch {}
 
     if (addNotification) {
-      addNotification('Generated temporary preview enquiry for Eleanor Vance (Amalfi Coast)', 'success')
+      addNotification('Generated temporary preview enquiry for Eleanor Vance (Swiss Alpine Luxury)', 'success')
     }
 
     if (onSelectEnquiry) {
@@ -832,7 +831,7 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
 
                           {enq.phone && (
                             <a
-                              href={generateWhatsAppUrl(enq)}
+                              href={generateWhatsAppUrl(enq, packages)}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
@@ -901,7 +900,7 @@ export default function EnquiriesPage({ API_URL, authHeaders, addNotification, o
           isOpen={!!previewEmailEnquiry}
           onClose={() => setPreviewEmailEnquiry(null)}
           enquiry={previewEmailEnquiry}
-          addNotification={addNotification}
+          packages={packages}
         />
       )}
     </div>

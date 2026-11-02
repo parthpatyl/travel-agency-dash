@@ -1,7 +1,7 @@
 /**
  * Omnichannel Communications Pipeline Utilities
- * Provides sanitized phone formatting, WhatsApp deep links, package URL mapping,
- * and pre-composed email replies with luxury HTML templates.
+ * Provides sanitized phone formatting, universal WhatsApp links,
+ * strict package ID link resolution, and luxury HTML email templates.
  */
 
 export const formatDateDisplay = (dateStr) => {
@@ -12,69 +12,110 @@ export const formatDateDisplay = (dateStr) => {
 }
 
 /**
- * Sanitizes phone numbers into E.164 digits for WhatsApp links.
- * Defaults 10-digit national numbers to India prefix (91).
+ * Returns the customer site base URL dynamically (localhost:5173 in dev, production URL in prod).
+ */
+export function getCustomerSiteBaseUrl() {
+  if (typeof window !== 'undefined' && window.location) {
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:5173'
+    }
+  }
+  return (typeof import.meta !== 'undefined' && import.meta.env?.VITE_CUSTOMER_SITE_URL) || 'https://kraftyourtrip.com'
+}
+
+/**
+ * Sanitizes phone numbers into strict E.164 digits for WhatsApp links.
+ * Strips non-digits, strips leading zeros, and prefixes standard 10-digit Indian numbers with '91'.
  */
 export function getCleanPhoneForWhatsApp(phone) {
   if (!phone) return ''
-  let clean = phone.replace(/[^0-9]/g, '')
+  let clean = String(phone).replace(/[^0-9]/g, '')
+  if (!clean) return ''
+
+  // Strip leading 0s (e.g. 09820012345 -> 9820012345)
+  clean = clean.replace(/^0+/, '')
+
+  // 10 digits national Indian number
   if (clean.length === 10) {
     clean = '91' + clean
   }
+
   return clean
 }
 
 /**
- * Resolves canonical customer-site package URL for an inquiry.
- * Supports explicit packageUrl, packageId, packageName, or destination slug.
+ * Strictly resolves canonical customer-site package URL ONLY if enquiry has a valid DB package ID.
+ * Returns null if no package ID is present (e.g. custom bespoke enquiries), avoiding broken slugs.
  */
-export function getPackageUrl(enquiry) {
-  if (!enquiry) return 'https://kraftyourtrip.com'
-  if (enquiry.packageUrl) return enquiry.packageUrl
+export function getPackageUrl(enquiry, packages = []) {
+  if (!enquiry) return null
 
-  const pkgId = enquiry.packageId || enquiry.package_id
-  if (pkgId && pkgId !== 'custom-other' && pkgId !== 'custom') {
-    return `https://kraftyourtrip.com/package/${pkgId}`
+  // 1. Explicit valid packageUrl
+  if (enquiry.packageUrl && typeof enquiry.packageUrl === 'string' && enquiry.packageUrl.includes('/package/')) {
+    return enquiry.packageUrl
   }
 
-  const target = enquiry.packageName || enquiry.destination
-  if (target && !['custom', 'custom trip', 'bespoke', 'other', 'luxury tour'].includes(target.toLowerCase().trim())) {
-    const slug = target
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '')
-    if (slug) {
-      return `https://kraftyourtrip.com/package/${slug}`
+  // 2. Strict ID matching: only use if packageId or package_id is present and not a generic string
+  const pkgId = enquiry.packageId || enquiry.package_id
+  if (pkgId && typeof pkgId === 'string') {
+    const trimmed = pkgId.trim()
+    const isGeneric = ['custom', 'custom-other', 'bespoke', 'other'].includes(trimmed.toLowerCase())
+    if (!isGeneric) {
+      // If packages list is available, verify package exists
+      if (Array.isArray(packages) && packages.length > 0) {
+        const found = packages.find(p => p.id === trimmed || p.id?.toLowerCase() === trimmed.toLowerCase())
+        if (found) {
+          return `${getCustomerSiteBaseUrl()}/package/${found.id}`
+        }
+      }
+      // If starts with PKG- or UUID pattern, treat as valid package ID
+      if (trimmed.startsWith('PKG-') || /^[0-9a-f-]{36}$/i.test(trimmed)) {
+        return `${getCustomerSiteBaseUrl()}/package/${trimmed}`
+      }
     }
   }
 
-  return 'https://kraftyourtrip.com/#destinations'
+  // 3. If packages array is provided, match by exact name
+  if (Array.isArray(packages) && packages.length > 0 && (enquiry.packageName || enquiry.destination)) {
+    const targetName = (enquiry.packageName || enquiry.destination).trim().toLowerCase()
+    const foundByName = packages.find(p => p.name?.trim().toLowerCase() === targetName)
+    if (foundByName) {
+      return `${getCustomerSiteBaseUrl()}/package/${foundByName.id}`
+    }
+  }
+
+  // No valid package ID -> return null (do not invent slugs)
+  return null
 }
 
 /**
- * Pre-populates a bespoke concierge greeting message for WhatsApp,
- * including travel details and canonical package itinerary link.
+ * Pre-populates a bespoke concierge greeting message for WhatsApp.
+ * Appends package link only if a valid package URL exists.
  */
-export function generateWhatsAppMessage(enquiry) {
+export function generateWhatsAppMessage(enquiry, packages = []) {
   if (!enquiry) return ''
   const name = enquiry.name || 'there'
   const dest = enquiry.destination || 'your upcoming trip'
   const guests = enquiry.guests ? `${enquiry.guests} traveler(s)` : 'your party'
   const dateStr = formatDateDisplay(enquiry.travelDate)
-  const pkgUrl = getPackageUrl(enquiry)
+  const pkgUrl = getPackageUrl(enquiry, packages)
 
-  return `Hello ${name}! This is the Kraft Your Trip concierge desk regarding your inquiry for ${dest} (${guests}, planned around ${dateStr}). We are curating your tailored luxury itinerary and would love to assist you with any custom preferences. Explore your package details: ${pkgUrl}`
+  let msg = `Hello ${name}! This is the Kraft Your Trip concierge desk regarding your inquiry for ${dest} (${guests}, planned around ${dateStr}). We are curating your tailored luxury itinerary and would love to assist you with any custom preferences.`
+  if (pkgUrl) {
+    msg += ` View package details: ${pkgUrl}`
+  }
+  return msg
 }
 
 /**
- * Returns full https://wa.me/... link with encoded greeting.
+ * Returns universal WhatsApp deep link using api.whatsapp.com.
  */
-export function generateWhatsAppUrl(enquiry) {
+export function generateWhatsAppUrl(enquiry, packages = []) {
   if (!enquiry || !enquiry.phone) return ''
   const cleanPhone = getCleanPhoneForWhatsApp(enquiry.phone)
   if (!cleanPhone) return ''
-  const text = generateWhatsAppMessage(enquiry)
-  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`
+  const text = generateWhatsAppMessage(enquiry, packages)
+  return `https://api.whatsapp.com/send/?phone=${cleanPhone}&text=${encodeURIComponent(text)}`
 }
 
 /**
@@ -87,15 +128,15 @@ export function generateEmailSubject(enquiry) {
 }
 
 /**
- * Pre-populates an email mailto: URL with subject and structured travel overview including package link.
+ * Pre-populates an email mailto: URL with subject and structured travel overview.
  */
-export function generateEmailReplyUrl(enquiry) {
+export function generateEmailReplyUrl(enquiry, packages = []) {
   if (!enquiry || !enquiry.email) return ''
   const name = enquiry.name || 'Traveler'
   const dest = enquiry.destination || 'Luxury Tour'
   const guests = enquiry.guests ? `${enquiry.guests} traveler(s)` : 'your party'
   const dateStr = formatDateDisplay(enquiry.travelDate)
-  const pkgUrl = getPackageUrl(enquiry)
+  const pkgUrl = getPackageUrl(enquiry, packages)
   const subject = generateEmailSubject(enquiry)
 
   const body = `Dear ${name},
@@ -108,8 +149,7 @@ Inquiry Overview:
 - Destination: ${dest}
 - Travel Window: ${dateStr}
 - Party Size: ${guests}
-- Package Itinerary: ${pkgUrl}
-${enquiry.notes ? `- Special Requests: ${enquiry.notes}\n` : ''}
+${pkgUrl ? `- Package Itinerary: ${pkgUrl}\n` : ''}${enquiry.notes ? `- Special Requests: ${enquiry.notes}\n` : ''}
 Could you please confirm if your dates are flexible, and if you have any preferred airline class or suite category?
 
 Warm regards,
@@ -121,16 +161,15 @@ https://kraftyourtrip.com`
 }
 
 /**
- * Generates an inline-styled, luxury HTML email template suitable for
- * rich-text email clients, SMTP delivery, or in-app preview.
+ * Generates an inline-styled, luxury HTML email template as the customer receives it.
  */
-export function generateConciergeEmailHtml(enquiry) {
+export function generateConciergeEmailHtml(enquiry, packages = []) {
   if (!enquiry) return ''
   const name = enquiry.name || 'Distinguished Traveler'
   const dest = enquiry.destination || 'Bespoke Luxury Tour'
   const guests = enquiry.guests ? `${enquiry.guests} traveler(s)` : 'Your Party'
   const dateStr = formatDateDisplay(enquiry.travelDate)
-  const pkgUrl = getPackageUrl(enquiry)
+  const pkgUrl = getPackageUrl(enquiry, packages)
   const notes = enquiry.notes ? enquiry.notes.trim() : null
 
   return `<!DOCTYPE html>
@@ -141,17 +180,17 @@ export function generateConciergeEmailHtml(enquiry) {
   <title>Kraft Your Trip Concierge</title>
 </head>
 <body style="margin: 0; padding: 24px 12px; background-color: #f7f6f2; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #292524; -webkit-font-smoothing: antialiased;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 620px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; border: 1px solid #e7e5e4; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; border: 1px solid #e7e5e4; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06);">
     <!-- Header Banner -->
     <tr>
-      <td style="background-color: #1c1917; padding: 36px 32px 30px; text-align: center; border-bottom: 2px solid #b45309;">
+      <td style="background-color: #1c1917; padding: 32px 28px; text-align: center; border-bottom: 2px solid #b45309;">
         <span style="font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.25em; color: #f59e0b; display: block; margin-bottom: 6px;">
           Bespoke Concierge Atelier
         </span>
-        <h1 style="margin: 0; font-family: 'Playfair Display', Georgia, serif; font-size: 26px; font-weight: 700; letter-spacing: 0.02em; color: #ffffff;">
+        <h1 style="margin: 0; font-family: 'Playfair Display', Georgia, serif; font-size: 24px; font-weight: 700; letter-spacing: 0.02em; color: #ffffff;">
           KRAFT YOUR TRIP
         </h1>
-        <p style="margin: 8px 0 0; font-size: 12px; color: #a8a29e; font-weight: 300; letter-spacing: 0.05em;">
+        <p style="margin: 6px 0 0; font-size: 12px; color: #a8a29e; font-weight: 300;">
           Handcrafted Luxury Escapes Across 7 Continents
         </p>
       </td>
@@ -159,42 +198,42 @@ export function generateConciergeEmailHtml(enquiry) {
 
     <!-- Main Content -->
     <tr>
-      <td style="padding: 36px 32px 28px;">
-        <h2 style="margin: 0 0 16px; font-size: 20px; font-weight: 700; color: #1c1917; font-family: 'Playfair Display', Georgia, serif;">
+      <td style="padding: 32px 28px 24px;">
+        <h2 style="margin: 0 0 14px; font-size: 19px; font-weight: 700; color: #1c1917; font-family: 'Playfair Display', Georgia, serif;">
           Dear ${name},
         </h2>
-        <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.65; color: #57534e;">
+        <p style="margin: 0 0 18px; font-size: 14px; line-height: 1.65; color: #57534e;">
           Thank you for entrusting Kraft Your Trip with your upcoming journey. Our concierge specialists have received your inquiry for <strong>${dest}</strong> and are actively curating a bespoke itinerary tailored to your party.
         </p>
 
         <!-- Itinerary Summary Card -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fafaf9; border: 1px solid #e7e5e4; border-radius: 12px; margin: 24px 0; overflow: hidden;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #fafaf9; border: 1px solid #e7e5e4; border-radius: 12px; margin: 20px 0; overflow: hidden;">
           <tr>
-            <td style="padding: 18px 22px; border-bottom: 1px solid #e7e5e4; background-color: #f5f5f4;">
+            <td style="padding: 14px 20px; border-bottom: 1px solid #e7e5e4; background-color: #f5f5f4;">
               <span style="font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.15em; color: #78716c;">
                 Trip Inquiry Overview
               </span>
             </td>
           </tr>
           <tr>
-            <td style="padding: 18px 22px;">
+            <td style="padding: 16px 20px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="padding: 6px 0; font-size: 13px; color: #78716c; width: 38%;">Destination</td>
-                  <td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #1c1917;">${dest}</td>
+                  <td style="padding: 5px 0; font-size: 13px; color: #78716c; width: 35%;">Destination</td>
+                  <td style="padding: 5px 0; font-size: 13px; font-weight: 600; color: #1c1917;">${dest}</td>
                 </tr>
                 <tr>
-                  <td style="padding: 6px 0; font-size: 13px; color: #78716c;">Travel Window</td>
-                  <td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #1c1917;">${dateStr}</td>
+                  <td style="padding: 5px 0; font-size: 13px; color: #78716c;">Travel Window</td>
+                  <td style="padding: 5px 0; font-size: 13px; font-weight: 600; color: #1c1917;">${dateStr}</td>
                 </tr>
                 <tr>
-                  <td style="padding: 6px 0; font-size: 13px; color: #78716c;">Party Size</td>
-                  <td style="padding: 6px 0; font-size: 13px; font-weight: 600; color: #1c1917;">${guests}</td>
+                  <td style="padding: 5px 0; font-size: 13px; color: #78716c;">Party Size</td>
+                  <td style="padding: 5px 0; font-size: 13px; font-weight: 600; color: #1c1917;">${guests}</td>
                 </tr>
                 ${notes ? `
                 <tr>
-                  <td style="padding: 6px 0; font-size: 13px; color: #78716c; vertical-align: top;">Special Requests</td>
-                  <td style="padding: 6px 0; font-size: 13px; color: #44403c; line-height: 1.5;">${notes}</td>
+                  <td style="padding: 5px 0; font-size: 13px; color: #78716c; vertical-align: top;">Special Requests</td>
+                  <td style="padding: 5px 0; font-size: 13px; color: #44403c; line-height: 1.5;">${notes}</td>
                 </tr>
                 ` : ''}
               </table>
@@ -202,30 +241,25 @@ export function generateConciergeEmailHtml(enquiry) {
           </tr>
         </table>
 
+        ${pkgUrl ? `
         <!-- Direct Package CTA -->
-        <div style="text-align: center; margin: 28px 0 32px;">
-          <a href="${pkgUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #b45309; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 14px 28px; border-radius: 9999px; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.25);">
+        <div style="text-align: center; margin: 24px 0 28px;">
+          <a href="${pkgUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background-color: #b45309; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 13px 26px; border-radius: 9999px; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.25);">
             View Curated Package Itinerary &rarr;
           </a>
-          <span style="display: block; margin-top: 10px; font-size: 11px; color: #a8a29e;">
-            Direct link: <a href="${pkgUrl}" style="color: #b45309; text-decoration: underline;">${pkgUrl}</a>
-          </span>
         </div>
+        ` : ''}
 
         <p style="margin: 0 0 16px; font-size: 14px; line-height: 1.65; color: #57534e;">
-          A dedicated private concierge will connect with you to review flight arrangements, private suite upgrades, and custom culinary requests. If your travel dates are flexible, please let us know so we can secure optimal allocations.
+          A dedicated private concierge will connect with you to review flight arrangements, private suite upgrades, and custom culinary requests.
         </p>
 
         <!-- Signoff Block -->
-        <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #e7e5e4;">
+        <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #e7e5e4;">
           <p style="margin: 0; font-size: 13px; color: #78716c;">Warm regards,</p>
-          <p style="margin: 4px 0 0; font-size: 15px; font-weight: 700; color: #1c1917;">Kraft Your Trip Concierge Desk</p>
-          <p style="margin: 6px 0 0; font-size: 12px; color: #a8a29e;">
-            Direct: <a href="tel:+917046704693" style="color: #b45309; text-decoration: none; font-weight: 600;">+91 70467 04693</a> •
-            Email: <a href="mailto:contact@kraftyourtrip.com" style="color: #b45309; text-decoration: none;">contact@kraftyourtrip.com</a>
-          </p>
-          <p style="margin: 4px 0 0; font-size: 12px; color: #a8a29e;">
-            Official Portal: <a href="https://kraftyourtrip.com" style="color: #b45309; text-decoration: none;">kraftyourtrip.com</a>
+          <p style="margin: 3px 0 0; font-size: 14px; font-weight: 700; color: #1c1917;">Kraft Your Trip Concierge Desk</p>
+          <p style="margin: 5px 0 0; font-size: 12px; color: #a8a29e;">
+            +91 70467 04693 • contact@kraftyourtrip.com • https://kraftyourtrip.com
           </p>
         </div>
       </td>
@@ -233,10 +267,9 @@ export function generateConciergeEmailHtml(enquiry) {
 
     <!-- Footer -->
     <tr>
-      <td style="background-color: #fafaf9; padding: 20px 32px; text-align: center; border-top: 1px solid #e7e5e4;">
+      <td style="background-color: #fafaf9; padding: 16px 28px; text-align: center; border-top: 1px solid #e7e5e4;">
         <p style="margin: 0; font-size: 11px; color: #a8a29e; line-height: 1.5;">
-          © ${new Date().getFullYear()} Kraft Your Trip Private Limited. All rights reserved.<br>
-          Handcrafted Bespoke Journeys • Verified Luxury Suppliers
+          © ${new Date().getFullYear()} Kraft Your Trip Private Limited. All rights reserved.
         </p>
       </td>
     </tr>

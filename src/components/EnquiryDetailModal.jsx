@@ -91,7 +91,8 @@ export default function EnquiryDetailModal({
   token,
   addNotification,
   setBookingDraft,
-  setActiveTab
+  setActiveTab,
+  packages = []
 }) {
   const [enquiry, setEnquiry] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -101,7 +102,7 @@ export default function EnquiryDetailModal({
 
   const handleCopyWhatsApp = async () => {
     if (!enquiry) return
-    const msg = generateWhatsAppMessage(enquiry)
+    const msg = generateWhatsAppMessage(enquiry, packages)
     try {
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(msg)
@@ -109,7 +110,7 @@ export default function EnquiryDetailModal({
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
       if (addNotification) {
-        addNotification('WhatsApp concierge message copied to clipboard', 'info')
+        addNotification('Concierge message copied to clipboard', 'info')
       }
     } catch {
       // clipboard fallback
@@ -149,15 +150,14 @@ export default function EnquiryDetailModal({
               name: 'Eleanor Vance',
               email: 'eleanor.vance@vancemedia.com',
               phone: '+91 98200 45678',
-              destination: 'Amalfi Coast & Capri Private Yacht Charter',
-              packageId: 'amalfi-coast-luxury-escape',
-              packageName: 'Amalfi Coast & Capri Private Yacht Charter',
-              packageUrl: 'https://kraftyourtrip.com/package/amalfi-coast-luxury-escape',
+              destination: 'Swiss Alpine Luxury',
+              packageId: 'PKG-SWISS-ALPS-01',
+              packageName: 'Swiss Alpine Luxury',
               travelDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
               guests: 2,
               status: 'reviewing',
               leadSource: 'Customer Site Preview',
-              notes: 'Prefers top-deck private dining, sunset yacht excursion to Capri, and vintage champagne on arrival.',
+              notes: 'Prefers scenic glacier express seats, chalet upgrade, and welcome champagne.',
               created_at: new Date().toISOString()
             }
             setEnquiry(fallbackPreview)
@@ -174,15 +174,14 @@ export default function EnquiryDetailModal({
             name: 'Eleanor Vance',
             email: 'eleanor.vance@vancemedia.com',
             phone: '+91 98200 45678',
-            destination: 'Amalfi Coast & Capri Private Yacht Charter',
-            packageId: 'amalfi-coast-luxury-escape',
-            packageName: 'Amalfi Coast & Capri Private Yacht Charter',
-            packageUrl: 'https://kraftyourtrip.com/package/amalfi-coast-luxury-escape',
+            destination: 'Swiss Alpine Luxury',
+            packageId: 'PKG-SWISS-ALPS-01',
+            packageName: 'Swiss Alpine Luxury',
             travelDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             guests: 2,
             status: 'reviewing',
             leadSource: 'Customer Site Preview',
-            notes: 'Prefers top-deck private dining, sunset yacht excursion to Capri, and vintage champagne on arrival.',
+            notes: 'Prefers scenic glacier express seats, chalet upgrade, and welcome champagne.',
             created_at: new Date().toISOString()
           }
           setEnquiry(fallbackPreview)
@@ -309,54 +308,38 @@ export default function EnquiryDetailModal({
                 <div className="flex items-center gap-2 flex-wrap">
                   {enquiry.phone && (
                     <a
-                      href={generateWhatsAppUrl(enquiry)}
+                      href={generateWhatsAppUrl(enquiry, packages)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition-all cursor-pointer"
+                      title="Open WhatsApp chat with customer"
                     >
                       <WhatsAppIcon className="w-3.5 h-3.5 fill-current" />
-                      <span>WhatsApp Concierge</span>
+                      <span>WhatsApp</span>
                     </a>
                   )}
+
                   {enquiry.email && (
-                    <a
-                      href={generateEmailReplyUrl(enquiry)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 shadow-xs transition-colors cursor-pointer"
-                    >
-                      <MailIcon className="w-3.5 h-3.5 text-stone-500" />
-                      <span>Email Reply</span>
-                    </a>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setShowEmailPreview(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-900 bg-amber-100/80 hover:bg-amber-200/80 border border-amber-300/80 shadow-xs transition-colors cursor-pointer"
-                    title="Preview styled luxury HTML email"
-                  >
-                    <EyeIcon className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Preview Email</span>
-                  </button>
-                  <a
-                    href={getPackageUrl(enquiry)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-stone-600 bg-white hover:bg-stone-50 border border-stone-200 transition-colors cursor-pointer"
-                    title={`Open package: ${getPackageUrl(enquiry)}`}
-                  >
-                    <ExternalLinkIcon className="w-3.5 h-3.5 text-stone-400" />
-                    <span>Package Link</span>
-                  </a>
-                  {enquiry.phone && (
                     <button
                       type="button"
-                      onClick={handleCopyWhatsApp}
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-stone-600 bg-white hover:bg-stone-50 border border-stone-200 transition-colors cursor-pointer inline-flex items-center gap-1"
-                      title="Copy WhatsApp greeting to clipboard"
+                      onClick={() => setShowEmailPreview(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-900 bg-amber-100/90 hover:bg-amber-200/90 border border-amber-300/80 shadow-xs transition-colors cursor-pointer"
+                      title="Preview exact customer email"
                     >
-                      <CopyIcon className="w-3.5 h-3.5 text-stone-400" />
-                      <span>{copied ? 'Copied!' : 'Copy Msg'}</span>
+                      <EyeIcon className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Email Preview</span>
                     </button>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={handleCopyWhatsApp}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-stone-600 bg-white hover:bg-stone-50 border border-stone-200 transition-colors cursor-pointer inline-flex items-center gap-1"
+                    title="Copy concierge greeting text to clipboard"
+                  >
+                    <CopyIcon className="w-3.5 h-3.5 text-stone-400" />
+                    <span>{copied ? 'Copied!' : 'Copy Text'}</span>
+                  </button>
                 </div>
               </div>
 
@@ -470,7 +453,7 @@ export default function EnquiryDetailModal({
           isOpen={showEmailPreview}
           onClose={() => setShowEmailPreview(false)}
           enquiry={enquiry}
-          addNotification={addNotification}
+          packages={packages}
         />
       )}
     </div>
