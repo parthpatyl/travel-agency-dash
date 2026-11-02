@@ -3,8 +3,23 @@ import {
   formatDateDisplay,
   generateWhatsAppMessage,
   generateWhatsAppUrl,
-  generateEmailReplyUrl
+  generateEmailReplyUrl,
+  getPackageUrl
 } from '../utils/commsPipeline'
+import EmailPreviewModal from './EmailPreviewModal'
+
+const EyeIcon = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+  </svg>
+)
+
+const ExternalLinkIcon = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+  </svg>
+)
 
 const WhatsAppIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -82,6 +97,7 @@ export default function EnquiryDetailModal({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [showEmailPreview, setShowEmailPreview] = useState(false)
 
   const handleCopyWhatsApp = async () => {
     if (!enquiry) return
@@ -106,6 +122,18 @@ export default function EnquiryDetailModal({
     const fetchEnquiryDetails = async () => {
       setLoading(true)
       setError(null)
+
+      // First check if this is a temp preview enquiry cached in localStorage
+      try {
+        const stored = JSON.parse(localStorage.getItem('kraft_preview_enquiries') || '[]')
+        const found = stored.find(e => e.id === enquiryId)
+        if (found) {
+          setEnquiry(found)
+          setLoading(false)
+          return
+        }
+      } catch {}
+
       try {
         const res = await fetch(`${API_URL}/api/enquiries/${enquiryId}`, {
           headers: {
@@ -114,14 +142,56 @@ export default function EnquiryDetailModal({
         })
         const data = await res.json()
         if (!res.ok) {
+          // If preview enquiry ID but not on server, provide luxury fallback
+          if (enquiryId.startsWith('ENQ-PREV')) {
+            const fallbackPreview = {
+              id: enquiryId,
+              name: 'Eleanor Vance',
+              email: 'eleanor.vance@vancemedia.com',
+              phone: '+91 98200 45678',
+              destination: 'Amalfi Coast & Capri Private Yacht Charter',
+              packageId: 'amalfi-coast-luxury-escape',
+              packageName: 'Amalfi Coast & Capri Private Yacht Charter',
+              packageUrl: 'https://kraftyourtrip.com/package/amalfi-coast-luxury-escape',
+              travelDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+              guests: 2,
+              status: 'reviewing',
+              leadSource: 'Customer Site Preview',
+              notes: 'Prefers top-deck private dining, sunset yacht excursion to Capri, and vintage champagne on arrival.',
+              created_at: new Date().toISOString()
+            }
+            setEnquiry(fallbackPreview)
+            setLoading(false)
+            return
+          }
           throw new Error(data.message || 'Failed to load enquiry details')
         }
         setEnquiry(data.data)
       } catch (err) {
-        console.error('Error fetching enquiry details:', err)
-        setError(err.message)
-        if (addNotification) {
-          addNotification(`Failed to load enquiry: ${err.message}`, 'error')
+        if (enquiryId.startsWith('ENQ-PREV')) {
+          const fallbackPreview = {
+            id: enquiryId,
+            name: 'Eleanor Vance',
+            email: 'eleanor.vance@vancemedia.com',
+            phone: '+91 98200 45678',
+            destination: 'Amalfi Coast & Capri Private Yacht Charter',
+            packageId: 'amalfi-coast-luxury-escape',
+            packageName: 'Amalfi Coast & Capri Private Yacht Charter',
+            packageUrl: 'https://kraftyourtrip.com/package/amalfi-coast-luxury-escape',
+            travelDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            guests: 2,
+            status: 'reviewing',
+            leadSource: 'Customer Site Preview',
+            notes: 'Prefers top-deck private dining, sunset yacht excursion to Capri, and vintage champagne on arrival.',
+            created_at: new Date().toISOString()
+          }
+          setEnquiry(fallbackPreview)
+        } else {
+          console.error('Error fetching enquiry details:', err)
+          setError(err.message)
+          if (addNotification) {
+            addNotification(`Failed to load enquiry: ${err.message}`, 'error')
+          }
         }
       } finally {
         setLoading(false)
@@ -257,6 +327,25 @@ export default function EnquiryDetailModal({
                       <span>Email Reply</span>
                     </a>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailPreview(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-900 bg-amber-100/80 hover:bg-amber-200/80 border border-amber-300/80 shadow-xs transition-colors cursor-pointer"
+                    title="Preview styled luxury HTML email"
+                  >
+                    <EyeIcon className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Preview Email</span>
+                  </button>
+                  <a
+                    href={getPackageUrl(enquiry)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-stone-600 bg-white hover:bg-stone-50 border border-stone-200 transition-colors cursor-pointer"
+                    title={`Open package: ${getPackageUrl(enquiry)}`}
+                  >
+                    <ExternalLinkIcon className="w-3.5 h-3.5 text-stone-400" />
+                    <span>Package Link</span>
+                  </a>
                   {enquiry.phone && (
                     <button
                       type="button"
@@ -374,6 +463,16 @@ export default function EnquiryDetailModal({
           </div>
         )}
       </div>
+
+      {/* Styled Email Preview Modal */}
+      {showEmailPreview && enquiry && (
+        <EmailPreviewModal
+          isOpen={showEmailPreview}
+          onClose={() => setShowEmailPreview(false)}
+          enquiry={enquiry}
+          addNotification={addNotification}
+        />
+      )}
     </div>
   )
 }
