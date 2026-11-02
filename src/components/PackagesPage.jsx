@@ -23,6 +23,74 @@ const imgUrl = (url) => url?.startsWith('http') ? url : `${API_URL}${url || ''}`
 
 const formatUSD = (price) => price != null ? `$${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''
 
+function BulkItemPasteDrawer({ onAddItems, label = "items" }) {
+  const [open, setOpen] = useState(false)
+  const [rawText, setRawText] = useState('')
+
+  const previewItems = rawText.trim() ? splitBulletedItems(rawText) : []
+
+  const handleApply = () => {
+    if (previewItems.length > 0) {
+      onAddItems(previewItems)
+      setRawText('')
+      setOpen(false)
+    }
+  }
+
+  return (
+    <div className="mt-1.5 text-xs">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="text-[11px] font-semibold text-amber-700 hover:text-amber-800 inline-flex items-center gap-1 cursor-pointer"
+      >
+        <span>{open ? '▼ Hide' : '▶ Bulk Paste & Auto-Split'}</span>
+        <span className="text-stone-400 font-normal">({label} from brochure/PDF)</span>
+      </button>
+
+      {open && (
+        <div className="mt-2 p-3 bg-stone-50 border border-stone-200 rounded-lg space-y-2">
+          <p className="text-[11px] text-stone-500">
+            Paste unformatted text, sentences, or bulleted paragraphs below. We will automatically detect sentence boundaries, periods, and travel bullet phrases.
+          </p>
+          <textarea
+            rows={3}
+            value={rawText}
+            onChange={(e) => setRawText(e.target.value)}
+            placeholder={`Paste raw ${label} text here (e.g. Air Fare. Personal expenses. Guide charges. Room heater charges...)`}
+            className="w-full bg-white border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none font-sans"
+          />
+          {rawText.trim() && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-bold text-stone-700">
+                  ✨ Detected {previewItems.length} {previewItems.length === 1 ? 'item' : 'items'}:
+                </span>
+                <button
+                  type="button"
+                  onClick={handleApply}
+                  disabled={previewItems.length === 0}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white rounded-md text-[11px] font-bold shadow-xs cursor-pointer"
+                >
+                  Add {previewItems.length} {previewItems.length === 1 ? 'Bullet' : 'Bullets'} to List
+                </button>
+              </div>
+              <div className="max-h-28 overflow-y-auto space-y-1 p-2 bg-white rounded border border-stone-200">
+                {previewItems.map((item, idx) => (
+                  <div key={idx} className="flex items-start gap-1.5 text-[11px] text-stone-700">
+                    <span className="text-stone-400 font-bold select-none">•</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PackagesPage({ packages, setPackages, groupDepartures = [], setGroupDepartures, settings, addNotification, onBookForPackage, user, token, initialSelectedPackageId, onSelectPackage }) {
   const [selectedPackage, setSelectedPackage] = useState(null)
   const [filterRegion, setFilterRegion] = useState('All')
@@ -1989,6 +2057,27 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                           type="text"
                           value={pkgHighlightInput}
                           onChange={(e) => setPkgHighlightInput(e.target.value)}
+                          onPaste={(e) => {
+                            const pasted = e.clipboardData?.getData('text') || ''
+                            if (pasted.length > 30 || pasted.includes('\n') || pasted.includes('•') || (pasted.includes('.') && pasted.split('.').length > 2)) {
+                              e.preventDefault()
+                              const items = splitBulletedItems(pasted)
+                              if (items.length > 0) {
+                                setPkgHighlights([...pkgHighlights, ...items])
+                                setPkgHighlightInput('')
+                              }
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              if (pkgHighlightInput.trim()) {
+                                const items = splitBulletedItems(pkgHighlightInput)
+                                setPkgHighlights([...pkgHighlights, ...items])
+                                setPkgHighlightInput('')
+                              }
+                            }
+                          }}
                           placeholder="e.g. Visit ancient temples • Cable car ride"
                           className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
                         />
@@ -2252,6 +2341,17 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                           type="text"
                           value={pkgInclusionInput}
                           onChange={(e) => setPkgInclusionInput(e.target.value)}
+                          onPaste={(e) => {
+                            const pasted = e.clipboardData?.getData('text') || ''
+                            if (pasted.length > 30 || pasted.includes('\n') || pasted.includes('•') || (pasted.includes('.') && pasted.split('.').length > 2)) {
+                              e.preventDefault()
+                              const items = splitBulletedItems(pasted)
+                              if (items.length > 0) {
+                                setPkgInclusionsList([...pkgInclusionsList, ...items])
+                                setPkgInclusionInput('')
+                              }
+                            }
+                          }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               e.preventDefault()
@@ -2278,7 +2378,7 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                         >Add</button>
                       </div>
                       {pkgInclusionsList.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="flex flex-wrap gap-1.5 mb-2">
                           {pkgInclusionsList.map((item, i) => (
                             <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded text-[10px] text-emerald-700 font-medium">
                               <SmartMarkdownInline>{item}</SmartMarkdownInline>
@@ -2287,6 +2387,10 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                           ))}
                         </div>
                       )}
+                      <BulkItemPasteDrawer
+                        label="Inclusions"
+                        onAddItems={(items) => setPkgInclusionsList([...pkgInclusionsList, ...items])}
+                      />
                     </div>
 
                     {/* Exclusions */}
@@ -2297,6 +2401,17 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                           type="text"
                           value={pkgExclusionInput}
                           onChange={(e) => setPkgExclusionInput(e.target.value)}
+                          onPaste={(e) => {
+                            const pasted = e.clipboardData?.getData('text') || ''
+                            if (pasted.length > 30 || pasted.includes('\n') || pasted.includes('•') || (pasted.includes('.') && pasted.split('.').length > 2)) {
+                              e.preventDefault()
+                              const items = splitBulletedItems(pasted)
+                              if (items.length > 0) {
+                                setPkgExclusions([...pkgExclusions, ...items])
+                                setPkgExclusionInput('')
+                              }
+                            }
+                          }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               e.preventDefault()
@@ -2323,7 +2438,7 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                         >Add</button>
                       </div>
                       {pkgExclusions.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="flex flex-wrap gap-1.5 mb-2">
                           {pkgExclusions.map((item, i) => (
                             <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 border border-rose-200 rounded text-[10px] text-rose-700 font-medium">
                               <SmartMarkdownInline>{item}</SmartMarkdownInline>
@@ -2332,6 +2447,10 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                           ))}
                         </div>
                       )}
+                      <BulkItemPasteDrawer
+                        label="Exclusions"
+                        onAddItems={(items) => setPkgExclusions([...pkgExclusions, ...items])}
+                      />
                     </div>
 
                     {/* Terms & Conditions (Markdown Support) */}
@@ -2868,6 +2987,27 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                             type="text"
                             value={editPkgHighlightInput}
                             onChange={(e) => setEditPkgHighlightInput(e.target.value)}
+                            onPaste={(e) => {
+                              const pasted = e.clipboardData?.getData('text') || ''
+                              if (pasted.length > 30 || pasted.includes('\n') || pasted.includes('•') || (pasted.includes('.') && pasted.split('.').length > 2)) {
+                                e.preventDefault()
+                                const items = splitBulletedItems(pasted)
+                                if (items.length > 0) {
+                                  setEditPkgHighlights([...editPkgHighlights, ...items])
+                                  setEditPkgHighlightInput('')
+                                }
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                if (editPkgHighlightInput.trim()) {
+                                  const items = splitBulletedItems(editPkgHighlightInput)
+                                  setEditPkgHighlights([...editPkgHighlights, ...items])
+                                  setEditPkgHighlightInput('')
+                                }
+                              }
+                            }}
                             placeholder="e.g. Visit ancient temples • Cable car ride"
                             className="flex-1 bg-stone-50 border border-stone-200 focus:border-amber-500 rounded-lg p-2 text-xs text-stone-800 outline-none"
                           />
@@ -3131,6 +3271,17 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                             type="text"
                             value={editPkgInclusionInput}
                             onChange={(e) => setEditPkgInclusionInput(e.target.value)}
+                            onPaste={(e) => {
+                              const pasted = e.clipboardData?.getData('text') || ''
+                              if (pasted.length > 30 || pasted.includes('\n') || pasted.includes('•') || (pasted.includes('.') && pasted.split('.').length > 2)) {
+                                e.preventDefault()
+                                const items = splitBulletedItems(pasted)
+                                if (items.length > 0) {
+                                  setEditPkgInclusionsList([...editPkgInclusionsList, ...items])
+                                  setEditPkgInclusionInput('')
+                                }
+                              }
+                            }}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault()
@@ -3157,7 +3308,7 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                           >Add</button>
                         </div>
                         {editPkgInclusionsList.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-wrap gap-1.5 mb-2">
                             {editPkgInclusionsList.map((item, i) => (
                               <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded text-[10px] text-emerald-700 font-medium">
                                 <SmartMarkdownInline>{item}</SmartMarkdownInline>
@@ -3166,6 +3317,10 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                             ))}
                           </div>
                         )}
+                        <BulkItemPasteDrawer
+                          label="Inclusions"
+                          onAddItems={(items) => setEditPkgInclusionsList([...editPkgInclusionsList, ...items])}
+                        />
                       </div>
 
                       {/* Exclusions */}
@@ -3176,6 +3331,17 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                             type="text"
                             value={editPkgExclusionInput}
                             onChange={(e) => setEditPkgExclusionInput(e.target.value)}
+                            onPaste={(e) => {
+                              const pasted = e.clipboardData?.getData('text') || ''
+                              if (pasted.length > 30 || pasted.includes('\n') || pasted.includes('•') || (pasted.includes('.') && pasted.split('.').length > 2)) {
+                                e.preventDefault()
+                                const items = splitBulletedItems(pasted)
+                                if (items.length > 0) {
+                                  setEditPkgExclusions([...editPkgExclusions, ...items])
+                                  setEditPkgExclusionInput('')
+                                }
+                              }
+                            }}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault()
@@ -3202,7 +3368,7 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                           >Add</button>
                         </div>
                         {editPkgExclusions.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-wrap gap-1.5 mb-2">
                             {editPkgExclusions.map((item, i) => (
                               <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 border border-rose-200 rounded text-[10px] text-rose-700 font-medium">
                                 <SmartMarkdownInline>{item}</SmartMarkdownInline>
@@ -3211,6 +3377,10 @@ export default function PackagesPage({ packages, setPackages, groupDepartures = 
                             ))}
                           </div>
                         )}
+                        <BulkItemPasteDrawer
+                          label="Exclusions"
+                          onAddItems={(items) => setEditPkgExclusions([...editPkgExclusions, ...items])}
+                        />
                       </div>
 
                       {/* Terms & Conditions (Markdown Support) */}
