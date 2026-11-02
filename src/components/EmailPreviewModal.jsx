@@ -84,7 +84,6 @@ export default function EmailPreviewModal({
               title="Email Template Rendered Preview"
               srcDoc={htmlContent}
               className="w-full min-h-[560px] border-0"
-              sandbox="allow-same-origin"
             />
           </div>
         </div>

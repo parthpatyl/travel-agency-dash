@@ -187,16 +187,29 @@ https://kraftyourtrip.com`
 }
 
 /**
+ * Safely escapes HTML special characters to protect email previews against injection.
+ */
+export function escapeHtml(str) {
+  if (!str) return ''
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+/**
  * Generates an inline-styled, luxury HTML email template with package CTA as received by customer.
  */
 export function generateConciergeEmailHtml(enquiry, packages = []) {
   if (!enquiry) return ''
-  const name = enquiry.name || 'Distinguished Traveler'
-  const dest = enquiry.destination || 'Bespoke Luxury Tour'
-  const guests = enquiry.guests ? `${enquiry.guests} traveler(s)` : 'Your Party'
+  const name = escapeHtml(enquiry.name || 'Distinguished Traveler')
+  const dest = escapeHtml(enquiry.destination || 'Bespoke Luxury Tour')
+  const guests = escapeHtml(enquiry.guests ? `${enquiry.guests} traveler(s)` : 'Your Party')
   const dateStr = formatDateDisplay(enquiry.travelDate)
   const pkgUrl = getPackageUrl(enquiry, packages)
-  const notes = enquiry.notes ? enquiry.notes.trim() : null
+  const notes = enquiry.notes ? escapeHtml(enquiry.notes.trim()) : null
 
   return `<!DOCTYPE html>
 <html lang="en">
