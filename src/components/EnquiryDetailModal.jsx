@@ -1,4 +1,22 @@
 import { useState, useEffect } from 'react'
+import {
+  formatDateDisplay,
+  generateWhatsAppMessage,
+  generateWhatsAppUrl,
+  generateEmailReplyUrl
+} from '../utils/commsPipeline'
+
+const WhatsAppIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2zm.01 18.25c-1.5 0-2.97-.4-4.25-1.16l-.3-.18-3.15.83.84-3.07-.2-.32a8.204 8.204 0 01-1.25-4.44c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.82 2.42a8.182 8.182 0 012.41 5.83c.01 4.54-3.69 8.23-8.22 8.23zm4.52-6.17c-.25-.12-1.47-.72-1.7-.81-.23-.08-.39-.12-.56.12-.17.25-.64.81-.79.97-.14.17-.29.19-.54.07-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.12-.14.17-.25.25-.41.08-.17.04-.31-.02-.43s-.56-1.34-.76-1.84c-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.44.06-.66.31-.23.25-.88.86-.88 2.1 0 1.24.9 2.44 1.03 2.61.12.17 1.77 2.71 4.3 3.79.6.26 1.07.41 1.44.53.61.19 1.16.17 1.6.1.49-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.06-.11-.23-.17-.48-.29z" />
+  </svg>
+)
+
+const CopyIcon = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+  </svg>
+)
 
 const MailIcon = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -51,13 +69,6 @@ const ArrowRightIcon = ({ className }) => (
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
-const formatDateDisplay = (dateStr) => {
-  if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return dateStr
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
-}
-
 export default function EnquiryDetailModal({ 
   enquiryId, 
   isOpen, 
@@ -70,6 +81,24 @@ export default function EnquiryDetailModal({
   const [enquiry, setEnquiry] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopyWhatsApp = async () => {
+    if (!enquiry) return
+    const msg = generateWhatsAppMessage(enquiry)
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(msg)
+      }
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+      if (addNotification) {
+        addNotification('WhatsApp concierge message copied to clipboard', 'info')
+      }
+    } catch {
+      // clipboard fallback
+    }
+  }
 
   useEffect(() => {
     if (!isOpen || !enquiryId) return
@@ -193,6 +222,52 @@ export default function EnquiryDetailModal({
                       {enquiry.phone}
                     </a>
                   </div>
+                </div>
+              </div>
+
+              {/* Omnichannel Concierge Fast-Track Action Bar */}
+              <div className="bg-amber-50/50 border border-amber-200/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <h5 className="text-xs font-bold text-stone-900">Omnichannel Concierge Fast-Track</h5>
+                  </div>
+                  <p className="text-[11px] text-stone-500 mt-0.5">
+                    1-click customer engagement with pre-filled luxury itinerary greeting
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {enquiry.phone && (
+                    <a
+                      href={generateWhatsAppUrl(enquiry)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition-all cursor-pointer"
+                    >
+                      <WhatsAppIcon className="w-3.5 h-3.5 fill-current" />
+                      <span>WhatsApp Concierge</span>
+                    </a>
+                  )}
+                  {enquiry.email && (
+                    <a
+                      href={generateEmailReplyUrl(enquiry)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-stone-700 bg-white hover:bg-stone-50 border border-stone-200 shadow-xs transition-colors cursor-pointer"
+                    >
+                      <MailIcon className="w-3.5 h-3.5 text-stone-500" />
+                      <span>Email Reply</span>
+                    </a>
+                  )}
+                  {enquiry.phone && (
+                    <button
+                      type="button"
+                      onClick={handleCopyWhatsApp}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-stone-600 bg-white hover:bg-stone-50 border border-stone-200 transition-colors cursor-pointer inline-flex items-center gap-1"
+                      title="Copy WhatsApp greeting to clipboard"
+                    >
+                      <CopyIcon className="w-3.5 h-3.5 text-stone-400" />
+                      <span>{copied ? 'Copied!' : 'Copy Msg'}</span>
+                    </button>
+                  )}
                 </div>
               </div>
 

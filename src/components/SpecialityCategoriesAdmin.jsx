@@ -30,8 +30,8 @@ export default function SpecialityCategoriesAdmin({ addNotification, token }) {
       fetch(`${API_URL}/api/packages`).then((r) => (r.ok ? r.json() : []))
     ])
       .then(([cats, pkgs]) => {
-        setCategories(cats)
-        setPackages(pkgs)
+        setCategories(Array.isArray(cats) ? cats : (cats?.categories || []))
+        setPackages(Array.isArray(pkgs) ? pkgs : (pkgs?.packages || []))
         setLoading(false)
       })
       .catch(() => {

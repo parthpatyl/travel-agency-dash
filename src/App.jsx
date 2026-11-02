@@ -1671,7 +1671,7 @@ function App() {
                         </svg>
                       </div>
                     </div>
-                    <h3 className="text-2xl sm:text-3xl font-extrabold text-stone-900 mb-1 tracking-tight">
+                    <h3 className="text-2xl sm:text-3xl font-extrabold text-stone-900 mb-1 tracking-tight font-mono tabular-nums">
                       {stat.value}
                     </h3>
                     <p className="text-xs text-stone-400 font-medium">
@@ -1686,13 +1686,13 @@ function App() {
                 {/* Left: Bookings Table & Analytics (2 cols) */}
                 <div className="lg:col-span-2 space-y-8">
                   {/* Bookings List */}
-                  <section className="bg-white border border-stone-200/80 rounded-2xl shadow-sm overflow-hidden">
-                    <div className="p-6 border-b border-stone-200/50 flex items-center justify-between">
+                  <section className="bg-white border border-stone-200/80 rounded-2xl shadow-xs overflow-hidden">
+                    <div className="p-4 border-b border-stone-200/80 flex items-center justify-between">
                       <div>
-                        <h3 className="text-base font-bold text-stone-900 tracking-tight">
+                        <h3 className="text-sm font-bold text-stone-900 tracking-tight">
                           Recent Bookings
                         </h3>
-                        <p className="text-xs text-stone-400">
+                        <p className="text-[11px] text-stone-400">
                           Live status of client package bookings and invoices.
                         </p>
                       </div>
@@ -1707,13 +1707,13 @@ function App() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse">
                         <thead>
-                          <tr className="bg-stone-50/50 border-b border-stone-200/50 text-[10px] font-bold text-stone-500 uppercase tracking-wider">
-                            <th className="py-3 px-6">ID</th>
-                            <th className="py-3 px-6">Client</th>
-                            <th className="py-3 px-6">Package</th>
-                            <th className="py-3 px-6">Amount</th>
-                            <th className="py-3 px-6">Departure</th>
-                            <th className="py-3 px-6 text-right">Status</th>
+                          <tr className="bg-stone-50/70 border-b border-stone-200/80 text-[10px] font-bold text-stone-500 uppercase tracking-wider">
+                            <th className="py-2 px-3.5">ID</th>
+                            <th className="py-2 px-3.5">Client</th>
+                            <th className="py-2 px-3.5">Package</th>
+                            <th className="py-2 px-3.5 text-right">Amount</th>
+                            <th className="py-2 px-3.5">Departure</th>
+                            <th className="py-2 px-3.5 text-right">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-stone-100">
@@ -1725,15 +1725,15 @@ function App() {
                                   setInitialSelectedBookingId(b.id)
                                   setActiveTab('bookings')
                                 }}
-                                className="hover:bg-amber-50/30 transition-colors duration-200 text-xs cursor-pointer"
+                                className="hover:bg-amber-50/30 transition-colors duration-150 text-xs cursor-pointer"
                               >
-                                <td className="py-3.5 px-6 font-mono text-[11px] text-stone-500">{b.id}</td>
-                                <td className="py-3.5 px-6 font-semibold text-stone-900">{b.client}</td>
-                                <td className="py-3.5 px-6 text-stone-600">{b.package}</td>
-                                <td className="py-3.5 px-6 font-bold text-stone-800">₹{Number(b.amount).toLocaleString('en-IN')}</td>
-                                <td className="py-3.5 px-6 text-stone-500">{b.date}</td>
-                                <td className="py-3.5 px-6 text-right">
-                                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                <td className="py-2 px-3.5 font-mono text-[11px] text-stone-500">{b.id}</td>
+                                <td className="py-2 px-3.5 font-semibold text-stone-900">{b.client}</td>
+                                <td className="py-2 px-3.5 text-stone-600">{b.package}</td>
+                                <td className="py-2 px-3.5 text-right font-mono tabular-nums font-bold text-stone-800">₹{Number(b.amount).toLocaleString('en-IN')}</td>
+                                <td className="py-2 px-3.5 text-stone-500 tabular-nums">{b.date}</td>
+                                <td className="py-2 px-3.5 text-right">
+                                  <span className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
                                     b.status === 'Paid'
                                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200/40'
                                       : 'bg-amber-50 text-amber-700 border-amber-200/40'
@@ -1756,13 +1756,13 @@ function App() {
                   </section>
 
                   {/* Upcoming Scheduled Departures */}
-                  <section className="bg-white border border-stone-200/80 rounded-2xl shadow-sm overflow-hidden">
-                    <div className="p-6 border-b border-stone-200/50 flex items-center justify-between">
+                  <section className="bg-white border border-stone-200/80 rounded-2xl shadow-xs overflow-hidden">
+                    <div className="p-4 border-b border-stone-200/80 flex items-center justify-between">
                       <div>
-                        <h3 className="text-base font-bold text-stone-900 tracking-tight">
+                        <h3 className="text-sm font-bold text-stone-900 tracking-tight">
                           Upcoming Scheduled Departures
                         </h3>
-                        <p className="text-xs text-stone-400">
+                        <p className="text-[11px] text-stone-400">
                           Fixed-date group departures, seat capacity, and itinerary schedule.
                         </p>
                       </div>
@@ -1777,12 +1777,12 @@ function App() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse">
                         <thead>
-                          <tr className="bg-stone-50/50 border-b border-stone-200/50 text-[10px] font-bold text-stone-500 uppercase tracking-wider">
-                            <th className="py-3 px-6">Departure & Package</th>
-                            <th className="py-3 px-6">Date Range</th>
-                            <th className="py-3 px-6">Slots Booked</th>
-                            <th className="py-3 px-6">Price</th>
-                            <th className="py-3 px-6 text-right">Status</th>
+                          <tr className="bg-stone-50/70 border-b border-stone-200/80 text-[10px] font-bold text-stone-500 uppercase tracking-wider">
+                            <th className="py-2 px-3.5">Departure & Package</th>
+                            <th className="py-2 px-3.5">Date Range</th>
+                            <th className="py-2 px-3.5">Slots Booked</th>
+                            <th className="py-2 px-3.5 text-right">Price</th>
+                            <th className="py-2 px-3.5 text-right">Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-stone-100">
@@ -1799,9 +1799,9 @@ function App() {
                                 <tr
                                   key={dep.id}
                                   onClick={() => setActiveTab('groupDepartures')}
-                                  className="hover:bg-amber-50/30 transition-colors duration-200 text-xs cursor-pointer"
+                                  className="hover:bg-amber-50/30 transition-colors duration-150 text-xs cursor-pointer"
                                 >
-                                  <td className="py-3.5 px-6">
+                                  <td className="py-2 px-3.5">
                                     <span className="font-semibold text-stone-900 block">{dep.title}</span>
                                     <div className="flex items-center gap-2 mt-0.5">
                                       <span className="text-[11px] text-stone-500">{dep.packageName || 'Group Tour'}</span>
@@ -1812,24 +1812,24 @@ function App() {
                                       )}
                                     </div>
                                   </td>
-                                  <td className="py-3.5 px-6 font-medium text-stone-600">
+                                  <td className="py-2 px-3.5 font-medium text-stone-600 tabular-nums">
                                     {depDate} — {retDate}
                                   </td>
-                                  <td className="py-3.5 px-6">
+                                  <td className="py-2 px-3.5">
                                     <div className="flex items-center gap-2 max-w-[120px]">
                                       <div className="flex-1 bg-stone-100 rounded-full h-1.5 overflow-hidden">
                                         <div className="bg-amber-600 h-full rounded-full" style={{ width: `${pct}%` }}></div>
                                       </div>
-                                      <span className="text-[11px] font-semibold text-stone-600 shrink-0">
+                                      <span className="text-[11px] font-semibold text-stone-600 shrink-0 font-mono tabular-nums">
                                         {slots.booked}/{slots.total}
                                       </span>
                                     </div>
                                   </td>
-                                  <td className="py-3.5 px-6 font-bold text-stone-800">
+                                  <td className="py-2 px-3.5 text-right font-mono tabular-nums font-bold text-stone-800">
                                     {finalPrice > 0 ? `₹${finalPrice.toLocaleString('en-IN')}` : '—'}
                                   </td>
-                                  <td className="py-3.5 px-6 text-right">
-                                    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                  <td className="py-2 px-3.5 text-right">
+                                    <span className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold border ${
                                       dep.status === 'scheduled' || dep.status === 'confirmed'
                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200/40'
                                         : 'bg-stone-100 text-stone-600 border-stone-200/40'

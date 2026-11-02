@@ -3,6 +3,7 @@ import { roleHas } from '../utils/permissions'
 import SpecialityCategoriesAdmin from './SpecialityCategoriesAdmin'
 import SaveConfirmationModal from './SaveConfirmationModal'
 import NavigationPage from './NavigationPage'
+import ReadOnlyBanner from './ReadOnlyBanner'
 import { validateEmail, validatePhone, validatePercentage, validateNumber } from '../utils/validation'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
@@ -917,6 +918,10 @@ export default function SettingsPage({
           </p>
         </div>
       </div>
+
+      {!canWriteSettings && (
+        <ReadOnlyBanner message="View-only mode - only Administrators can modify agency settings" />
+      )}
 
       {/* Sub-Tabs Navigation */}
       <div className="flex items-center gap-1.5 border-b border-stone-200 overflow-x-auto pb-px">

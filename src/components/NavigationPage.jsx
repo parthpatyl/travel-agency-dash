@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { cropAndCompressImage, formatFileSize } from '../utils/imageCompressor'
+import ReadOnlyBanner from './ReadOnlyBanner'
+import { roleHas } from '../utils/permissions'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
@@ -18,6 +20,7 @@ const DEFAULT_CAROUSEL_ITEMS = [
 ]
 
 export default function NavigationPage({ token, addNotification, user }) {
+  const canWriteNavigation = user?.role ? roleHas(user.role, 'write:settings') : true
   const [menu, setMenu] = useState([])
   const [baselineMenu, setBaselineMenu] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -192,6 +195,10 @@ export default function NavigationPage({ token, addNotification, user }) {
 
   // Save changes to backend
   const handleSave = async () => {
+    if (!canWriteNavigation) {
+      addNotification?.({ type: 'error', message: 'Permission denied: write access required.' })
+      return
+    }
     setSaving(true)
     try {
       const [res, carRes] = await Promise.all([
@@ -238,6 +245,10 @@ export default function NavigationPage({ token, addNotification, user }) {
 
   // Reset to original defaults
   const handleReset = async () => {
+    if (!canWriteNavigation) {
+      addNotification?.({ type: 'error', message: 'Permission denied: write access required.' })
+      return
+    }
     setResetting(true)
     try {
       const res = await fetch(`${API_URL}/api/navigation/reset`, {
@@ -896,6 +907,10 @@ export default function NavigationPage({ token, addNotification, user }) {
 
   return (
     <div className="space-y-6 pb-20">
+      {!canWriteNavigation && (
+        <ReadOnlyBanner message="View-only mode - only Administrators can modify navigation and tour highlights" />
+      )}
+
       {/* ── Page Header & Action Controls ── */}
       <div className="bg-white rounded-xl p-5 border border-stone-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -917,7 +932,13 @@ export default function NavigationPage({ token, addNotification, user }) {
           <button
             type="button"
             onClick={() => setShowResetConfirm(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-stone-500 hover:text-rose-600 hover:bg-rose-50/60 transition-colors cursor-pointer"
+            disabled={!canWriteNavigation}
+            title={!canWriteNavigation ? 'Requires write:settings permission' : undefined}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              canWriteNavigation
+                ? 'text-stone-500 hover:text-rose-600 hover:bg-rose-50/60 cursor-pointer'
+                : 'text-stone-300 cursor-not-allowed'
+            }`}
           >
             <svg className="w-3.5 h-3.5 text-stone-400 group-hover:text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -940,10 +961,11 @@ export default function NavigationPage({ token, addNotification, user }) {
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || !isDirty}
-            className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer ${
-              isDirty && !saving
-                ? 'bg-amber-600 hover:bg-amber-700 text-white active:scale-98'
+            disabled={saving || !isDirty || !canWriteNavigation}
+            title={!canWriteNavigation ? 'Requires write:settings permission' : undefined}
+            className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold shadow-xs transition-all ${
+              isDirty && !saving && canWriteNavigation
+                ? 'bg-amber-600 hover:bg-amber-700 text-white active:scale-98 cursor-pointer'
                 : 'bg-stone-100 text-stone-400 border border-stone-200 cursor-not-allowed'
             }`}
           >
